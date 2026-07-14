@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: `2026-07-14T11:36:24Z`
+Updated: `2026-07-14T11:40:53Z`
 
 Overall state: `M0_IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
 
@@ -125,6 +125,13 @@ Highest completed milestone: none
   SSH proof, rollback and redacted verify evidence. CI exercises the non-mutating plan and rejects a
   broad SSH source range. The bundle is not applied: owner keys, off-host backup evidence and a
   second SSH session are deliberately required first.
+- Commit `e3159e5` adds a root-owned, hash-chained 24-hour Debian deployment baseline collector and
+  hardened unit artifact. It independently samples two HTTPS public-IP witnesses, Debian/Docker DNS,
+  the OCI default gateway RTT/loss and chrony offset, and rejects record tampering, boot changes,
+  public-IP changes, gaps over 90 seconds or clock offset over 50 ms. A transient non-activating
+  measurement run started at `2026-07-14T11:40:53Z`; its first complete sample agreed on server
+  egress IPv4 `140.245.75.36`, clock offset `0.018604 ms`, zero gateway loss and no sample error.
+  This does not replace the later approved 24-hour measurement to actual Binance destinations.
 - ADR 0004 records the owner's explicit platform correction: Debian 12 Bookworm/aarch64 on Oracle
   Cloud is the sole deployment target. The live host matches that profile and the read-only Debian
   platform verifier passes; the original source archives remain immutable for provenance.
@@ -165,7 +172,7 @@ Detailed evidence: `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`.
 |---|---|---|---|
 | BLK-001 | M5 Testnet and later validation | Official Testnet WS base is `wss://demo-fstream.binance.com`; frozen schemas require routed `fstream.binancefuture.com` hosts | Owner-approved baseline amendment or current primary-source/account evidence |
 | BLK-002 | M2 Codex execution, M9 | Exact `gpt-5.6` absent from current authenticated Codex catalog; substitution prohibited | Wait for catalog availability or explicit baseline change |
-| BLK-004 | Deployment/M6+ | 24-hour network/clock/static-IP, independent backtest, remote storage, restore, heartbeat, credential-isolation and signature evidence absent | Complete deployment preflight; no secrets requested now |
+| BLK-004 | Deployment/M6+ | Generic 24-hour static-IP/clock/DNS/gateway collection is running, but not yet complete; actual approved Binance RTT, independent backtest, remote storage, restore, heartbeat, credential-isolation and signature evidence remain absent | Let the current baseline complete, then complete the remaining deployment preflight after destination approval; no secrets requested now |
 | BLK-005 | M0 acceptance and every later milestone | Independent fresh-context reviewer absent | Perform independent review after the remaining M0 implementation |
 | BLK-006 | M0 host bootstrap activation | Bundle implementation and static verification pass; current off-host backup evidence, owner approval public key, operator SSH public key, signed plan and second-session proof are absent | Supply the documented public inputs, sign the plan off-host, then perform two-stage apply/verify |
 

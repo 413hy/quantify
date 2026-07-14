@@ -2,7 +2,7 @@
 
 - Stage: M0 — repository, contracts, configuration, migrations, audit and egress skeleton
 - Status: `IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
-- Report time: `2026-07-14T11:36:24Z`
+- Report time: `2026-07-14T11:40:53Z`
 - Implementation commits: `3a5762e37a5311f0a7faeca2e93b6c77ab8500ff`,
   `fca378cf7e4f18457f46a381e29fc8599bb5baa8`,
   `d5a394e21776957f627c9c3e7da78dfd1accf53c`,
@@ -25,7 +25,7 @@
   `632fd52b7470291abfb9c5712de891582ecffebc`,
   `123428d8754cdfa162a0bb854583521a66386320`,
   `543791d761eb21112562338395673736545f2ee9`,
-  `306163aefdf4ae22dbef0ff6c1359088eeb31683`
+  `306163aefdf4ae22dbef0ff6c1359088eeb31683`, `e3159e5`
 - Implementer: `/root` engineering session
 - Independent reviewer: not assigned; a different actor with fresh context is still required
 - `CodexReviewReport`: absent by design; the implementer cannot self-sign it
@@ -106,6 +106,7 @@ startup-evidence, or live authorization has been issued.
 | Boundary | Debian unit artifacts | two units pass static hardening policy; PostgreSQL is host-visible only through a fixed Unix socket and publishes no TCP port; units remain uninstalled and disabled |
 | Boundary | nftables renderer | dedicated `inet ai_quant_egress` table has no input hook or ruleset flush; example passes real `nft --check`; no rules were applied |
 | Boundary | Debian host bootstrap release | exact package/artifact/signing locks, manifest-covered hardening, read-only plan, Ed25519 approval, second-session SSH proof, two-stage apply and redacted verify pass static and security tests; no host change was applied |
+| Boundary | 24-hour host baseline | root-only hash chain binds two public-IP witnesses, DNS, gateway RTT/loss, chrony, boot ID and monotonic gaps; tampering tests pass; live collection started but has not completed |
 | Boundary | executable attestation issuer | actual keyring/trust/schema inputs are evidence-bound; refresh is at most 60 seconds and handled stop/failure removes the published evidence |
 | Boundary | attestation deployment lock | Compose validation and a security test reject activating the issuer before real deployment facts and gates exist |
 | Platform | Debian 12 sole-host amendment | mutable guidance contains no legacy platform selection; live OCI host passes OS, architecture, kernel, cgroup, resource, systemd, Docker, chrony and nftables checks |
@@ -115,7 +116,7 @@ startup-evidence, or live authorization has been issued.
 | Configuration/contracts | all recommended M0 validation targets | PASS |
 
 Primary logs and SHA-256 values are stored below this report in `tests/`, `security/`, and
-`artifacts/`. The final CI run passed 135 unit, 3 property, 2 contract, and 12 security tests. The
+`artifacts/`. The final CI run passed 135 unit, 3 property, 2 contract, and 14 security tests. The
 migration shape test and containerized migration round-trip also passed.
 
 ## Resource and security observations
@@ -129,6 +130,10 @@ migration shape test and containerized migration round-trip also passed.
   passes on this Oracle Cloud host; this is OS compatibility evidence, not full deployment approval.
 - Chrony: synchronized, leap status normal, 0.026 ms observed system offset; this is not 24-hour
   deployment evidence.
+- The hash-chained host baseline task `aiq-deployment-baseline.service` started at
+  `2026-07-14T11:40:53Z`. Its first sample recorded server public IPv4 `140.245.75.36` from both
+  configured witnesses, 0.018604 ms chrony offset, zero OCI gateway loss and no error. The task must
+  run continuously for 24 hours before its summary can pass; it does not contact Binance.
 - Bandit: PASS. Repository/evidence secret scan: PASS.
 - Python environment audit: 104 records, one editable-root skip, zero known vulnerabilities; method
   limitation is documented in `security/pip-audit-method.md`.

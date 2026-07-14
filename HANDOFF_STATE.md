@@ -1,13 +1,13 @@
 # Handoff state
 
-Updated: `2026-07-14T11:36:24Z`
+Updated: `2026-07-14T11:40:53Z`
 
 Resume in `/root/quantify/ai-quant-system`. Read `IMPLEMENTATION_STATUS.md`, ADR 0001–0004,
 `docs/deployment/debian-12-platform.md` and
 `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`. Never modify
 `/root/quantify/reference-materials`.
 
-Current implementation head is commit `306163a`. M0 is not complete
+Current implementation head is commit `e3159e5`. M0 is not complete
 or accepted. Commit `8516679` adds the executable bounded rate service, PostgreSQL v2 Reserve and
 full-bind Consume, deterministic multi-class policy ingestion, idempotent outcome/observation
 journals and durable 429/418 reconciliation. Commit `42624ef` adds closed gateway IPC validation,
@@ -77,6 +77,12 @@ journald/chrony/sysctl/limits files, and an idempotent plan/apply/prove/verify i
 requires a current off-host backup bound to the repository HEAD, off-host Ed25519 approval, and a
 fresh second `aiqops` SSH session. The detected port is 22 and owner-confirmed fixed source is
 `171.221.123.164/32`. No unit, firewall, SSH restriction, package or credential was activated.
+Commit `e3159e5` adds a tamper-evident 24-hour deployment baseline collector. The hardened transient
+unit `aiq-deployment-baseline.service` started at `2026-07-14T11:40:53Z`; it writes root-only evidence
+to `/var/lib/ai-quant/preflight/deployment-baseline.jsonl`. The first sample observed matching public
+IPv4 `140.245.75.36` from two witnesses, normal chrony with 0.018604 ms offset, zero OCI-gateway loss
+and no errors. Completion is due after 24 hours and cannot be claimed early. This generic host
+baseline is not the later actual-Binance RTT/connection proof.
 ADR 0004 is an owner-approved baseline amendment: Debian 12 Bookworm/aarch64 on Oracle Cloud is the
 only supported host platform. It supersedes conflicting OS selections in the immutable historical
 inputs without changing their bytes. `BLK-003` is resolved; the live Debian host is a deployment
@@ -88,7 +94,7 @@ Exact verification command:
 cd /root/quantify/ai-quant-system && make validate-debian-platform validate-deployment validate-nftables-policy && make ci && make test-migrations && make test-locked-runtime
 ```
 
-Expected: CI passes 135 unit, 3 property, 2 contract and 12 security tests; migrations pass both
+Expected: CI passes 135 unit, 3 property, 2 contract and 14 security tests; migrations pass both
 independent round-trips through host head `0010_local_measurements`, least-privilege role checks,
 multi-class Reserve,
 full-bind Consume, journaling, 429 reconciliation and lease gates; the no-network runtime returns
