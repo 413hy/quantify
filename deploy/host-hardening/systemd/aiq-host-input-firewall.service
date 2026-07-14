@@ -1,0 +1,22 @@
+[Unit]
+Description=AI Quant host input firewall
+DefaultDependencies=no
+After=local-fs.target
+Before=network-pre.target ssh.service docker.service
+Wants=network-pre.target
+
+[Service]
+Type=oneshot
+ExecStartPre=-/usr/sbin/nft delete table inet ai_quant_host_input
+ExecStart=/usr/sbin/nft -f /etc/nftables.d/ai-quant-host-input.nft
+ExecReload=/usr/sbin/nft delete table inet ai_quant_host_input
+ExecReload=/usr/sbin/nft -f /etc/nftables.d/ai-quant-host-input.nft
+RemainAfterExit=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+RestrictSUIDSGID=yes
+
+[Install]
+WantedBy=multi-user.target

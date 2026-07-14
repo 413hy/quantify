@@ -3,6 +3,9 @@
 
 from __future__ import annotations
 
+import hashlib
+import re
+import stat
 from pathlib import Path
 
 import yaml
@@ -11,6 +14,120 @@ from ai_quant.binance_egress.nftables_policy import render_nftables_policy
 from ai_quant.common.config import load_strict_document
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _validate_bootstrap_bundle() -> None:
+    lock_path = ROOT / "deploy/host-toolchain.lock.yaml"
+    lock = load_strict_document(lock_path)
+    required = {
+        "schema_version",
+        "platform",
+        "apt_sources",
+        "packages",
+        "artifacts",
+        "required_commands",
+    }
+    if not isinstance(lock, dict) or set(lock) != required:
+        raise SystemExit("bootstrap toolchain lock is not closed")
+    if lock["schema_version"] != "1.0.0" or lock["platform"] != {
+        "architecture": "arm64",
+        "distribution": "debian",
+        "release": "12",
+        "codename": "bookworm",
+    }:
+        raise SystemExit("bootstrap toolchain platform mismatch")
+    expected_sources = {"debian-bookworm-snapshot", "docker-debian-bookworm"}
+    sources = lock["apt_sources"]
+    if not isinstance(sources, list) or {
+        item.get("id") for item in sources if isinstance(item, dict)
+    } != expected_sources:
+        raise SystemExit("bootstrap apt source set mismatch")
+    packages = lock["packages"]
+    expected_packages = {
+        "age",
+        "ca-certificates",
+        "chrony",
+        "containerd.io",
+        "curl",
+        "docker-ce",
+        "docker-ce-cli",
+        "docker-compose-plugin",
+        "jq",
+        "nftables",
+        "openssh-server",
+        "openssl",
+        "postgresql-client-15",
+        "postgresql-client-common",
+    }
+    if (
+        not isinstance(packages, list)
+        or {item.get("name") for item in packages} != expected_packages
+    ):
+        raise SystemExit("bootstrap exact package coverage mismatch")
+    for package in packages:
+        if (
+            package.get("source") not in expected_sources
+            or not re.fullmatch(r"[0-9a-f]{64}", package.get("sha256", ""))
+            or "latest" in package.get("version", "").lower()
+        ):
+            raise SystemExit(f"unsafe bootstrap package lock: {package.get('name')}")
+    artifacts = {item.get("name"): item for item in lock["artifacts"]}
+    if set(artifacts) != {"cosign", "quantctl"}:
+        raise SystemExit("controlled bootstrap artifacts missing")
+    quantctl = ROOT / artifacts["quantctl"]["path"]
+    if _sha256(quantctl) != artifacts["quantctl"]["sha256"]:
+        raise SystemExit("controlled quantctl hash mismatch")
+    if not artifacts["cosign"]["url"].startswith(
+        "https://github.com/sigstore/cosign/releases/download/v3.0.6/"
+    ):
+        raise SystemExit("cosign release source is not fixed")
+    hardening = ROOT / "deploy/host-hardening"
+    manifest = hardening / "manifest.sha256"
+    entries: dict[str, str] = {}
+    for line in manifest.read_text(encoding="utf-8").splitlines():
+        if line:
+            digest, relative = line.split("  ", 1)
+            entries[relative] = digest
+    for relative, digest in entries.items():
+        target = (hardening / relative).resolve()
+        if not target.is_relative_to(hardening.resolve()) or _sha256(target) != digest:
+            raise SystemExit(f"hardening manifest mismatch: {relative}")
+    required_hardening = {
+        "chrony/ai-quant.sources",
+        "docker/daemon.json",
+        "journald/99-ai-quant.conf",
+        "limits/99-ai-quant.conf",
+        "nftables/ai-quant-host-input.nft.template",
+        "sshd/99-ai-quant.conf.template",
+        "sysctl/99-ai-quant.conf",
+        "systemd/aiq-host-input-firewall.service",
+    }
+    if not required_hardening <= set(entries):
+        raise SystemExit("hardening file set is incomplete")
+    for script in (
+        ROOT / "scripts/bootstrap-host.sh",
+        ROOT / "scripts/bootstrap_host.py",
+        ROOT / "scripts/create_bootstrap_approval.py",
+    ):
+        if stat.S_IMODE(script.stat().st_mode) != 0o755:
+            raise SystemExit(f"bootstrap script is not executable: {script.name}")
+    implementation = (ROOT / "scripts/bootstrap_host.py").read_text(encoding="utf-8")
+    for boundary in (
+        "command_plan",
+        "command_apply",
+        "command_prove_ssh",
+        "command_verify",
+        "verify_approval",
+        "validate_ssh_proof",
+    ):
+        if f"def {boundary}" not in implementation:
+            raise SystemExit(f"bootstrap boundary missing: {boundary}")
+    if "curl |" in implementation or "PermitRootLogin yes" in implementation:
+        raise SystemExit("unsafe bootstrap implementation token")
 
 
 def _validate_unit(name: str, expected_start: str, *, private_network: bool) -> None:
@@ -98,6 +215,7 @@ def _validate_measurement_plan_example() -> None:
 
 
 def main() -> int:
+    _validate_bootstrap_bundle()
     _validate_unit(
         "aiq-measurement-cycle.service",
         "/opt/ai-quant/.venv/bin/python -m ai_quant.services.measurement_cycle",
@@ -116,7 +234,10 @@ def main() -> int:
     if not isinstance(example, dict):
         raise SystemExit("nftables example is not an object")
     render_nftables_policy(example)
-    print("deployment static policy PASS units=2 postgres_tcp=none nft_table=ai_quant_egress")
+    print(
+        "deployment static policy PASS units=2 postgres_tcp=none "
+        "nft_table=ai_quant_egress bootstrap=debian12-locked"
+    )
     return 0
 
 

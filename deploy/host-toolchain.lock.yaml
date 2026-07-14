@@ -1,0 +1,177 @@
+{
+  "schema_version": "1.0.0",
+  "platform": {
+    "architecture": "arm64",
+    "distribution": "debian",
+    "release": "12",
+    "codename": "bookworm"
+  },
+  "apt_sources": [
+    {
+      "id": "debian-bookworm-snapshot",
+      "base_url": "https://snapshot.debian.org/archive/debian/20260714T000000Z/",
+      "security_base_url": "https://snapshot.debian.org/archive/debian-security/20260714T000000Z/",
+      "suite": "bookworm",
+      "components": ["main"],
+      "signing_fingerprints": [
+        "4D64FEC119C2029067D6E791F8D2585B8783D481",
+        "B8B80B5B623EAB6AD8775C45B7C5D7D6350947F8",
+        "05AB90340C0C5E797F44A8C8254CF3B5AEC0A8F0"
+      ]
+    },
+    {
+      "id": "docker-debian-bookworm",
+      "base_url": "https://download.docker.com/linux/debian",
+      "suite": "bookworm",
+      "components": ["stable"],
+      "signing_primary_fingerprint": "9DC858229FC7DD38854AE2D88D81803C0EBFCD88",
+      "signing_subkey_fingerprint": "D3306A018370199E527AE7997EA0A9C3F273FCD8"
+    }
+  ],
+  "packages": [
+    {
+      "name": "openssh-server",
+      "version": "1:9.2p1-2+deb12u10",
+      "architecture": "arm64",
+      "source": "debian-bookworm-snapshot",
+      "filename": "pool/main/o/openssh/openssh-server_9.2p1-2+deb12u10_arm64.deb",
+      "sha256": "63ea95107e522de7a8da9a841f3b9442875f9d064087d6ef8e5b4d21291016a9"
+    },
+    {
+      "name": "chrony",
+      "version": "4.3-2+deb12u3",
+      "architecture": "arm64",
+      "source": "debian-bookworm-snapshot",
+      "filename": "pool/main/c/chrony/chrony_4.3-2+deb12u3_arm64.deb",
+      "sha256": "79fd0f373e20d16ff2db113161261b7de608ab68c6ebb8112a1a956c52296e5b"
+    },
+    {
+      "name": "jq",
+      "version": "1.6-2.1+deb12u2",
+      "architecture": "arm64",
+      "source": "debian-bookworm-snapshot",
+      "filename": "pool/main/j/jq/jq_1.6-2.1+deb12u2_arm64.deb",
+      "sha256": "c232e9407e0f47006dd6077804c1274fd2e4f8be02efc78822db748ed65bea99"
+    },
+    {
+      "name": "nftables",
+      "version": "1.0.6-2+deb12u2",
+      "architecture": "arm64",
+      "source": "debian-bookworm-snapshot",
+      "filename": "pool/main/n/nftables/nftables_1.0.6-2+deb12u2_arm64.deb",
+      "sha256": "f5906f44fffdb190f84e3fdd6c07cba399205de5173f67e8742876a7865e2fc9"
+    },
+    {
+      "name": "age",
+      "version": "1.1.1-1+b3",
+      "architecture": "arm64",
+      "source": "debian-bookworm-snapshot",
+      "filename": "pool/main/a/age/age_1.1.1-1+b3_arm64.deb",
+      "sha256": "d14f937ecb1cef9279879e779cf61fda682735dd9871cd7d60ba7a487608f4e6"
+    },
+    {
+      "name": "postgresql-client-15",
+      "version": "15.18-0+deb12u1",
+      "architecture": "arm64",
+      "source": "debian-bookworm-snapshot",
+      "filename": "pool/main/p/postgresql-15/postgresql-client-15_15.18-0+deb12u1_arm64.deb",
+      "sha256": "06559d42ee971439e6def8e4359e84577455f3172214b78bcb7d2a3ab74f9efd"
+    },
+    {
+      "name": "postgresql-client-common",
+      "version": "248+deb12u1",
+      "architecture": "all",
+      "source": "debian-bookworm-snapshot",
+      "filename": "pool/main/p/postgresql-common/postgresql-client-common_248+deb12u1_all.deb",
+      "sha256": "8e5395609f5ad1090a8679a6782094e6ec3d56f774f94ecbae06324380e192ea"
+    },
+    {
+      "name": "openssl",
+      "version": "3.0.20-1~deb12u2",
+      "architecture": "arm64",
+      "source": "debian-bookworm-snapshot",
+      "filename": "pool/main/o/openssl/openssl_3.0.20-1~deb12u2_arm64.deb",
+      "sha256": "e7ba824de1e659c12e81f885bc0757a50c4d7a9f71de02687ad63d5a9e936e00"
+    },
+    {
+      "name": "ca-certificates",
+      "version": "20230311+deb12u1",
+      "architecture": "all",
+      "source": "debian-bookworm-snapshot",
+      "filename": "pool/main/c/ca-certificates/ca-certificates_20230311+deb12u1_all.deb",
+      "sha256": "0d5f444f594e48c1e16a41d8fc628a09b24c658916a1274025c2330f2a802bed"
+    },
+    {
+      "name": "curl",
+      "version": "7.88.1-10+deb12u15",
+      "architecture": "arm64",
+      "source": "debian-bookworm-snapshot",
+      "filename": "pool/main/c/curl/curl_7.88.1-10+deb12u15_arm64.deb",
+      "sha256": "880d20cb636d2c36b2f57c58ab284b442a1680365b488d3e696c147c4d84ef25"
+    },
+    {
+      "name": "containerd.io",
+      "version": "2.2.6-1~debian.12~bookworm",
+      "architecture": "arm64",
+      "source": "docker-debian-bookworm",
+      "filename": "dists/bookworm/pool/stable/arm64/containerd.io_2.2.6-1~debian.12~bookworm_arm64.deb",
+      "sha256": "e39654d8d997ebbfd5948f3680f64d7b6fd549dc4ed56cd78959a30b6b5b71d9"
+    },
+    {
+      "name": "docker-ce",
+      "version": "5:29.6.1-1~debian.12~bookworm",
+      "architecture": "arm64",
+      "source": "docker-debian-bookworm",
+      "filename": "dists/bookworm/pool/stable/arm64/docker-ce_29.6.1-1~debian.12~bookworm_arm64.deb",
+      "sha256": "110e45582e96a1eb1ff73e9f489a2f9a2b84a4bba2cfcc48f04979cdfc990fae"
+    },
+    {
+      "name": "docker-ce-cli",
+      "version": "5:29.6.1-1~debian.12~bookworm",
+      "architecture": "arm64",
+      "source": "docker-debian-bookworm",
+      "filename": "dists/bookworm/pool/stable/arm64/docker-ce-cli_29.6.1-1~debian.12~bookworm_arm64.deb",
+      "sha256": "802f41459589f40b24f29d52ef063220a782a9947406a95a3312b909d451908b"
+    },
+    {
+      "name": "docker-compose-plugin",
+      "version": "5.3.1-1~debian.12~bookworm",
+      "architecture": "arm64",
+      "source": "docker-debian-bookworm",
+      "filename": "dists/bookworm/pool/stable/arm64/docker-compose-plugin_5.3.1-1~debian.12~bookworm_arm64.deb",
+      "sha256": "2afe09be8e8873c09dcc5adb088b1f1e7c7b5657c351057e82d1e9e74ab5680b"
+    }
+  ],
+  "artifacts": [
+    {
+      "name": "cosign",
+      "version": "3.0.6",
+      "architecture": "arm64",
+      "url": "https://github.com/sigstore/cosign/releases/download/v3.0.6/cosign-linux-arm64",
+      "sha256": "bedac92e8c3729864e13d4a17048007cfafa79d5deca993a43a90ffe018ef2b8",
+      "install_path": "/usr/local/bin/cosign",
+      "mode": "0755"
+    },
+    {
+      "name": "quantctl",
+      "version": "0.1.0-m0",
+      "architecture": "all",
+      "path": "deploy/quantctl/quantctl.py",
+      "sha256": "cd53af71030a9f268240f18dba4e31fdb8d4f8dd531634e4ac353a061e4d2428",
+      "install_path": "/usr/local/bin/quantctl",
+      "mode": "0755"
+    }
+  ],
+  "required_commands": {
+    "age": "1.1.1",
+    "chronyc": "4.3",
+    "cosign": "3.0.6",
+    "docker_engine": "29.6.1",
+    "docker_compose": "5.3.1",
+    "jq": "jq-1.6",
+    "nft": "v1.0.6",
+    "psql": "15.18",
+    "quantctl": "0.1.0-m0",
+    "sshd": "OpenSSH_9.2p1"
+  }
+}

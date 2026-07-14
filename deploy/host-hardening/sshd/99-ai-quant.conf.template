@@ -1,0 +1,18 @@
+# Rendered by bootstrap-host; both tokens are mandatory.
+Port @SSH_PORT@
+PermitRootLogin no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+AuthenticationMethods publickey
+AllowUsers aiqops@@SSH_SOURCE_CIDR@
+X11Forwarding no
+AllowAgentForwarding no
+AllowTcpForwarding no
+PermitTunnel no
+GatewayPorts no
+MaxAuthTries 3
+LoginGraceTime 30
+ClientAliveInterval 60
+ClientAliveCountMax 3
+

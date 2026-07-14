@@ -1,0 +1,14 @@
+{
+  "data-root": "/srv/ai-quant/docker",
+  "icc": false,
+  "iptables": true,
+  "live-restore": true,
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-file": "5",
+    "max-size": "20m"
+  },
+  "no-new-privileges": true,
+  "userland-proxy": false
+}
+

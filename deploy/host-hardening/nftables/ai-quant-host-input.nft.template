@@ -1,0 +1,12 @@
+table inet ai_quant_host_input {
+  chain input {
+    type filter hook input priority -10; policy drop;
+    iifname "lo" accept
+    ct state invalid drop
+    ct state established,related accept
+    ip protocol icmp accept
+    ip6 nexthdr ipv6-icmp accept
+    udp sport 67 udp dport 68 accept
+    ip saddr @SSH_SOURCE_CIDR@ tcp dport @SSH_PORT@ ct state new accept
+  }
+}
