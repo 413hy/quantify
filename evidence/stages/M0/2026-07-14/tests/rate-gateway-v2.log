@@ -1,9 +1,9 @@
 M0 rate/gateway v2 verification summary
-time=2026-07-14T08:09:55Z
-implementation_head=42624ef909aa25cc4aa7c46c392a7c856eaa82f3
+time=2026-07-14T08:23:41Z
+implementation_head=411f4da41d1067fe6985a2e8da25bc1bfb136e56
 rate_authority_commit=8516679
 gateway_pipeline_commit=42624ef909aa25cc4aa7c46c392a7c856eaa82f3
-ci=PASS unit=56 property=3 contract=2 security=2 mypy=PASS bandit=PASS secret_scan=PASS
+ci=PASS unit=60 property=3 contract=2 security=2 mypy=PASS bandit=PASS secret_scan=PASS
 host_migration_head=0008_decision_audit
 migration_roundtrip=PASS
 reserve_v2=PASS multi_class=true idempotent=true replay_denied=true lease_required=true
@@ -12,7 +12,8 @@ gateway_journal=PASS outcome_idempotent=true altered_replay_denied=true append_o
 header_reconciliation=PASS observed_max=8 http_429_persisted=true
 decision_audit=PASS reserve_append_only=true consume_append_only=true same_transaction=true
 gateway_core=PASS peer_bound=true exact_wire=true consume_before_send=true send_calls=1 outcome_recorded=true
-startup_evidence_verifier=PASS signed_ready=true exact_binding=true max_ttl_seconds=300
+startup_attestation=PASS independent_trust_domain=true fixed_uid_gid=true key_mode=0400 key_outside_repo=true schema_reverify=true
+startup_evidence_verifier=PASS signed_ready=true exact_binding=true wrong_key_denied=true max_ttl_seconds=300
 locked_runtime=PASS network=none new_egress_allowed=false
 production_transport=ABSENT
 signed_deployment_evidence=ABSENT

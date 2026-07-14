@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: `2026-07-14T08:09:55Z`
+Updated: `2026-07-14T08:23:41Z`
 
 Overall state: `M0_IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
 
@@ -44,6 +44,10 @@ Highest completed milestone: none
 - Commit `46865c3` adds append-only Reserve/Consume decision journals written in the same database
   transaction as the decision; audit failure rolls back a grant. Disposable migration tests prove
   both journals reject mutation.
+- Commit `411f4da41d1067fe6985a2e8da25bc1bfb136e56` isolates startup evidence from
+  the host configuration trust root. Only the single dedicated signer in the signed capability
+  trust bundle may sign it; the issuer enforces the frozen UID/GID, owner-only out-of-repository
+  Ed25519 key, schema, 300-second ceiling and immediate independent re-verification.
 - Docker CE/Compose, Python 3.12.13 via `uv`, chrony, ripgrep and GNU time are installed for
   development. Initial chrony observations are healthy, but not a 24-hour deployment proof.
 
@@ -56,7 +60,8 @@ Detailed evidence: `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`.
 2. Implement and independently review the production exact-wire transport and gateway service only
    after startup evidence and destination policy exist. Multi-role endpoints remain denied because
    the frozen request contract does not provide a unique gateway-side causal derivation rule.
-3. Implement the attestation signer/issuance path; the strict signed startup-evidence verifier exists.
+3. Build the executable attestation service and root-authenticated local-facts collector around the
+   completed signer/issuer primitive; no caller-supplied draft may be treated as measured host state.
 4. Destination-specific host DNS/firewall enforcement proving exactly one Binance socket owner and
    zero business Binance routes; current Compose validation is static only.
 5. A different actor in fresh context must independently review and issue a valid
