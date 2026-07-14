@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: `2026-07-14T09:27:34Z`
+Updated: `2026-07-14T09:29:39Z`
 
 Overall state: `M0_IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
 
@@ -91,6 +91,9 @@ Highest completed milestone: none
   key for every refresh, binds the actually used keyring/trust/schema files to the evidence, issues
   at most every 60 seconds, publishes atomically, and deletes the last evidence on handled stop or
   refresh failure. Compose remains locked; the root facts collector and deployment inputs are absent.
+- Commit `fcbcba230d75327ae155e1717fe23dc661a2debd` makes that non-activation an
+  executable Compose policy: the signer command must remain `locked_process`/`RISK_LOCKED` until
+  deployment facts and gates exist, and an independent security test pins the same boundary.
 - Docker CE/Compose, Python 3.12.13 via `uv`, chrony, ripgrep and GNU time are installed for
   development. Initial chrony observations are healthy, but not a 24-hour deployment proof.
 

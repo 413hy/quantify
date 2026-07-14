@@ -2,7 +2,7 @@
 
 - Stage: M0 — repository, contracts, configuration, migrations, audit and egress skeleton
 - Status: `IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
-- Report time: `2026-07-14T09:27:34Z`
+- Report time: `2026-07-14T09:29:39Z`
 - Implementation commits: `3a5762e37a5311f0a7faeca2e93b6c77ab8500ff`,
   `fca378cf7e4f18457f46a381e29fc8599bb5baa8`,
   `d5a394e21776957f627c9c3e7da78dfd1accf53c`,
@@ -18,7 +18,8 @@
   `ead4d40234e9970c5a5f64bbb63e4ee2469a3ecb`,
   `59108c93cae776085f0a70f06fb5c9d873704e4b`,
   `53784a5a40a2f174696bf5ade93df9f725bf9c5b`,
-  `d3711e0284ce1def8cb9a37f95b117c3da0a905a`
+  `d3711e0284ce1def8cb9a37f95b117c3da0a905a`,
+  `fcbcba230d75327ae155e1717fe23dc661a2debd`
 - Implementer: `/root` engineering session
 - Independent reviewer: not assigned; a different actor with fresh context is still required
 - `CodexReviewReport`: absent by design; the implementer cannot self-sign it
@@ -92,13 +93,14 @@ startup-evidence, or live authorization has been issued.
 | Boundary | destination tuple | authority, transport, scheme and host are an exact tuple; denied Consume replies retain non-null connection binding |
 | Boundary | root-authenticated local facts | no evidence draft is accepted; fresh root snapshot, boot ID, complete artifact/release bindings and both socket identities are remeasured before content construction |
 | Boundary | executable attestation issuer | actual keyring/trust/schema inputs are evidence-bound; refresh is at most 60 seconds and handled stop/failure removes the published evidence |
+| Boundary | attestation deployment lock | Compose validation and a security test reject activating the issuer before real deployment facts and gates exist |
 | Boundary | any changed binding hash, expiry, or replay | property tests deny without reopening permit |
 | Startup failure | non-root container, no network, no startup evidence | `RISK_LOCKED`, new egress false |
 | Database | business + host `upgrade → downgrade base → upgrade` | PASS on fresh disposable volumes |
 | Configuration/contracts | all recommended M0 validation targets | PASS |
 
 Primary logs and SHA-256 values are stored below this report in `tests/`, `security/`, and
-`artifacts/`. The final CI run passed 97 unit, 3 property, 2 contract, and 8 security tests. The
+`artifacts/`. The final CI run passed 97 unit, 3 property, 2 contract, and 9 security tests. The
 migration shape test and containerized migration round-trip also passed.
 
 ## Resource and security observations
