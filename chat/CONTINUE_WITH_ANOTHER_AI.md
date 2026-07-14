@@ -1,0 +1,72 @@
+# Prompt for another AI/Codex
+
+Copy everything inside the following block into a fresh AI session after cloning this repository.
+
+```text
+You are continuing a security-critical quantitative trading system from an existing Git repository.
+Treat the repository and restored immutable source materials as authoritative; do not rely only on
+this prompt or prior-agent claims.
+
+Repository:
+- Detect the clone root with `git rev-parse --show-toplevel`; do not assume the old absolute path.
+- The historical path was /root/quantify/ai-quant-system.
+- The separate immutable source directory was /root/quantify/reference-materials. It is not stored
+  in this Git repository. If it is absent, stop provenance-dependent work and ask the owner to
+  restore the original archive; do not recreate or modify it.
+
+Before implementation:
+1. Inspect `git status`, current branch, recent history and remotes.
+2. Read completely:
+   - chat/SESSION_HANDOFF_2026-07-14.md
+   - IMPLEMENTATION_STATUS.md
+   - HANDOFF_STATE.md
+   - docs/adr/0001-implementation-baseline.md
+   - docs/adr/0002-m0-toolchain-and-runtime-topology.md
+   - docs/adr/0003-signed-capability-peer-and-fencing.md
+   - evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md
+3. Review the relevant existing code deeply against the frozen documentation and explicit
+   requirements before changing it. Do not superficially inspect or duplicate an existing feature.
+4. Verify the baseline with `make ci`, `make test-migrations`, and `make test-locked-runtime` as
+   appropriate for the restored host. Record actual results; do not copy expected results as proof.
+
+Mandatory state and safety constraints:
+- Current state is M0_IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED.
+- Keep runtime default RISK_LOCKED.
+- Do not enable production transport, connect to Binance, send REST/WS/control traffic, request or
+  inject production credentials, deploy live trading, or claim deployment evidence from local tests.
+- Do not substitute the required model or silently change frozen Testnet host policy.
+- Do not edit original reference materials. Treat repository `config/`, `contracts/`, and
+  `runbooks/` as provenance-protected frozen copies unless an explicit owner-approved baseline
+  amendment authorizes a change.
+- Preserve business/host-control/gateway secret, database, network and UDS authority separation.
+- M1 must not begin before M0 is independently accepted.
+- The implementation agent cannot self-sign the required independent acceptance report.
+
+Current implementation facts to verify rather than assume:
+- Reviewed UDS commit ACK and gateway failure latch exist.
+- Database runtime role head is 0009_runtime_role and the locked rate service receives no bootstrap
+  database secret.
+- Root-authenticated local-facts assembly rejects caller-authored evidence drafts.
+- The executable attestation issuer binds the actual keyring/trust/schema artifacts, refreshes no
+  slower than 60 seconds, atomically publishes and removes evidence on handled failure.
+- Compose intentionally keeps the attestation signer on locked_process/RISK_LOCKED until real
+  deployment facts exist.
+- Last recorded tests were 97 unit, 3 property, 2 contract and 9 security tests, but rerun them.
+
+Known external blockers:
+- BLK-001 Testnet WS endpoint conflict.
+- BLK-002 exact gpt-5.6 unavailable; substitution prohibited.
+- BLK-003 Debian development host differs from Ubuntu 24 deployment target.
+- BLK-004 qualified deployment/network/clock/storage/restore/heartbeat/signed evidence absent.
+- BLK-005 independent fresh-context reviewer absent.
+
+If you are acting as the independent reviewer, do not modify implementation before completing the
+review. Read `contracts/codex-review-report.schema.json`, verify every claimed M0 fact directly, and
+issue a report only if reviewer/implementer separation is genuine and open P0/P1 count is zero. If
+you instead continue implementation, keep M0 NOT_ACCEPTED and leave independent review to another
+actor after your changes.
+
+Continue all safe, in-scope M0 work that current evidence permits. Do not fake external facts or
+weaken gates to make progress appear complete. Commit coherent changes, keep evidence synchronized,
+and report exact remaining blockers. Only proceed to M1 after valid independent M0 acceptance.
+```
