@@ -136,6 +136,19 @@ def _json_list(result: HttpResult, operation: str) -> list[dict[str, Any]]:
     return document
 
 
+def _json_array(result: HttpResult, operation: str) -> list[Any]:
+    try:
+        document = json.loads(result.body)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise TestnetProbeError(f"{operation}_INVALID_JSON") from exc
+    if not 200 <= result.status < 300:
+        code = document.get("code") if isinstance(document, dict) else None
+        raise TestnetProbeError(f"{operation}_HTTP_{result.status}_CODE_{code}")
+    if not isinstance(document, list):
+        raise TestnetProbeError(f"{operation}_INVALID_RESPONSE")
+    return document
+
+
 class BinanceTestnetClient:
     """Small exact-destination client for an attended, bounded Testnet probe."""
 
@@ -202,6 +215,32 @@ class BinanceTestnetClient:
         return _json_object(
             self._call("GET", "/fapi/v1/ticker/bookTicker", params={"symbol": symbol}),
             "BOOK_TICKER",
+        )
+
+    def klines(self, symbol: str, interval: str, *, limit: int) -> list[Any]:
+        return _json_array(
+            self._call(
+                "GET",
+                "/fapi/v1/klines",
+                params={"symbol": symbol, "interval": interval, "limit": limit},
+            ),
+            "KLINES",
+        )
+
+    def depth(self, symbol: str, *, limit: int) -> dict[str, Any]:
+        return _json_object(
+            self._call("GET", "/fapi/v1/depth", params={"symbol": symbol, "limit": limit}),
+            "DEPTH",
+        )
+
+    def aggregate_trades(self, symbol: str, *, limit: int) -> list[dict[str, Any]]:
+        return _json_list(
+            self._call(
+                "GET",
+                "/fapi/v1/aggTrades",
+                params={"symbol": symbol, "limit": limit},
+            ),
+            "AGGREGATE_TRADES",
         )
 
     def mark_price(self, symbol: str) -> dict[str, Any]:

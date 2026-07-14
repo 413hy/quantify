@@ -1,0 +1,18 @@
+[Unit]
+Description=AI Quant bounded Binance Testnet strategy campaign
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/quantify/ai-quant-system
+UMask=0077
+ExecStart=/root/quantify/ai-quant-system/.venv/bin/python -m ai_quant.services.testnet_campaign --api-key-file /run/ai-quant-secrets/binance-testnet-api-key --api-secret-file /run/ai-quant-secrets/binance-testnet-api-secret --repository-root /root/quantify/ai-quant-system --telegram-token-file /root/aiq-user-inputs/notifications/secrets/telegram_bot_token --telegram-chat-ids-file /root/aiq-user-inputs/notifications/telegram_chat_ids --evidence-directory /var/lib/ai-quant/evidence/testnet/campaign/current --state-file /var/lib/ai-quant/evidence/testnet/campaign/current/state.json --lock-file /run/ai-quant/testnet-campaign.lock --symbol SOLUSDT --duration-seconds 259200 --evaluation-interval-seconds 60 --trade-cooldown-seconds 900 --maximum-trades-per-day 8 --daily-net-loss-limit 0.30
+Restart=on-failure
+RestartSec=60
+TimeoutStopSec=90
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

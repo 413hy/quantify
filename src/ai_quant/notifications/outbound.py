@@ -55,7 +55,25 @@ class OutboundNotifier:
     def render(notification: Notification) -> str:
         safe_summary = _SECRET.sub(r"\1=[REDACTED]", notification.summary)
         digest = hashlib.sha256(safe_summary.encode()).hexdigest()[:12]
+        severity_label = {
+            "INFO": "🟢 信息",
+            "NOTICE": "🔵 提醒",
+            "WARNING": "🟠 警告",
+            "ERROR": "🔴 错误",
+            "P0": "🚨 紧急",
+            "P1": "🔴 严重",
+            "P2": "🟠 警告",
+            "P3": "🔵 提醒",
+        }.get(notification.severity, notification.severity)
         return (
-            f"[{notification.severity}] {notification.event_type}\n"
-            f"{safe_summary}\nrunbook={notification.runbook}\nmessage_hash={digest}"
+            "🤖 AI 量化系统通知\n"
+            "━━━━━━━━━━━━━━━━\n"
+            f"级别: {severity_label}\n"
+            f"事件: {notification.event_type}\n"
+            f"时间: {notification.occurred_at.isoformat()}\n"
+            "\n📋 详情\n"
+            f"{safe_summary}\n"
+            "\n🔎 处理指引\n"
+            f"{notification.runbook}\n"
+            f"\n校验码: {digest}"
         )

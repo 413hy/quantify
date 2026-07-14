@@ -25,8 +25,8 @@ def main() -> int:
     sent = notifier.notify(
         Notification(
             severity="INFO",
-            event_type="DEPLOYMENT_NOTIFICATION_PROBE",
-            summary="AI Quant outbound notification channel verified",
+            event_type="Telegram 中文通知通道验证",
+            summary="AI 量化系统 Telegram 中文通知通道验证成功。",
             runbook="runbooks/01_INITIALIZE.md",
             occurred_at=datetime.now(UTC),
             deduplication_key="deployment-notification-probe",

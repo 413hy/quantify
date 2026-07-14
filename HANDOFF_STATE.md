@@ -1,6 +1,6 @@
 # Handoff state
 
-Updated: `2026-07-14T14:45:35Z`
+Updated: `2026-07-14T14:56:36Z`
 
 Resume in `/root/quantify/ai-quant-system`. Debian 12 Bookworm/aarch64 is the sole supported host.
 Do not modify `/root/quantify/reference-materials`; the copied contract/config provenance validator
@@ -28,6 +28,13 @@ ended at -0.01099535 USDT net after commission, with zero remaining orders or po
 this runner without a calibrated gross-edge-qualified signal; the measured outcome demonstrates
 that unscreened repetition can accumulate fees even when the lifecycle is correct.
 
+The Testnet-only `aiq-testnet-campaign.service` is enabled and running for three days. It evaluates
+SOLUSDT once per minute using the checked-in unvalidated 1m/5m PA baseline and conservative OF
+confirmation, but calls the bounded micro-position runner only when every gate passes. It enforces
+a 15-minute cooldown, eight trades per UTC day and a -0.30 USDT daily net-loss entry stop. State is
+`/var/lib/ai-quant/evidence/testnet/campaign/current/state.json`; see `docs/testnet-campaign.md`.
+Telegram messages are now structured Chinese text.
+
 Business migrations now end at `0004_operations` and contain append-only market-data, risk,
 execution, command, incident, notification and backup evidence. The pre-existing host-control tree
 still ends at `0010_local_measurements`.
@@ -40,7 +47,7 @@ make test-migrations test-locked-runtime paper-flow
 make sbom scan
 ```
 
-Expected counts are 202 unit, 17 property, 2 contract, 17 security, 3 replay, 19 integration,
+Expected counts are 206 unit, 17 property, 2 contract, 17 security, 3 replay, 19 integration,
 6 fault and 1 resource test. The Paper result has `external_requests=0`, `order_state=FILLED`,
 `protection_healthy=true`, and `runtime_state=RISK_LOCKED`.
 
