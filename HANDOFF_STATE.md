@@ -1,12 +1,12 @@
 # Handoff state
 
-Updated: `2026-07-14T08:31:49Z`
+Updated: `2026-07-14T08:36:42Z`
 
 Resume in `/root/quantify/ai-quant-system`. Read `IMPLEMENTATION_STATUS.md`, ADR 0001–0003 and
 `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`. Never modify
 `/root/quantify/reference-materials`.
 
-Current implementation head is commit `cc87fda`. M0 is not complete
+Current implementation head is commit `35cfb59`. M0 is not complete
 or accepted. Commit `8516679` adds the executable bounded rate service, PostgreSQL v2 Reserve and
 full-bind Consume, deterministic multi-class policy ingestion, idempotent outcome/observation
 journals and durable 429/418 reconciliation. Commit `42624ef` adds closed gateway IPC validation,
@@ -22,6 +22,8 @@ Commit `b8bc281` makes Compose use the frozen peer/holder identities and owner-o
 grant; services remain locked and no network or credential was activated.
 Commit `cc87fda` requires a schema-valid, exact full-bind allocator grant immediately before the
 single transport call; mismatch is durably reported as `NOT_SENT` and never reaches transport.
+Commit `35cfb59` enforces attested UDS inode/ownership/mode and bidirectional peer credentials, plus
+the frozen shared socket groups in Compose. Runtime services are still intentionally locked.
 
 Exact verification command:
 
@@ -29,7 +31,7 @@ Exact verification command:
 cd /root/quantify/ai-quant-system && make ci && make test-migrations && make test-locked-runtime
 ```
 
-Expected: CI passes 74 unit, 3 property, 2 contract and 4 security tests; migrations pass both
+Expected: CI passes 76 unit, 3 property, 2 contract and 5 security tests; migrations pass both
 independent round-trips through host head `0008_decision_audit`, multi-class Reserve,
 full-bind Consume, journaling, 429 reconciliation and lease gates; the no-network runtime returns
 `RISK_LOCKED`.

@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: `2026-07-14T08:31:49Z`
+Updated: `2026-07-14T08:36:42Z`
 
 Overall state: `M0_IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
 
@@ -56,6 +56,10 @@ Highest completed milestone: none
   allocator-response boundary. Gateway validates the complete rate UDS schema and exact allocator
   instance, correlation, permit, connection, fencing, request/facts/capability hashes and bounded
   deadline; every valid-but-mismatched grant is journaled `NOT_SENT` and transport remains at zero.
+- Commit `35cfb59287ee2051a6c3fa095673eff7c178974a` binds both sides of local IPC to
+  attested identities. Clients verify socket inode/owner/group/mode before and after connect plus
+  server `SO_PEERCRED`; servers require root-owned SGID runtime directories and exact socket owner.
+  Compose grants only the frozen `11990/11991` shared socket groups.
 - Docker CE/Compose, Python 3.12.13 via `uv`, chrony, ripgrep and GNU time are installed for
   development. Initial chrony observations are healthy, but not a 24-hour deployment proof.
 
