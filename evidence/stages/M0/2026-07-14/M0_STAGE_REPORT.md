@@ -2,7 +2,7 @@
 
 - Stage: M0 — repository, contracts, configuration, migrations, audit and egress skeleton
 - Status: `IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
-- Report time: `2026-07-14T08:46:47Z`
+- Report time: `2026-07-14T08:51:35Z`
 - Implementation commits: `3a5762e37a5311f0a7faeca2e93b6c77ab8500ff`,
   `fca378cf7e4f18457f46a381e29fc8599bb5baa8`,
   `d5a394e21776957f627c9c3e7da78dfd1accf53c`,
@@ -13,7 +13,8 @@
   `cc87fda6df0373dec2300a8bbf5616cd74838628`,
   `35cfb59287ee2051a6c3fa095673eff7c178974a`,
   `bd79957e59aac0828c32ba76ca342d71808842ad`,
-  `b9f0d3243089a8b3ec54e2fcbc3371cacd7a51a1`
+  `b9f0d3243089a8b3ec54e2fcbc3371cacd7a51a1`,
+  `c586fef1f9896c476811e46d893ca283d746433c`
 - Implementer: `/root` engineering session
 - Independent reviewer: not assigned; a different actor with fresh context is still required
 - `CodexReviewReport`: absent by design; the implementer cannot self-sign it
@@ -50,8 +51,8 @@ metadata, and evidence.
 - The earlier foundation implementation manifest hash was
   `b13e7e76e1f6ad5e08b4d2b846f7ea15cdcefab163b25db5256541f7dd60b91a`; Git commit identity is
   authoritative for the later increments.
-- Local application OCI image ID: `sha256:aa7b11f6127fd1cf9c93cba9ad2620bd1eab38635892c1700f1e8cf538f4d2ce`.
-- Image architecture/size: Linux arm64, 340,698,435 bytes.
+- Local application OCI image ID: `sha256:825f964e52c3854cca558dab56f3f5e1c10a895b7d25e4fee7342a28c9e011dc`.
+- Image architecture/size: Linux arm64, 340,723,192 bytes.
 - The earlier image was reproduced twice. This new dependency-bearing image was built repeatedly
   from cache with the same ID but has not had a fresh no-cache reproducibility run.
 - Business migration head: `0001_business_core`.
@@ -80,13 +81,14 @@ startup-evidence, or live authorization has been issued.
 | Boundary | Unix socket identity | server requires root-owned SGID runtime directory and exact owner; client pins inode/owner/group/mode and server `SO_PEERCRED` across connect |
 | Boundary | startup measurement lifecycle | every measured section is hash-bound; publication is verified, atomic and durable; monitor rejects expiry, local mismatch, unsafe file or replacement |
 | Boundary | config trust root | keyring and fingerprint pin are root-owned `0444`, direct children of a non-writable independent trust directory; all mounts are read-only and business-isolated |
+| Boundary | artifact identity | duplicate-key-free JSON/YAML plus raw/JCS-document/JCS-content modes recompute exact bindings with full coverage and file-race checks |
 | Boundary | any changed binding hash, expiry, or replay | property tests deny without reopening permit |
 | Startup failure | non-root container, no network, no startup evidence | `RISK_LOCKED`, new egress false |
 | Database | business + host `upgrade → downgrade base → upgrade` | PASS on fresh disposable volumes |
 | Configuration/contracts | all recommended M0 validation targets | PASS |
 
 Primary logs and SHA-256 values are stored below this report in `tests/`, `security/`, and
-`artifacts/`. The final CI run passed 83 unit, 3 property, 2 contract, and 7 security tests. The
+`artifacts/`. The final CI run passed 88 unit, 3 property, 2 contract, and 7 security tests. The
 migration shape test and containerized migration round-trip also passed.
 
 ## Resource and security observations
@@ -123,5 +125,5 @@ needed for the next work.
 M0 cannot be accepted until real signed runtime inputs populate the deployment database, the
 attestation signer issues deployment-bound evidence, an independently reviewed production transport
 is activated behind destination-specific host network enforcement, and a fresh-context independent
-review is accepted. Offline services and verifiers do not constitute deployment evidence. M1 has not
-started.
+review is accepted. Offline services and verifiers do not constitute deployment evidence. M1 has
+not started.

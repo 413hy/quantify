@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: `2026-07-14T08:46:47Z`
+Updated: `2026-07-14T08:51:35Z`
 
 Overall state: `M0_IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
 
@@ -69,6 +69,10 @@ Highest completed milestone: none
   out of ordinary environment control. Both keyring and SHA-256 pin must be direct root-owned
   `0444` files in a non-symlink, non-writable `/etc/ai-quant/trust` boundary; only rate, signer and
   gateway receive that directory, read-only.
+- Commit `c586fef1f9896c476811e46d893ca283d746433c` makes runtime JSON/YAML parsing
+  reject duplicate keys and adds exact artifact binding verification for raw schema bytes, JCS of a
+  complete document, and JCS of a signed document's `content`. Coverage gaps, symlinks, path escape,
+  read-time replacement and hash mismatch all fail closed.
 - Docker CE/Compose, Python 3.12.13 via `uv`, chrony, ripgrep and GNU time are installed for
   development. Initial chrony observations are healthy, but not a 24-hour deployment proof.
 

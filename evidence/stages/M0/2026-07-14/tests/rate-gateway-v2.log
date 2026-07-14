@@ -1,9 +1,9 @@
 M0 rate/gateway v2 verification summary
-time=2026-07-14T08:46:47Z
-implementation_head=b9f0d3243089a8b3ec54e2fcbc3371cacd7a51a1
+time=2026-07-14T08:51:35Z
+implementation_head=c586fef1f9896c476811e46d893ca283d746433c
 rate_authority_commit=8516679
 gateway_pipeline_commit=42624ef909aa25cc4aa7c46c392a7c856eaa82f3
-ci=PASS unit=83 property=3 contract=2 security=7 mypy=PASS bandit=PASS secret_scan=PASS
+ci=PASS unit=88 property=3 contract=2 security=7 mypy=PASS bandit=PASS secret_scan=PASS
 host_migration_head=0008_decision_audit
 migration_roundtrip=PASS
 reserve_v2=PASS multi_class=true idempotent=true replay_denied=true lease_required=true
@@ -17,6 +17,7 @@ startup_attestation=PASS independent_trust_domain=true fixed_uid_gid=true key_mo
 startup_evidence_verifier=PASS signed_ready=true exact_binding=true wrong_key_denied=true max_ttl_seconds=300
 startup_measurement_lifecycle=PASS all_sections_bound=true atomic_publish=true fsync=true file_mode=0444 per_operation_reverify=true single_writer=true
 config_trust_root=PASS root_owned=true file_mode=0444 parent_nonwritable=true symlink_denied=true out_of_band_pin_file=true read_only_consumers=rate,signer,gateway
+artifact_binding=PASS duplicate_keys_denied=true raw_bytes=true jcs_document=true jcs_content=true full_coverage=true path_race_checked=true
 compose_identity=PASS realtime=11001 execution=11002 gateway=11005 rate=11006 signer=11007 signer_key_mode=0400
 uds_identity=PASS runtime_dir=root_sgid socket_inode_pinned=true owner_mode_pinned=true server_so_peercred=true shared_groups=11990,11991
 locked_runtime=PASS network=none new_egress_allowed=false

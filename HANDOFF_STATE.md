@@ -1,12 +1,12 @@
 # Handoff state
 
-Updated: `2026-07-14T08:46:47Z`
+Updated: `2026-07-14T08:51:35Z`
 
 Resume in `/root/quantify/ai-quant-system`. Read `IMPLEMENTATION_STATUS.md`, ADR 0001–0003 and
 `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`. Never modify
 `/root/quantify/reference-materials`.
 
-Current implementation head is commit `b9f0d32`. M0 is not complete
+Current implementation head is commit `c586fef`. M0 is not complete
 or accepted. Commit `8516679` adds the executable bounded rate service, PostgreSQL v2 Reserve and
 full-bind Consume, deterministic multi-class policy ingestion, idempotent outcome/observation
 journals and durable 429/418 reconciliation. Commit `42624ef` adds closed gateway IPC validation,
@@ -30,6 +30,8 @@ itself remains absent and the Compose command stays locked.
 Commit `b9f0d32` requires an out-of-band root-owned fingerprint file beside the root-owned keyring
 in `/etc/ai-quant/trust`; the release cannot replace it through an environment value or writable
 mount. Provisioning this file is a deployment prerequisite, not performed on this dev host.
+Commit `c586fef` rejects duplicate JSON/YAML keys and supplies a race-aware exact artifact hash
+verifier. Release-manifest and real signed deployment inputs remain absent.
 
 Exact verification command:
 
@@ -37,7 +39,7 @@ Exact verification command:
 cd /root/quantify/ai-quant-system && make ci && make test-migrations && make test-locked-runtime
 ```
 
-Expected: CI passes 83 unit, 3 property, 2 contract and 7 security tests; migrations pass both
+Expected: CI passes 88 unit, 3 property, 2 contract and 7 security tests; migrations pass both
 independent round-trips through host head `0008_decision_audit`, multi-class Reserve,
 full-bind Consume, journaling, 429 reconciliation and lease gates; the no-network runtime returns
 `RISK_LOCKED`.
