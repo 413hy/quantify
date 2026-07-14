@@ -14,6 +14,7 @@ from typing import Any
 from ai_quant.rate_budget.authorization import PeerCredentials, peer_credentials
 
 RATE_FRAME_MAX_BYTES = 1_048_576
+UDS_FRAME_HARD_MAX_BYTES = 16_777_216
 FRAME_HEADER_BYTES = 4
 
 
@@ -88,7 +89,7 @@ class BoundedUnixServer:
         peer_timeout_seconds: float = 1.0,
         accept_timeout_seconds: float | None = None,
     ) -> None:
-        if max_frame_bytes < 256 or max_frame_bytes > RATE_FRAME_MAX_BYTES:
+        if max_frame_bytes < 256 or max_frame_bytes > UDS_FRAME_HARD_MAX_BYTES:
             raise UdsProtocolError("SERVER_FRAME_LIMIT_INVALID")
         if backlog < 1 or backlog > 128:
             raise UdsProtocolError("SERVER_BACKLOG_INVALID")
@@ -156,3 +157,49 @@ class BoundedUnixServer:
 
     def __exit__(self, *_: object) -> None:
         self.close()
+
+
+class BoundedUnixClient:
+    """Bounded one-connection client for request/response and one-way local IPC."""
+
+    def __init__(
+        self,
+        path: Path,
+        *,
+        max_frame_bytes: int = RATE_FRAME_MAX_BYTES,
+        timeout_seconds: float = 1.0,
+    ) -> None:
+        if (
+            not path.is_absolute()
+            or max_frame_bytes < 256
+            or max_frame_bytes > UDS_FRAME_HARD_MAX_BYTES
+        ):
+            raise UdsProtocolError("CLIENT_CONFIGURATION_INVALID")
+        if timeout_seconds <= 0 or timeout_seconds > 5:
+            raise UdsProtocolError("CLIENT_CONFIGURATION_INVALID")
+        self._path = path
+        self._max_frame_bytes = max_frame_bytes
+        self._timeout_seconds = timeout_seconds
+
+    def request(self, document: Mapping[str, Any]) -> Mapping[str, Any]:
+        with self._connected() as peer:
+            peer.sendall(encode_frame(document, max_bytes=self._max_frame_bytes))
+            peer.shutdown(socket.SHUT_WR)
+            return receive_frame(peer, max_bytes=self._max_frame_bytes)
+
+    def notify(self, document: Mapping[str, Any]) -> None:
+        with self._connected() as peer:
+            peer.sendall(encode_frame(document, max_bytes=self._max_frame_bytes))
+            peer.shutdown(socket.SHUT_WR)
+            if peer.recv(1) != b"":
+                raise UdsProtocolError("ONE_WAY_RESPONSE_FORBIDDEN")
+
+    def _connected(self) -> socket.socket:
+        peer = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        peer.settimeout(self._timeout_seconds)
+        try:
+            peer.connect(str(self._path))
+        except BaseException:
+            peer.close()
+            raise
+        return peer

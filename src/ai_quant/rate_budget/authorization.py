@@ -424,11 +424,12 @@ def verify_signed_config_document(
     hash_field: str,
     status_field: str,
     now: datetime,
+    expected_status: str = "SIGNED_RUNTIME",
 ) -> VerifiedSignedDocument:
     """Verify a generic host-control SIGNED_RUNTIME content document."""
     utc_now = now.astimezone(UTC)
     content = _as_mapping(document.get("content"), "SIGNED_POLICY_INVALID")
-    if content.get(status_field) != "SIGNED_RUNTIME":
+    if content.get(status_field) != expected_status:
         raise AuthorizationDenied("SIGNED_POLICY_NOT_RUNTIME")
     digest = canonical_digest(content)
     if document.get(hash_field) != digest.hex():

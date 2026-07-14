@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from ai_quant.services.uds import (
+    BoundedUnixClient,
     BoundedUnixServer,
     UdsProtocolError,
     encode_frame,
@@ -100,5 +101,26 @@ def test_server_sends_no_frame_for_one_way_message(tmp_path: Path) -> None:
     finally:
         client.close()
         worker.join(timeout=1)
+        server.close()
+    assert not worker.is_alive()
+
+
+def test_bounded_client_supports_request_and_one_way_message(tmp_path: Path) -> None:
+    tmp_path.chmod(0o770)
+    socket_path = tmp_path / "rate.sock"
+    responses = iter(({"status": "ok"}, None))
+    server = BoundedUnixServer(socket_path, lambda request, peer: next(responses))
+    server.start()
+    client = BoundedUnixClient(socket_path)
+    try:
+        worker = threading.Thread(target=server.serve_one)
+        worker.start()
+        assert client.request({"message_type": "ReserveRequest"}) == {"status": "ok"}
+        worker.join(timeout=1)
+        worker = threading.Thread(target=server.serve_one)
+        worker.start()
+        client.notify({"message_type": "SendOutcome"})
+        worker.join(timeout=1)
+    finally:
         server.close()
     assert not worker.is_alive()

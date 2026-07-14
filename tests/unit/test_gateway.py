@@ -1,3 +1,4 @@
+import hashlib
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -6,8 +7,27 @@ from typing import Any
 import pytest
 from jsonschema import Draft202012Validator
 
-from ai_quant.binance_egress.gateway import GatewayDenied, request_document_hash, send_once
+from ai_quant.binance_egress.application import GatewayProtocolApplication
+from ai_quant.binance_egress.gateway import (
+    GatewayDenied,
+    GatewaySendApplication,
+    GatewayTransportResult,
+    derive_canonical_request_hash,
+    derive_operation_facts,
+    derive_parameter_hash,
+    peer_claim_hash,
+    prepared_wire_bytes,
+    request_document_hash,
+    send_once,
+)
 from ai_quant.contracts.models import ClosedGatewayRequest, ConsumeGranted
+from ai_quant.rate_budget.authorization import (
+    PeerCredentials,
+    canonical_digest,
+    verify_runtime_trust_bundle,
+)
+from ai_quant.rate_budget.policy import CostRule, EndpointPolicy, RuntimeEndpointCatalog
+from tests.unit.test_authorization import _signed_policy
 
 H = "a" * 64
 
@@ -125,3 +145,201 @@ def test_grant_for_different_document_never_calls_transport() -> None:
     with pytest.raises(GatewayDenied, match="CONSUME_GRANT_BINDING_MISMATCH"):
         send_once(request, grant, transport, now=now)
     assert calls == 0
+
+
+class FakeRateClient:
+    def __init__(self) -> None:
+        self.requests: list[dict[str, Any]] = []
+        self.notifications: list[dict[str, Any]] = []
+
+    def request(self, document: dict[str, Any]) -> dict[str, Any]:
+        self.requests.append(document)
+        return {
+            "schema_version": "1.0.0",
+            "message_type": "PermitConsumeDecision",
+            "message_id": "rate-consume-decision-0001",
+            "occurred_at": "2026-07-14T00:00:00Z",
+            "caller_service": "rate-budget-service",
+            "caller_instance_id": "rate-allocator-01",
+            "correlation_id": document["correlation_id"],
+            "request_message_id": document["message_id"],
+            "permit_id": document["permit_id"],
+            "decision": "CONSUME_GRANTED",
+            "gateway_connection_id": None,
+            "canonical_request_hash": document["canonical_request_hash"],
+            "gateway_derived_parameter_hash": document["gateway_derived_parameter_hash"],
+            "gateway_derived_wire_bytes_hash": document["gateway_derived_wire_bytes_hash"],
+            "gateway_request_document_hash": document["gateway_request_document_hash"],
+            "gateway_derived_operation_facts_hash": document[
+                "gateway_derived_operation_facts_hash"
+            ],
+            "causal_capability_payload_hash": document["causal_capability_payload_hash"],
+            "capability_nonce_state": "CONSUMED",
+            "fencing_epoch": document["expected_fencing_epoch"],
+            "send_deadline": "2026-07-14T00:00:00.050000Z",
+            "reason_code": "RATE_PERMIT_CONSUMED",
+        }
+
+    def notify(self, document: dict[str, Any]) -> None:
+        self.notifications.append(document)
+
+
+def _gateway_fixture(now: datetime) -> tuple[
+    GatewaySendApplication, FakeRateClient, dict[str, Any], list[bytes]
+]:
+    bundle_document, keyring, keyring_hash, _ = _signed_policy()
+    bundle = verify_runtime_trust_bundle(
+        bundle_document, keyring, expected_keyring_hash=keyring_hash, now=now
+    )
+    not_applicable = CostRule(
+        mode="NOT_APPLICABLE", fixed_cost=0, parameter_name=None, tiers=()
+    )
+    endpoint = EndpointPolicy(
+        endpoint_id="REST_QUERY_TIME",
+        authority="BINANCE_PRODUCTION_FAPI",
+        transport="REST",
+        method="GET",
+        path="/fapi/v1/time",
+        market_stream_role=None,
+        control_frame_type=None,
+        allowed_operation_classes=frozenset({"HOST_RATE_CONTROL"}),
+        causal_role_class_map={"HOST_RATE_CONTROL": "HOST_RATE_CONTROL"},
+        request_weight_rule=CostRule(
+            mode="FIXED", fixed_cost=1, parameter_name=None, tiers=()
+        ),
+        order_count_rule=not_applicable,
+        websocket_control_rule=not_applicable,
+        connection_attempt_rule=not_applicable,
+        parameter_policy="NO_PARAMETERS",
+        allowed_parameter_names=frozenset(),
+        required_parameter_names=frozenset(),
+        forbidden_parameter_names=frozenset({"apiSecret", "secretKey"}),
+        request_schema_sha256=H,
+    )
+    catalog = RuntimeEndpointCatalog(
+        catalog_id="catalog-gateway-test",
+        catalog_hash=H,
+        checked_at=now - timedelta(minutes=1),
+        valid_until=now + timedelta(days=1),
+        endpoints={(endpoint.authority, endpoint.endpoint_id): endpoint},
+    )
+    request = make_request(now).model_copy(
+        update={
+            "subject_caller_service": "host-bootstrap-runner",
+            "subject_caller_instance_id": "host-bootstrap-01",
+            "parameter_hash": derive_parameter_hash(make_request(now)),
+        }
+    )
+    request = request.model_copy(
+        update={
+            "wire_bytes_hash": hashlib.sha256(prepared_wire_bytes(request)).hexdigest()
+        }
+    )
+    request = request.model_copy(
+        update={"canonical_request_hash": derive_canonical_request_hash(request)}
+    )
+    facts = derive_operation_facts(endpoint)
+    peer = PeerCredentials(pid=123, uid=11003, gid=11003)
+    message = {
+        "schema_version": "1.0.0",
+        "message_type": "GatewaySendRequest",
+        "message_id": "gateway-send-message-0001",
+        "occurred_at": "2026-07-14T00:00:00Z",
+        "correlation_id": "gateway-correlation-0001",
+        "caller_service": "host-bootstrap-runner",
+        "caller_instance_id": "host-bootstrap-01",
+        "peer_credential_claim_hash": peer_claim_hash(
+            peer, "host-bootstrap-runner", "host-bootstrap-01"
+        ),
+        "request_document": request.model_dump(mode="json"),
+        "permit_binding": {
+            "permit_id": "rate-permit-bootstrap-0001",
+            "reserve_decision_message_id": "rate-reserve-decision-0001",
+            "reserve_decision_hash": "b" * 64,
+            "allocated_gateway_connection_id": None,
+            "endpoint_catalog_hash": H,
+            "canonical_request_hash": request.canonical_request_hash,
+            "parameter_hash": request.parameter_hash,
+            "wire_bytes_hash": request.wire_bytes_hash,
+            "request_document_hash": request_document_hash(request),
+            "operation_facts_hash": canonical_digest(facts).hex(),
+            "causal_capability_payload_hash": "c" * 64,
+            "fencing_epoch": 7,
+            "expires_at": "2026-07-14T00:00:01Z",
+        },
+        "maximum_response_bytes": 4096,
+        "maximum_inbound_frame_bytes": 4096,
+    }
+    calls: list[bytes] = []
+
+    def transport(_: ClosedGatewayRequest, wire: bytes) -> GatewayTransportResult:
+        calls.append(wire)
+        return GatewayTransportResult(
+            protocol_status="HTTP_RESPONSE",
+            response_payload=b'{"serverTime":1783987200000}',
+            http_status=200,
+        )
+
+    rate = FakeRateClient()
+    app = GatewaySendApplication(
+        trust_bundle=bundle,
+        endpoint_catalog=catalog,
+        rate_client=rate,
+        transport=transport,
+        instance_id="egress-gateway-01",
+        clock=lambda: now,
+    )
+    return app, rate, message, calls
+
+
+def test_gateway_pipeline_consumes_then_sends_once_and_records_outcome() -> None:
+    now = datetime(2026, 7, 14, tzinfo=UTC)
+    app, rate, message, calls = _gateway_fixture(now)
+    result = app(message, PeerCredentials(pid=123, uid=11003, gid=11003))
+    assert result["status"] == "SENT_DEFINITE_RESULT"
+    assert len(rate.requests) == 1
+    assert len(calls) == 1
+    assert len(rate.notifications) == 1
+    assert rate.notifications[0]["outcome"] == "SENT_DEFINITE_RESULT"
+    rate_schema = json.loads(
+        (Path(__file__).resolve().parents[2] / "contracts/rate-budget-uds.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert list(Draft202012Validator(rate_schema).iter_errors(rate.requests[0])) == []
+    assert list(Draft202012Validator(rate_schema).iter_errors(rate.notifications[0])) == []
+    gateway_schema = json.loads(
+        (
+            Path(__file__).resolve().parents[2]
+            / "contracts/binance-gateway-ipc.schema.json"
+        ).read_text(encoding="utf-8")
+    )
+    result_schema = {
+        "$schema": gateway_schema["$schema"],
+        "$defs": gateway_schema["$defs"],
+        "$ref": "#/$defs/sendResult",
+    }
+    assert list(Draft202012Validator(result_schema).iter_errors(result)) == []
+
+
+def test_gateway_binding_tamper_never_consumes_or_sends() -> None:
+    now = datetime(2026, 7, 14, tzinfo=UTC)
+    app, rate, message, calls = _gateway_fixture(now)
+    message["permit_binding"]["wire_bytes_hash"] = "f" * 64
+    result = app(message, PeerCredentials(pid=123, uid=11003, gid=11003))
+    assert result["status"] == "DENIED_BEFORE_CONSUME"
+    assert rate.requests == []
+    assert calls == []
+
+
+def test_gateway_protocol_wrapper_validates_both_directions() -> None:
+    now = datetime(2026, 7, 14, tzinfo=UTC)
+    app, _, message, _ = _gateway_fixture(now)
+    root = Path(__file__).resolve().parents[2]
+    protocol = GatewayProtocolApplication(
+        ipc_schema_path=root / "contracts/binance-gateway-ipc.schema.json",
+        request_schema_path=root / "contracts/binance-gateway-request.schema.json",
+        send_application=app,
+    )
+    response = protocol(message, PeerCredentials(pid=123, uid=11003, gid=11003))
+    assert response["status"] == "SENT_DEFINITE_RESULT"
