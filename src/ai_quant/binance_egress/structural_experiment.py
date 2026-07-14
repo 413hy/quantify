@@ -34,7 +34,7 @@ def plan_market_quantity(
     leverage: int,
 ) -> Decimal:
     """Size at or below the margin budget, rejecting incompatible exchange minima."""
-    if reference_price <= 0 or not Decimal("0") < margin_budget <= Decimal("10"):
+    if reference_price <= 0 or not Decimal("0") < margin_budget <= Decimal("1"):
         raise TestnetProbeError("EXPERIMENT_SIZE_INPUT_INVALID")
     filters = _symbol_filters(exchange_info, symbol)
     try:
@@ -68,7 +68,7 @@ def risk_adjusted_margin_budget(
 ) -> Decimal:
     """Shrink margin so stop, round-trip fees, and slippage fit the loss budget."""
     if (
-        not Decimal(0) < margin_ceiling <= Decimal(10)
+        not Decimal(0) < margin_ceiling <= Decimal(1)
         or maximum_net_loss <= 0
         or taker_fee_rate < 0
         or adverse_slippage_rate < 0
@@ -114,7 +114,7 @@ def run_structural_experiment(
     api_secret_file: Path,
     repository_root: Path,
     plan: TestnetExperimentalPlan,
-    margin_budget: Decimal = Decimal("10"),
+    margin_budget: Decimal = Decimal("1"),
     maximum_net_loss: Decimal = Decimal("0.35"),
     stop_requested: Callable[[], bool] = lambda: False,
     sleep: Callable[[float], None] = time.sleep,
@@ -135,8 +135,8 @@ def run_structural_experiment(
     if _position_quantity(client, symbol) != 0:
         raise TestnetProbeError("TESTNET_SYMBOL_NOT_CLEAN")
 
-    leverage = 10
-    changed = client.change_initial_leverage(symbol, leverage)
+    leverage = exchange_maximum_initial_leverage(client.leverage_brackets(symbol), symbol)
+    changed = client.change_testnet_experiment_leverage(symbol, leverage)
     if changed.get("symbol") != symbol or changed.get("leverage") != leverage:
         raise TestnetProbeError("CHANGE_INITIAL_LEVERAGE_RESPONSE_MISMATCH")
     exchange_info = client.exchange_info()
@@ -268,6 +268,7 @@ def run_structural_experiment(
         "symbol": symbol,
         "direction": plan.direction,
         "initial_leverage": leverage,
+        "leverage_policy": "EXCHANGE_MAXIMUM_TESTNET_ONLY",
         "margin_budget": format(margin_budget, "f"),
         "effective_margin_budget": format(effective_margin_budget, "f"),
         "maximum_net_loss_budget": format(maximum_net_loss, "f"),
@@ -284,6 +285,25 @@ def run_structural_experiment(
         "elapsed_time_exit_enabled": False,
         "production_endpoint_requests": 0,
     }
+
+
+def exchange_maximum_initial_leverage(
+    brackets: list[dict[str, Any]], symbol: str
+) -> int:
+    """Read the maximum current initial leverage for one Testnet symbol."""
+    symbol_document = next((item for item in brackets if item.get("symbol") == symbol), None)
+    if not isinstance(symbol_document, dict):
+        raise TestnetProbeError("LEVERAGE_BRACKET_SYMBOL_MISSING")
+    rows = symbol_document.get("brackets")
+    if not isinstance(rows, list) or not rows:
+        raise TestnetProbeError("LEVERAGE_BRACKET_ROWS_MISSING")
+    try:
+        leverage = max(int(item["initialLeverage"]) for item in rows if isinstance(item, dict))
+    except (KeyError, TypeError, ValueError) as exc:
+        raise TestnetProbeError("LEVERAGE_BRACKET_INVALID_RESPONSE") from exc
+    if not 1 <= leverage <= 125:
+        raise TestnetProbeError("LEVERAGE_BRACKET_INVALID_RESPONSE")
+    return leverage
 
 
 def _place_protection(

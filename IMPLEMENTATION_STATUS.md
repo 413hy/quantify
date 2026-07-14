@@ -125,9 +125,9 @@ calibration, 72-hour, or live authorization evidence. No production exchange ord
   `/var/lib/ai-quant/evidence/testnet/parallel/20260714-sample-01/`.
 - `aiq-testnet-campaign.service` is enabled for a three-day, owner-authorized Testnet experiment.
   It can hold up to three different symbols in parallel, each within 1 USDT margin at the project
-  10x leverage cap. Margin can scale to 10 USDT but is reduced so the estimated stop, fees and
-  slippage remain within 0.35 USDT per trade, with exchange-native structural protection and no
-  elapsed-time exit.
+  isolated Testnet-only exchange-maximum initial leverage while keeping margin near 1 USDT. The
+  ordinary client and production risk model retain the 10x cap. Estimated stop, fees and slippage
+  remain within 0.35 USDT per trade, with native protection and no elapsed-time exit.
   Results remain unvalidated and do not unlock production trading.
   State and append-only observations are under
   `/var/lib/ai-quant/evidence/testnet/campaign/current/`.

@@ -38,7 +38,7 @@ class CampaignLimits:
     trade_cooldown_seconds: int = 300
     maximum_trades_per_day: int = 8
     daily_net_loss_limit: Decimal = Decimal("1.00")
-    margin_budget: Decimal = Decimal("10")
+    margin_budget: Decimal = Decimal("1")
     maximum_net_loss_per_trade: Decimal = Decimal("0.35")
 
     def __post_init__(self) -> None:
@@ -52,7 +52,7 @@ class CampaignLimits:
             raise ValueError("campaign daily trade count is invalid")
         if self.daily_net_loss_limit <= 0 or self.daily_net_loss_limit > Decimal("1"):
             raise ValueError("campaign daily loss limit is invalid")
-        if self.margin_budget <= 0 or self.margin_budget > Decimal("10"):
+        if self.margin_budget <= 0 or self.margin_budget > Decimal("1"):
             raise ValueError("campaign margin budget is invalid")
         if self.maximum_net_loss_per_trade <= 0 or self.maximum_net_loss_per_trade > Decimal("1"):
             raise ValueError("campaign per-trade loss budget is invalid")
@@ -135,7 +135,8 @@ class TestnetCampaign:
                 f"计划运行: {self.limits.duration_seconds // 86_400} 天\n"
                 f"评估间隔: {self.limits.evaluation_interval_seconds} 秒\n"
                 "运行模式: Testnet 实验下单 (最多 3 个币种并行)\n"
-                f"单笔保证金: 最高 {self.limits.margin_budget} USDT; 杠杆: 10 倍\n"
+                f"单笔保证金: 最高 {self.limits.margin_budget} USDT\n"
+                "杠杆: 各币种 Testnet 当前允许的最高初始杠杆\n"
                 f"单笔预计净亏损预算: {self.limits.maximum_net_loss_per_trade} USDT\n"
                 "退出方式: 原生结构止损/止盈, 不使用持仓时间到期平仓\n"
                 "说明: 这是未验证实验策略, 仅用于收集测试网真实成交样本。"
@@ -623,7 +624,7 @@ def main() -> int:
     parser.add_argument("--trade-cooldown-seconds", type=int, default=300)
     parser.add_argument("--maximum-trades-per-day", type=int, default=8)
     parser.add_argument("--daily-net-loss-limit", type=Decimal, default=Decimal("1.00"))
-    parser.add_argument("--margin-budget", type=Decimal, default=Decimal("10"))
+    parser.add_argument("--margin-budget", type=Decimal, default=Decimal("1"))
     parser.add_argument(
         "--maximum-net-loss-per-trade", type=Decimal, default=Decimal("0.35")
     )

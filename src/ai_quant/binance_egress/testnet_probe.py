@@ -299,6 +299,22 @@ class BinanceTestnetClient:
             "CHANGE_INITIAL_LEVERAGE",
         )
 
+    def change_testnet_experiment_leverage(
+        self, symbol: str, leverage: int
+    ) -> dict[str, Any]:
+        """Set exchange-permitted leverage for the isolated Testnet experiment only."""
+        if not 1 <= leverage <= 125:
+            raise TestnetProbeError("TESTNET_EXPERIMENT_LEVERAGE_INVALID")
+        return _json_object(
+            self._call(
+                "POST",
+                "/fapi/v1/leverage",
+                params={"symbol": symbol, "leverage": leverage},
+                signed=True,
+            ),
+            "CHANGE_TESTNET_EXPERIMENT_LEVERAGE",
+        )
+
     def open_orders(self, symbol: str) -> list[dict[str, Any]]:
         return _json_list(
             self._call("GET", "/fapi/v1/openOrders", params={"symbol": symbol}, signed=True),

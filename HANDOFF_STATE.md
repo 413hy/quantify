@@ -29,8 +29,9 @@ is retained only as historical lifecycle evidence.
 
 The Testnet-only `aiq-testnet-campaign.service` is enabled as an owner-authorized experimental
 execution process. It evaluates SOLUSDT, BNBUSDT, XRPUSDT, DOGEUSDT and ADAUSDT every ten seconds,
-can hold three different symbols in parallel, uses risk-sized margin up to 10 USDT per position at
-10x with a 0.35 USDT estimated loss budget, and
+can hold three different symbols in parallel and uses about 1 USDT margin with the symbol's current
+Testnet maximum initial leverage (isolated from the production 10x cap), a 0.35 USDT estimated loss
+budget, and
 installs native structural stop/target protection without an elapsed-time exit. Strict baseline
 production rejection remains recorded separately; experiment results are unvalidated. State is
 `/var/lib/ai-quant/evidence/testnet/campaign/current/state.json`; see `docs/testnet-campaign.md`.

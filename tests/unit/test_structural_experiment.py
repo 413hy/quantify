@@ -3,6 +3,7 @@ from decimal import Decimal
 import pytest
 
 from ai_quant.binance_egress.structural_experiment import (
+    exchange_maximum_initial_leverage,
     plan_market_quantity,
     quantize_protection,
     risk_adjusted_margin_budget,
@@ -110,11 +111,28 @@ def test_margin_expands_but_stop_loss_budget_caps_effective_size() -> None:
 
     margin = risk_adjusted_margin_budget(
         plan,
-        margin_ceiling=Decimal("10"),
-        leverage=10,
+        margin_ceiling=Decimal("1"),
+        leverage=75,
         maximum_net_loss=Decimal("0.35"),
         taker_fee_rate=Decimal("0.0004"),
     )
 
-    assert margin == Decimal("8.75")
-    assert margin * Decimal(10) * Decimal("0.004") == Decimal("0.35000")
+    assert margin == Decimal("1")
+    assert margin * Decimal(75) * Decimal("0.004") == Decimal("0.300")
+
+
+def test_exchange_maximum_leverage_is_selected_from_symbol_brackets() -> None:
+    leverage = exchange_maximum_initial_leverage(
+        [
+            {
+                "symbol": "XRPUSDT",
+                "brackets": [
+                    {"initialLeverage": 75},
+                    {"initialLeverage": 50},
+                ],
+            }
+        ],
+        "XRPUSDT",
+    )
+
+    assert leverage == 75
