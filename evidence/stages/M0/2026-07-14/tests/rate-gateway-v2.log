@@ -1,9 +1,11 @@
 M0 rate/gateway v2 verification summary
-time=2026-07-14T09:29:39Z
-implementation_head=fcbcba230d75327ae155e1717fe23dc661a2debd
+time=2026-07-14T10:04:35Z
+implementation_head=be6c46a5884c7a666c1963df33b28f5442fbebe2
 rate_authority_commit=8516679
 gateway_pipeline_commit=42624ef909aa25cc4aa7c46c392a7c856eaa82f3
 ci=PASS unit=97 property=3 contract=2 security=9 mypy=PASS bandit=PASS secret_scan=PASS
+platform_amendment=PASS target=debian-12-bookworm-aarch64 owner_approved=true legacy_mutable_refs=0 frozen_provenance_files=123
+debian_platform=PASS provider=oci os=12 codename=bookworm arch=aarch64 kernel=6.1.0-50-cloud-arm64 cgroup=v2 cpu=2 memory_kib=12242740 root_bytes=199142084608
 host_migration_head=0009_runtime_role
 migration_roundtrip=PASS
 reserve_v2=PASS multi_class=true idempotent=true replay_denied=true lease_required=true

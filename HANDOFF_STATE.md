@@ -1,13 +1,13 @@
 # Handoff state
 
-Updated: `2026-07-14T10:01:25Z`
+Updated: `2026-07-14T10:04:35Z`
 
 Resume in `/root/quantify/ai-quant-system`. Read `IMPLEMENTATION_STATUS.md`, ADR 0001–0004,
 `docs/deployment/debian-12-platform.md` and
 `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`. Never modify
 `/root/quantify/reference-materials`.
 
-Current implementation head is commit `fcbcba2`. M0 is not complete
+Current implementation head is commit `be6c46a`. M0 is not complete
 or accepted. Commit `8516679` adds the executable bounded rate service, PostgreSQL v2 Reserve and
 full-bind Consume, deterministic multi-class policy ingestion, idempotent outcome/observation
 journals and durable 429/418 reconciliation. Commit `42624ef` adds closed gateway IPC validation,
