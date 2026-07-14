@@ -284,10 +284,59 @@ def _validate_testnet_user_stream_unit() -> None:
         raise SystemExit("Testnet user-data observer command crosses destination boundary")
 
 
+def _validate_telegram_dashboard_unit() -> None:
+    path = ROOT / "deploy/systemd/aiq-telegram-dashboard.service"
+    lines = set(path.read_text(encoding="utf-8").splitlines())
+    required = {
+        "User=root",
+        "Group=root",
+        "NoNewPrivileges=yes",
+        "ProtectSystem=full",
+        "ProtectHome=read-only",
+        "PrivateDevices=yes",
+        "ProtectKernelTunables=yes",
+        "ProtectKernelModules=yes",
+        "ProtectControlGroups=yes",
+        "RestrictNamespaces=yes",
+        "RestrictSUIDSGID=yes",
+        "MemoryDenyWriteExecute=yes",
+        "SystemCallArchitectures=native",
+        "RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6",
+        "CapabilityBoundingSet=",
+        "AmbientCapabilities=",
+        "ReadWritePaths=/var/lib/ai-quant/telegram /run/ai-quant",
+    }
+    if not required <= lines:
+        raise SystemExit("Telegram dashboard unit hardening is incomplete")
+    command = next((line for line in lines if line.startswith("ExecStart=")), "")
+    required_arguments = {
+        "-m ai_quant.services.telegram_dashboard",
+        "--token-file /root/aiq-user-inputs/notifications/secrets/telegram_bot_token",
+        "--chat-ids-file /root/aiq-user-inputs/notifications/telegram_chat_ids",
+        "--campaign-state-file /var/lib/ai-quant/evidence/testnet/campaign/current/state.json",
+        "--observations-file "
+        "/var/lib/ai-quant/evidence/testnet/campaign/current/observations.jsonl",
+        "--user-stream-state-file "
+        "/var/lib/ai-quant/evidence/testnet/user-stream/current/state.json",
+        "--service-state-file /var/lib/ai-quant/telegram/dashboard-state.json",
+    }
+    if not all(value in command for value in required_arguments):
+        raise SystemExit("Telegram dashboard command is incomplete")
+    forbidden = (
+        "binance-testnet-api-key",
+        "binance-testnet-api-secret",
+        "execution.sock",
+        "/bin/sh",
+    )
+    if any(token in command for token in forbidden):
+        raise SystemExit("Telegram dashboard crosses the read-only boundary")
+
+
 def main() -> int:
     _validate_bootstrap_bundle()
     _validate_baseline_unit()
     _validate_testnet_user_stream_unit()
+    _validate_telegram_dashboard_unit()
     _validate_unit(
         "aiq-measurement-cycle.service",
         "/opt/ai-quant/.venv/bin/python -m ai_quant.services.measurement_cycle",
@@ -307,7 +356,7 @@ def main() -> int:
         raise SystemExit("nftables example is not an object")
     render_nftables_policy(example)
     print(
-        "deployment static policy PASS units=3 postgres_tcp=none "
+        "deployment static policy PASS units=4 postgres_tcp=none "
         "nft_table=ai_quant_egress bootstrap=debian12-locked"
     )
     return 0

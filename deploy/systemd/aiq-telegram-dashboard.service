@@ -1,0 +1,40 @@
+[Unit]
+Description=AI Quant read-only Telegram Testnet dashboard
+After=network-online.target aiq-testnet-campaign.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/root/quantify/ai-quant-system
+UMask=0077
+ExecStart=/root/quantify/ai-quant-system/.venv/bin/python -m ai_quant.services.telegram_dashboard --token-file /root/aiq-user-inputs/notifications/secrets/telegram_bot_token --chat-ids-file /root/aiq-user-inputs/notifications/telegram_chat_ids --campaign-state-file /var/lib/ai-quant/evidence/testnet/campaign/current/state.json --observations-file /var/lib/ai-quant/evidence/testnet/campaign/current/observations.jsonl --user-stream-state-file /var/lib/ai-quant/evidence/testnet/user-stream/current/state.json --service-state-file /var/lib/ai-quant/telegram/dashboard-state.json --lock-file /run/ai-quant/telegram-dashboard.lock
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=45
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectHome=read-only
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+AmbientCapabilities=
+ReadOnlyPaths=/root/quantify/ai-quant-system /root/aiq-user-inputs/notifications /var/lib/ai-quant/evidence/testnet
+ReadWritePaths=/var/lib/ai-quant/telegram /run/ai-quant
+
+[Install]
+WantedBy=multi-user.target

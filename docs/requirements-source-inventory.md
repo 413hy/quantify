@@ -65,12 +65,12 @@ The broken links are `runbooks/07_DISK_ARCHIVE_INCIDENT.md` and `runbooks/09_UPG
 
 ## Dynamic official sources checked
 
-Access date: `2026-07-14` UTC.
+Access dates: `2026-07-14` UTC; Telegram dashboard addition checked `2026-07-15` UTC.
 
 - Binance USDⓈ-M [General Info](https://developers.binance.com/en/docs/products/derivatives-trading-usds-futures/general-info), [WebSocket streams](https://developers.binance.com/en/docs/products/derivatives-trading-usds-futures/websocket-market-streams/Connect), [routing migration](https://developers.binance.com/en/docs/products/derivatives-trading-usds-futures/websocket-market-streams/Important-WebSocket-Change-Notice), [user data streams](https://developers.binance.com/en/docs/products/derivatives-trading-usds-futures/user-data-streams), [error codes](https://developers.binance.com/en/docs/products/derivatives-trading-usds-futures/error-code), [local order book](https://developers.binance.com/en/docs/products/derivatives-trading-usds-futures/websocket-market-streams/How-to-manage-a-local-order-book-correctly), and [change log](https://developers.binance.com/en/docs/products/derivatives-trading-usds-futures/change-log).
 - OpenAI [model guidance](https://developers.openai.com/api/docs/models) and [full model list](https://developers.openai.com/api/docs/models/all), plus the current authenticated Codex account catalog produced by `codex-cli 0.144.4`.
+- Telegram official [Bot API](https://core.telegram.org/bots/api) and [Bot Features](https://core.telegram.org/bots/features), checked 2026-07-15 UTC for `getUpdates`, update offset confirmation, `setMyCommands`, `ReplyKeyboardMarkup`, persistent/resized keyboards, and server-side command authorization guidance.
 
 Official facts still aligned with the baseline include production `/public`, `/market`, `/private` routing, 24-hour WebSocket lifetime, ping every 3 minutes, 10-minute pong timeout, 10 inbound messages/s, 1,024 streams/connection, `U/u/pu` reconstruction, 503 exact-message classes, `-1008` reduce-only/close-position exemption, Algo Service endpoints, `ALGO_UPDATE`, RPI exclusion from standard books, and the `nq` normal-quantity field.
 
 Two material differences are recorded in ADR 0001 and block only their affected stages: the current Binance Testnet WebSocket base differs from the frozen schema, and the exact `gpt-5.6` slug is absent from the current account Codex catalog even though OpenAI API documentation describes it as an alias for `gpt-5.6-sol`.
-
