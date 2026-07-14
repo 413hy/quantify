@@ -1,12 +1,12 @@
 # Handoff state
 
-Updated: `2026-07-14T08:51:35Z`
+Updated: `2026-07-14T09:14:24Z`
 
 Resume in `/root/quantify/ai-quant-system`. Read `IMPLEMENTATION_STATUS.md`, ADR 0001–0003 and
 `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`. Never modify
 `/root/quantify/reference-materials`.
 
-Current implementation head is commit `c586fef`. M0 is not complete
+Current implementation head is commit `59108c9`. M0 is not complete
 or accepted. Commit `8516679` adds the executable bounded rate service, PostgreSQL v2 Reserve and
 full-bind Consume, deterministic multi-class policy ingestion, idempotent outcome/observation
 journals and durable 429/418 reconciliation. Commit `42624ef` adds closed gateway IPC validation,
@@ -32,6 +32,14 @@ in `/etc/ai-quant/trust`; the release cannot replace it through an environment v
 mount. Provisioning this file is a deployment prerequisite, not performed on this dev host.
 Commit `c586fef` rejects duplicate JSON/YAML keys and supplies a race-aware exact artifact hash
 verifier. Release-manifest and real signed deployment inputs remain absent.
+Commits `ead4d40` and `59108c9` record the implementation-context code review and fixes. Private
+service files now share a race-aware `0400`/current-UID/out-of-repository loader; endpoint source
+artifacts use the exact verifier; the allocator builds a fixed least-privilege database target from
+a password file. Host migration `0009_runtime_role` creates a `NOLOGIN`, non-superuser runtime role,
+revokes public function execution and hardens function search paths. The locked Compose service no
+longer receives the database bootstrap password. UDS one-way messages require a post-handler commit
+ACK, and gateway outcome failure latches closed. This implementer review is not the required
+fresh-context independent acceptance review.
 
 Exact verification command:
 
@@ -39,8 +47,9 @@ Exact verification command:
 cd /root/quantify/ai-quant-system && make ci && make test-migrations && make test-locked-runtime
 ```
 
-Expected: CI passes 88 unit, 3 property, 2 contract and 7 security tests; migrations pass both
-independent round-trips through host head `0008_decision_audit`, multi-class Reserve,
+Expected: CI passes 96 unit, 3 property, 2 contract and 8 security tests; migrations pass both
+independent round-trips through host head `0009_runtime_role`, least-privilege role checks,
+multi-class Reserve,
 full-bind Consume, journaling, 429 reconciliation and lease gates; the no-network runtime returns
 `RISK_LOCKED`.
 

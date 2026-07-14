@@ -2,7 +2,7 @@
 
 - Stage: M0 — repository, contracts, configuration, migrations, audit and egress skeleton
 - Status: `IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
-- Report time: `2026-07-14T08:51:35Z`
+- Report time: `2026-07-14T09:14:24Z`
 - Implementation commits: `3a5762e37a5311f0a7faeca2e93b6c77ab8500ff`,
   `fca378cf7e4f18457f46a381e29fc8599bb5baa8`,
   `d5a394e21776957f627c9c3e7da78dfd1accf53c`,
@@ -14,7 +14,9 @@
   `35cfb59287ee2051a6c3fa095673eff7c178974a`,
   `bd79957e59aac0828c32ba76ca342d71808842ad`,
   `b9f0d3243089a8b3ec54e2fcbc3371cacd7a51a1`,
-  `c586fef1f9896c476811e46d893ca283d746433c`
+  `c586fef1f9896c476811e46d893ca283d746433c`,
+  `ead4d40234e9970c5a5f64bbb63e4ee2469a3ecb`,
+  `59108c93cae776085f0a70f06fb5c9d873704e4b`
 - Implementer: `/root` engineering session
 - Independent reviewer: not assigned; a different actor with fresh context is still required
 - `CodexReviewReport`: absent by design; the implementer cannot self-sign it
@@ -51,12 +53,12 @@ metadata, and evidence.
 - The earlier foundation implementation manifest hash was
   `b13e7e76e1f6ad5e08b4d2b846f7ea15cdcefab163b25db5256541f7dd60b91a`; Git commit identity is
   authoritative for the later increments.
-- Local application OCI image ID: `sha256:825f964e52c3854cca558dab56f3f5e1c10a895b7d25e4fee7342a28c9e011dc`.
-- Image architecture/size: Linux arm64, 340,723,192 bytes.
+- Local application OCI image ID: `sha256:d5b2e06c2a44efb10669a8b3f9392a0f7df5e09f658f729d94aae07ed964c3b8`.
+- Image architecture/size: Linux arm64, 340,739,811 bytes.
 - The earlier image was reproduced twice. This new dependency-bearing image was built repeatedly
   from cache with the same ID but has not had a fresh no-cache reproducibility run.
 - Business migration head: `0001_business_core`.
-- Host-control migration head: `0008_decision_audit`.
+- Host-control migration head: `0009_runtime_role`.
 
 The local image ID is not represented as a signed registry release digest. No release, deployment,
 startup-evidence, or live authorization has been issued.
@@ -82,13 +84,17 @@ startup-evidence, or live authorization has been issued.
 | Boundary | startup measurement lifecycle | every measured section is hash-bound; publication is verified, atomic and durable; monitor rejects expiry, local mismatch, unsafe file or replacement |
 | Boundary | config trust root | keyring and fingerprint pin are root-owned `0444`, direct children of a non-writable independent trust directory; all mounts are read-only and business-isolated |
 | Boundary | artifact identity | duplicate-key-free JSON/YAML plus raw/JCS-document/JCS-content modes recompute exact bindings with full coverage and file-race checks |
+| Boundary | durable local notification | EOF/handler failure cannot impersonate commit; only a post-handler ACK succeeds and repeated outcome failure latches gateway closed |
+| Boundary | private service files | database password and attestation key require exact `0400`, current UID, absolute non-symlink paths outside the release tree |
+| Boundary | database runtime role | `aiq_rate_authority` defaults `NOLOGIN`, has no superuser/DDL role flags, public function execute is revoked, and hardened functions carry mutations |
+| Boundary | destination tuple | authority, transport, scheme and host are an exact tuple; denied Consume replies retain non-null connection binding |
 | Boundary | any changed binding hash, expiry, or replay | property tests deny without reopening permit |
 | Startup failure | non-root container, no network, no startup evidence | `RISK_LOCKED`, new egress false |
 | Database | business + host `upgrade → downgrade base → upgrade` | PASS on fresh disposable volumes |
 | Configuration/contracts | all recommended M0 validation targets | PASS |
 
 Primary logs and SHA-256 values are stored below this report in `tests/`, `security/`, and
-`artifacts/`. The final CI run passed 88 unit, 3 property, 2 contract, and 7 security tests. The
+`artifacts/`. The final CI run passed 96 unit, 3 property, 2 contract, and 8 security tests. The
 migration shape test and containerized migration round-trip also passed.
 
 ## Resource and security observations

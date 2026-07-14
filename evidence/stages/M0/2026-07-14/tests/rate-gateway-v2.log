@@ -1,10 +1,10 @@
 M0 rate/gateway v2 verification summary
-time=2026-07-14T08:51:35Z
-implementation_head=c586fef1f9896c476811e46d893ca283d746433c
+time=2026-07-14T09:14:24Z
+implementation_head=59108c93cae776085f0a70f06fb5c9d873704e4b
 rate_authority_commit=8516679
 gateway_pipeline_commit=42624ef909aa25cc4aa7c46c392a7c856eaa82f3
-ci=PASS unit=88 property=3 contract=2 security=7 mypy=PASS bandit=PASS secret_scan=PASS
-host_migration_head=0008_decision_audit
+ci=PASS unit=96 property=3 contract=2 security=8 mypy=PASS bandit=PASS secret_scan=PASS
+host_migration_head=0009_runtime_role
 migration_roundtrip=PASS
 reserve_v2=PASS multi_class=true idempotent=true replay_denied=true lease_required=true
 consume_v2=PASS complete_binding=true mismatch_denied=true repeat_denied=true
@@ -18,6 +18,10 @@ startup_evidence_verifier=PASS signed_ready=true exact_binding=true wrong_key_de
 startup_measurement_lifecycle=PASS all_sections_bound=true atomic_publish=true fsync=true file_mode=0444 per_operation_reverify=true single_writer=true
 config_trust_root=PASS root_owned=true file_mode=0444 parent_nonwritable=true symlink_denied=true out_of_band_pin_file=true read_only_consumers=rate,signer,gateway
 artifact_binding=PASS duplicate_keys_denied=true raw_bytes=true jcs_document=true jcs_content=true full_coverage=true path_race_checked=true
+private_service_files=PASS mode=0400 current_uid=true absolute=true symlink_denied=true outside_release=true password_file_contract=true
+database_runtime_role=PASS role=aiq_rate_authority login_default=false superuser=false public_execute=false hardened_search_path=true bootstrap_secret_exposed_to_rate=false
+uds_notification_commit=PASS handler_failure_rejected=true explicit_ack=true outcome_retry=3 failure_latches_gateway=true
+destination_binding=PASS authority_transport_scheme_host=exact consume_denial_connection_binding=preserved
 compose_identity=PASS realtime=11001 execution=11002 gateway=11005 rate=11006 signer=11007 signer_key_mode=0400
 uds_identity=PASS runtime_dir=root_sgid socket_inode_pinned=true owner_mode_pinned=true server_so_peercred=true shared_groups=11990,11991
 locked_runtime=PASS network=none new_egress_allowed=false

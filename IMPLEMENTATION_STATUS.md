@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: `2026-07-14T08:51:35Z`
+Updated: `2026-07-14T09:14:24Z`
 
 Overall state: `M0_IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
 
@@ -73,6 +73,14 @@ Highest completed milestone: none
   reject duplicate keys and adds exact artifact binding verification for raw schema bytes, JCS of a
   complete document, and JCS of a signed document's `content`. Coverage gaps, symlinks, path escape,
   read-time replacement and hash mismatch all fail closed.
+- Commits `ead4d40` and `59108c93cae776085f0a70f06fb5c9d873704e4b` close the database
+  secret and durable-notification findings from an implementation-context review. Service secrets
+  now require absolute, non-symlink, current-UID `0400` files outside the release tree; the rate
+  service builds only the fixed `aiq_rate_authority` target from a password file. Migration `0009`
+  creates that role as `NOLOGIN`/non-superuser with narrow grants and hardened security-definer
+  functions. A transport ACK now distinguishes a committed outcome from handler failure, and any
+  repeated outcome-journal failure latches the gateway closed. Exact endpoint source files,
+  transport/scheme pairs and denied connection bindings are also enforced.
 - Docker CE/Compose, Python 3.12.13 via `uv`, chrony, ripgrep and GNU time are installed for
   development. Initial chrony observations are healthy, but not a 24-hour deployment proof.
 
@@ -80,8 +88,10 @@ Detailed evidence: `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`.
 
 ## M0 work still required
 
-1. Provision real signed runtime catalog/trust/policy/window inputs and prove the executable rate
-   service startup on the authorized Ubuntu 24 deployment target; until then Compose stays locked.
+1. Provision the `aiq_rate_authority` LOGIN/password out of band, real signed runtime
+   catalog/trust/policy/window inputs, and prove the executable rate service startup on the
+   authorized Ubuntu 24 deployment target; until then Compose stays locked and receives no database
+   credential.
 2. Implement and independently review the production exact-wire transport and gateway service only
    after startup evidence and destination policy exist. Multi-role endpoints remain denied because
    the frozen request contract does not provide a unique gateway-side causal derivation rule.
