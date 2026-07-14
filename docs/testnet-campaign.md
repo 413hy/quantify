@@ -35,11 +35,30 @@ Testnet 样本采集。变更依据见 ADR 0007。
 systemctl status aiq-testnet-campaign.service
 journalctl -u aiq-testnet-campaign.service -n 100 --no-pager
 jq . /var/lib/ai-quant/evidence/testnet/campaign/current/state.json
+systemctl status aiq-testnet-user-stream.service
+journalctl -u aiq-testnet-user-stream.service -n 100 --no-pager
+jq . /var/lib/ai-quant/evidence/testnet/user-stream/current/state.json
 ```
 
 所有观察、提交、执行错误和逐单结果追加到
 `/var/lib/ai-quant/evidence/testnet/campaign/current/observations.jsonl`。状态文件分别记录已提交
 开仓数、已完成平仓数、活动币种、目标命中数、手续费后累计净结果和逐币冷却时间。
+
+独立的只读用户数据流观察器 `aiq-testnet-user-stream.service` 与实验执行线程解耦。它只连接
+当前 Testnet 私有 stream，维护 listen key、自动重连并对 `ORDER_TRADE_UPDATE`、
+`ACCOUNT_UPDATE` 和 `ALGO_UPDATE` 做哈希链、去重和脱敏留证；不具备下单接口。状态与事件为：
+
+- `/var/lib/ai-quant/evidence/testnet/user-stream/current/state.json`
+- `/var/lib/ai-quant/evidence/testnet/user-stream/current/events.jsonl`
+
+停止观察器形成一致快照后，可用独立验链器校验所有记录、去重身份、事件类型覆盖和状态摘要：
+
+```bash
+scripts/verify-testnet-user-stream.py \
+  --events /var/lib/ai-quant/evidence/testnet/user-stream/current/events.jsonl \
+  --state /var/lib/ai-quant/evidence/testnet/user-stream/current/state.json \
+  --output /var/lib/ai-quant/evidence/testnet/user-stream/current/verification.json
+```
 
 Telegram 使用中文发送活动启动、信号提交、逐单平仓、异常、6 小时简报和活动结束通知。
 交易通知包括币种、方向、入场、结构止损、目标、已实现盈亏、手续费及净结果。

@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: `2026-07-14T15:44:06Z`
+Updated: `2026-07-14T17:00:39Z`
 
 Overall state: `TESTNET_CORE_PROTOCOL_PASS / EXTERNAL_DURATION_GATES_PENDING / RISK_LOCKED`
 
@@ -23,6 +23,9 @@ calibration, 72-hour, or live authorization evidence. No production exchange ord
 - M3 risk/execution: multiplier-aware hard limits, floor-to-step sizing, STANDARD/ALGO namespaces,
   append-only order projection, exact Algo status mapping, response classification, 5-second UNKNOWN
   reconciliation, conservative fills, 1000ms protection monitoring and restart reconciliation.
+- The independent Testnet user-data observer now maintains the listen key, reconnects on a fresh
+  exact-destination private stream, deduplicates supported events and writes a secret-free
+  hash-chained journal. It has no order-submission method and records zero production requests.
 - Existing-position management applies the owner-amended exit order: kill/protection/account, hard
   stop/risk, PA invalidation, OF reversal/exhaustion and structural target. Elapsed time is not an
   exit condition. Every active exit is full reduce-only taker and cannot increase exposure.
@@ -75,9 +78,9 @@ calibration, 72-hour, or live authorization evidence. No production exchange ord
 
 ## Verified results
 
-- Full CI: 206 unit, 17 property, 2 contract and 17 security tests pass.
+- Full CI: 222 unit, 19 property, 2 contract and 17 security tests pass.
 - Additional suites: 3 replay, 19 integration, 6 fault-injection and 1 resource-profile test pass.
-- Ruff, strict mypy (92 source files), Bandit, secret scan, all 42 contract schemas/39 examples,
+- Ruff, strict mypy (95 source files), Bandit, secret scan, all 42 contract schemas/39 examples,
   14 config examples, provenance, Compose and Debian deployment validators pass.
 - Runtime dependency audit covers 45 packages and reports zero known vulnerabilities. A reproducible
   CycloneDX SBOM and audit JSON are under `evidence/build/current/`.
@@ -138,6 +141,15 @@ calibration, 72-hour, or live authorization evidence. No production exchange ord
   TradePlan requires `EXCHANGE_MAXIMUM`, the selected initial leverage, bracket hash/observation
   time and a freshness limit. The mandatory Production/Testnet endpoint inventory includes both
   leverage-bracket query and initial-leverage change.
+- `aiq-testnet-user-stream.service` is enabled and running independently of the campaign. A real
+  far-from-market BTCUSDT lifecycle produced matching `ORDER_TRADE_UPDATE` events for `NEW` and
+  `CANCELED`. A minimum fill/native-protection/flatten probe then produced real
+  `ORDER_TRADE_UPDATE`, `ACCOUNT_UPDATE` and `ALGO_UPDATE` events, including two Algo `NEW ->
+  EXPIRED` paths. The independent verifier passed 12 unique records, all three required event
+  types, a continuous final hash and zero production requests; BTCUSDT ended with zero ordinary
+  orders, zero Algo orders and zero position. Restart preserved the journal and incremented
+  reconnect state. Evidence is under `/var/lib/ai-quant/evidence/testnet/user-stream/current/`;
+  keepalive/rotation, injected disconnect and the complete Algo status matrix are not yet claimed.
 - A real external archive roundtrip to the isolated receiver passed. The sender encrypted an exact
   L2 Parquet object with age/X25519; the remote endpoint recomputed its ciphertext hash, decrypted
   it, matched the plaintext hash, opened 21 Parquet columns, matched one row and schema `1.0.0`, and
@@ -150,9 +162,10 @@ calibration, 72-hour, or live authorization evidence. No production exchange ord
 The following require external facts, elapsed observation windows, credentials or human signatures
 and were deliberately not fabricated:
 
-1. Continuous User Data Stream event consumption/reconnect evidence and the complete pre-registered
-   external fault/race matrix. Listen-key lifecycle and the private WebSocket upgrade pass, but a
-   received `ORDER_TRADE_UPDATE`/`ALGO_UPDATE` event transcript has not yet been claimed.
+1. Completion of the User Data Stream matrix. Continuous observation, restart/reconnect state and
+   real `ORDER_TRADE_UPDATE`, `ACCOUNT_UPDATE` and `ALGO_UPDATE` transcripts now pass. A real
+   keepalive/rotation window, injected disconnect/dedup coverage, every required Algo status and
+   the remaining pre-registered external fault/race cases are still pending.
 2. The independent Testnet project database/Compose seal required before discarding its facts or
    starting calibration. The remote encrypted Parquet/decrypt-receipt/isolated-restore mechanism is
    proven. The receiver disk is now 200 GB with about 178 GB free; the capacity evidence still needs
@@ -162,8 +175,7 @@ and were deliberately not fabricated:
 4. Continuous 72-hour Shadow/Testnet validation, first-live 24-hour evidence and 87-day forward OOS
    results.
 5. Owner signatures, production credentials and an independent fresh-context acceptance review.
-   an independent fresh-context acceptance review. Testnet and archive transport credentials are
-   configured outside the repository.
+   Testnet and archive transport credentials are configured outside the repository.
 6. Production activation. It remains unauthorized and locked.
 
 These are validation/deployment inputs, not hidden unfinished offline implementation. The software

@@ -1,6 +1,6 @@
 # Handoff state
 
-Updated: `2026-07-14T16:29:53Z`
+Updated: `2026-07-14T17:00:39Z`
 
 Resume in `/root/quantify/ai-quant-system`. Debian 12 Bookworm/aarch64 is the sole supported host.
 Do not modify `/root/quantify/reference-materials`; the copied contract/config provenance validator
@@ -52,6 +52,15 @@ not REST polling. Only messages with valid `nq` normal quantity enter OF. The fi
 five-second rounds had non-zero aggressive flow for every symbol; entry still remained rejected by
 PA/setup/edge gates, as intended.
 
+`aiq-testnet-user-stream.service` is enabled as a separate read-only observer. It maintains the
+Testnet listen key, reconnects, deduplicates supported events and writes a secret-free hash chain.
+A real BTCUSDT far-from-market lifecycle and native-protection cycle captured six
+`ORDER_TRADE_UPDATE`, two `ACCOUNT_UPDATE` and four `ALGO_UPDATE` records. The independent verifier
+passed all 12 unique hash-chained events and zero production requests; restart preserved them and
+produced reconnect state. Evidence is `/var/lib/ai-quant/evidence/testnet/user-stream/current/`.
+Do not claim the full user-stream gate until keepalive/rotation, injected disconnect/dedup, every
+required Algo status and the remaining fault matrix pass.
+
 The historical parallel Testnet sample ran SOLUSDT, BNBUSDT and XRPUSDT concurrently. It ended at
 -0.00742656/-0.00525511/-0.00930724 USDT net and reconciled fully flat. Its elapsed-duration runner
 has been deleted; the retained records are execution stress evidence, not strategy trades.
@@ -68,7 +77,7 @@ make test-migrations test-locked-runtime paper-flow
 make sbom scan
 ```
 
-Expected counts are 206 unit, 17 property, 2 contract, 17 security, 3 replay, 19 integration,
+Expected counts are 222 unit, 19 property, 2 contract, 17 security, 3 replay, 19 integration,
 6 fault and 1 resource test. The Paper result has `external_requests=0`, `order_state=FILLED`,
 `protection_healthy=true`, and `runtime_state=RISK_LOCKED`.
 
@@ -89,8 +98,10 @@ system is complete. Local changes must be reviewed and committed before any futu
   and a minimum fill/native Algo protection/reduce-only flatten cycle. Final Testnet state is zero
   regular orders, zero Algo orders and zero position; production request count is zero. Runtime
   copies are root-owned `0400` files under `/run/ai-quant-secrets/` and must never enter Git/chat.
-- Complete live User Data event consumption/reconnect evidence, the remaining pre-registered
-  protocol fault/race cases, and independent project persistence/backup/seal before calibration.
+- Complete listen-key keepalive/rotation, injected disconnect/dedup, every required Algo status and
+  the remaining pre-registered protocol fault/race cases, plus independent project
+  persistence/backup/seal before calibration. All three live event types and restart/reconnect
+  evidence now pass.
 - Complete actual Binance destination measurements and the still-running 24-hour generic host
   baseline.
 - The external archive receiver is provisioned and its encrypted upload, remote decrypt, Parquet

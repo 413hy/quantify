@@ -332,6 +332,19 @@ class BinanceTestnetClient:
             raise TestnetProbeError("LISTEN_KEY_CREATE_INVALID_RESPONSE")
         return listen_key
 
+    def keepalive_listen_key(self, listen_key: str) -> None:
+        if len(listen_key) < 20 or any(char.isspace() for char in listen_key):
+            raise TestnetProbeError("LISTEN_KEY_INVALID")
+        _json_object(
+            self._call(
+                "PUT",
+                "/fapi/v1/listenKey",
+                params={"listenKey": listen_key},
+                api_key_required=True,
+            ),
+            "LISTEN_KEY_KEEPALIVE",
+        )
+
     def close_listen_key(self, listen_key: str) -> None:
         _json_object(
             self._call(

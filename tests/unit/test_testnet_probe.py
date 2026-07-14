@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from ai_quant.binance_egress.testnet_probe import (
+    BinanceTestnetClient,
     HttpResult,
     run_safe_testnet_probe,
     run_testnet_native_protection,
@@ -18,6 +19,25 @@ from ai_quant.binance_egress.testnet_probe import (
 
 def _result(document: Any) -> HttpResult:
     return HttpResult(200, {}, json.dumps(document).encode())
+
+
+def test_listen_key_keepalive_uses_only_testnet_rest_destination() -> None:
+    calls: list[tuple[str, str]] = []
+
+    def transport(
+        method: str, url: str, headers: Mapping[str, str], body: bytes | None
+    ) -> HttpResult:
+        del headers, body
+        calls.append((method, url))
+        return _result({})
+
+    client = BinanceTestnetClient("test-key", "test-secret", transport=transport)
+    client.keepalive_listen_key("a" * 32)
+
+    assert len(calls) == 1
+    assert calls[0][0] == "PUT"
+    assert calls[0][1].startswith("https://demo-fapi.binance.com/fapi/v1/listenKey?")
+    assert "listenKey=" + "a" * 32 in calls[0][1]
 
 
 def test_safe_probe_never_uses_production_and_redacts_ephemeral_values(tmp_path: Path) -> None:

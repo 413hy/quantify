@@ -117,17 +117,17 @@ class TestnetAggregateTradeStream:
     def _consume_connection(self) -> None:
         streams = "/".join(f"{symbol.lower()}@aggTrade" for symbol in self.symbols)
         path = f"/public/stream?streams={streams}"
-        with _open_websocket(TESTNET_STREAM_HOST, path) as connection:
+        with open_testnet_stream_websocket(TESTNET_STREAM_HOST, path) as connection:
             connection.settimeout(5)
             while not self._stop.is_set():
                 try:
-                    opcode, payload = _read_frame(connection)
+                    opcode, payload = read_websocket_frame(connection)
                 except TimeoutError:
                     continue
                 if opcode == 0x8:
                     return
                 if opcode == 0x9:
-                    connection.sendall(_masked_frame(0xA, payload))
+                    connection.sendall(masked_websocket_frame(0xA, payload))
                     continue
                 if opcode != 0x1:
                     continue
@@ -142,8 +142,10 @@ class TestnetAggregateTradeStream:
                     self.window.ingest(document)
 
 
-def _open_websocket(host: str, path: str) -> ssl.SSLSocket:
-    if host != TESTNET_STREAM_HOST or not path.startswith("/public/stream?"):
+def open_testnet_stream_websocket(host: str, path: str) -> ssl.SSLSocket:
+    public_path = path.startswith("/public/stream?")
+    private_path = path.startswith("/private/ws/") and "?" not in path and "#" not in path
+    if host != TESTNET_STREAM_HOST or not (public_path or private_path):
         raise TestnetProbeError("TESTNET_STREAM_DESTINATION_DENIED")
     key = base64.b64encode(secrets.token_bytes(16)).decode("ascii")
     request = (
@@ -210,7 +212,7 @@ def _read_exact(connection: ssl.SSLSocket, size: int) -> bytes:
     return bytes(payload)
 
 
-def _read_frame(connection: ssl.SSLSocket) -> tuple[int, bytes]:
+def read_websocket_frame(connection: ssl.SSLSocket) -> tuple[int, bytes]:
     header = _read_exact(connection, 2)
     final = bool(header[0] & 0x80)
     opcode = header[0] & 0x0F
@@ -227,7 +229,7 @@ def _read_frame(connection: ssl.SSLSocket) -> tuple[int, bytes]:
     return opcode, _read_exact(connection, length)
 
 
-def _masked_frame(opcode: int, payload: bytes) -> bytes:
+def masked_websocket_frame(opcode: int, payload: bytes) -> bytes:
     if len(payload) > 125:
         raise TestnetProbeError("TESTNET_STREAM_CONTROL_FRAME_TOO_LARGE")
     mask = secrets.token_bytes(4)

@@ -245,9 +245,49 @@ def _validate_baseline_unit() -> None:
         raise SystemExit("deployment baseline unit command is unsafe")
 
 
+def _validate_testnet_user_stream_unit() -> None:
+    path = ROOT / "deploy/systemd/aiq-testnet-user-stream.service"
+    lines = set(path.read_text(encoding="utf-8").splitlines())
+    required = {
+        "User=root",
+        "Group=root",
+        "NoNewPrivileges=yes",
+        "ProtectSystem=full",
+        "ProtectHome=read-only",
+        "PrivateDevices=yes",
+        "ProtectKernelTunables=yes",
+        "ProtectKernelModules=yes",
+        "ProtectControlGroups=yes",
+        "RestrictNamespaces=yes",
+        "RestrictSUIDSGID=yes",
+        "MemoryDenyWriteExecute=yes",
+        "SystemCallArchitectures=native",
+        "RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6",
+        "CapabilityBoundingSet=",
+        "AmbientCapabilities=",
+    }
+    if not required <= lines:
+        raise SystemExit("Testnet user-data observer unit hardening is incomplete")
+    command = next((line for line in lines if line.startswith("ExecStart=")), "")
+    required_arguments = {
+        "-m ai_quant.services.testnet_user_stream",
+        "--api-key-file /run/ai-quant-secrets/binance-testnet-api-key",
+        "--api-secret-file /run/ai-quant-secrets/binance-testnet-api-secret",
+        "--evidence-file /var/lib/ai-quant/evidence/testnet/user-stream/current/events.jsonl",
+        "--state-file /var/lib/ai-quant/evidence/testnet/user-stream/current/state.json",
+        "--keepalive-interval-seconds 1800",
+        "--rotate-no-later-than-seconds 84600",
+    }
+    if not all(value in command for value in required_arguments):
+        raise SystemExit("Testnet user-data observer command is incomplete")
+    if any(token in command for token in ("fapi.binance.com", "fstream.binance.com", "/bin/sh")):
+        raise SystemExit("Testnet user-data observer command crosses destination boundary")
+
+
 def main() -> int:
     _validate_bootstrap_bundle()
     _validate_baseline_unit()
+    _validate_testnet_user_stream_unit()
     _validate_unit(
         "aiq-measurement-cycle.service",
         "/opt/ai-quant/.venv/bin/python -m ai_quant.services.measurement_cycle",
@@ -267,7 +307,7 @@ def main() -> int:
         raise SystemExit("nftables example is not an object")
     render_nftables_policy(example)
     print(
-        "deployment static policy PASS units=2 postgres_tcp=none "
+        "deployment static policy PASS units=3 postgres_tcp=none "
         "nft_table=ai_quant_egress bootstrap=debian12-locked"
     )
     return 0

@@ -18,6 +18,8 @@ five symbols and can hold up to three Testnet positions in parallel with about 1
 exchange-maximum-leverage policy (also specified for future production), native
 structural stop/target protection and no elapsed-time exit. It is explicitly unvalidated and does
 not change the production `RISK_LOCKED` gate.
+An independent `aiq-testnet-user-stream.service` now maintains the Testnet listen key and records
+deduplicated, secret-free, hash-chained user events without exposing an order-submission method.
 A separate three-symbol parallel Testnet execution stress sample
 also passed final zero-state reconciliation; it is not counted as strategy evidence. No production
 credential has been requested, copied, or injected; runtime remains `RISK_LOCKED` and is not
