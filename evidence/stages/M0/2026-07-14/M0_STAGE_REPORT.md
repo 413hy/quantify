@@ -2,7 +2,7 @@
 
 - Stage: M0 — repository, contracts, configuration, migrations, audit and egress skeleton
 - Status: `IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
-- Report time: `2026-07-14T09:19:39Z`
+- Report time: `2026-07-14T09:27:34Z`
 - Implementation commits: `3a5762e37a5311f0a7faeca2e93b6c77ab8500ff`,
   `fca378cf7e4f18457f46a381e29fc8599bb5baa8`,
   `d5a394e21776957f627c9c3e7da78dfd1accf53c`,
@@ -17,7 +17,8 @@
   `c586fef1f9896c476811e46d893ca283d746433c`,
   `ead4d40234e9970c5a5f64bbb63e4ee2469a3ecb`,
   `59108c93cae776085f0a70f06fb5c9d873704e4b`,
-  `53784a5a40a2f174696bf5ade93df9f725bf9c5b`
+  `53784a5a40a2f174696bf5ade93df9f725bf9c5b`,
+  `d3711e0284ce1def8cb9a37f95b117c3da0a905a`
 - Implementer: `/root` engineering session
 - Independent reviewer: not assigned; a different actor with fresh context is still required
 - `CodexReviewReport`: absent by design; the implementer cannot self-sign it
@@ -44,7 +45,7 @@ metadata, and evidence.
 | M0-R08 atomic reserve/permit/nonce consume and replay denial | PASS for implemented database boundary | `migrations.log`; unit/property tests |
 | M0-R09 locked non-root container startup | PASS | `locked-runtime.log` |
 | M0-R10 full Reserve→gateway→PermitConsume→send service | PARTIAL | bounded rate/gateway IPC, v2 Reserve/Consume, exact-wire single-send core and outcome journal pass; production transport is intentionally absent |
-| M0-R11 signed startup evidence and host destination firewall | PARTIAL | root-authenticated facts assembly, independent issuer, full measurement binding, atomic publisher and monitor pass; executable collector/service, signed deployment evidence and host firewall proof remain absent |
+| M0-R11 signed startup evidence and host destination firewall | PARTIAL | root-authenticated facts assembly, executable independent issuer, full measurement binding, atomic publisher and monitor pass; root collector, signed deployment evidence and host firewall proof remain absent |
 | M0-R12 independent fresh-context review | BLOCKED | reviewer and valid `CodexReviewReport` absent |
 
 ## Artifact and configuration identity
@@ -54,8 +55,8 @@ metadata, and evidence.
 - The earlier foundation implementation manifest hash was
   `b13e7e76e1f6ad5e08b4d2b846f7ea15cdcefab163b25db5256541f7dd60b91a`; Git commit identity is
   authoritative for the later increments.
-- Local application OCI image ID: `sha256:7f845e4ff20004033d6c4407eb497e45565d64c3dbb0950e38c9d5494930029f`.
-- Image architecture/size: Linux arm64, 340,742,297 bytes.
+- Local application OCI image ID: `sha256:56a1b83461443093e5d1320a782727bc503a8ce15ce9191ffd1cb02a665fe330`.
+- Image architecture/size: Linux arm64, 340,776,564 bytes.
 - The earlier image was reproduced twice. This new dependency-bearing image was built repeatedly
   from cache with the same ID but has not had a fresh no-cache reproducibility run.
 - Business migration head: `0001_business_core`.
@@ -90,6 +91,7 @@ startup-evidence, or live authorization has been issued.
 | Boundary | database runtime role | `aiq_rate_authority` defaults `NOLOGIN`, has no superuser/DDL role flags, public function execute is revoked, and hardened functions carry mutations |
 | Boundary | destination tuple | authority, transport, scheme and host are an exact tuple; denied Consume replies retain non-null connection binding |
 | Boundary | root-authenticated local facts | no evidence draft is accepted; fresh root snapshot, boot ID, complete artifact/release bindings and both socket identities are remeasured before content construction |
+| Boundary | executable attestation issuer | actual keyring/trust/schema inputs are evidence-bound; refresh is at most 60 seconds and handled stop/failure removes the published evidence |
 | Boundary | any changed binding hash, expiry, or replay | property tests deny without reopening permit |
 | Startup failure | non-root container, no network, no startup evidence | `RISK_LOCKED`, new egress false |
 | Database | business + host `upgrade → downgrade base → upgrade` | PASS on fresh disposable volumes |

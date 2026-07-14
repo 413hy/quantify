@@ -1,12 +1,12 @@
 # Handoff state
 
-Updated: `2026-07-14T09:19:39Z`
+Updated: `2026-07-14T09:27:34Z`
 
 Resume in `/root/quantify/ai-quant-system`. Read `IMPLEMENTATION_STATUS.md`, ADR 0001–0003 and
 `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`. Never modify
 `/root/quantify/reference-materials`.
 
-Current implementation head is commit `53784a5`. M0 is not complete
+Current implementation head is commit `d3711e0`. M0 is not complete
 or accepted. Commit `8516679` adds the executable bounded rate service, PostgreSQL v2 Reserve and
 full-bind Consume, deterministic multi-class policy ingestion, idempotent outcome/observation
 journals and durable 429/418 reconciliation. Commit `42624ef` adds closed gateway IPC validation,
@@ -43,7 +43,12 @@ fresh-context independent acceptance review.
 Commit `53784a5` adds the root-authenticated local-facts assembly boundary. It accepts no evidence
 draft, requires a fresh direct root-owned `0444` snapshot with its own JCS hash, independently
 remeasures boot ID, complete artifact/release bindings and both Unix sockets, and constructs the
-signable content plus exact verifier expectation. An executable collector/service is still absent.
+signable content plus exact verifier expectation. The root facts collector is still absent.
+Commit `d3711e0` adds the executable issuer service. Every cycle reloads the root-protected plan,
+signed trust bundle and owner-only key, proves that the keyring/trust/schema files actually used are
+the files bound into the evidence, signs and atomically publishes, and refreshes no slower than 60
+seconds. Handled stop/refresh failure removes the last evidence. The root collector is still absent,
+and locked Compose intentionally does not activate this service.
 
 Exact verification command:
 

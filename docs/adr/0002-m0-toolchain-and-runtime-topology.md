@@ -47,8 +47,8 @@ Debian 12 rather than the frozen Ubuntu 24 deployment target.
 ## Consequences
 
 The earlier local image was reproduced twice from the same source and builder. After the reviewed
-M0 authority-boundary increment through commit `53784a5`, the current cached-build OCI image ID is
-`sha256:7f845e4ff20004033d6c4407eb497e45565d64c3dbb0950e38c9d5494930029f`; a fresh no-cache
+M0 authority-boundary increment through commit `d3711e0`, the current cached-build OCI image ID is
+`sha256:56a1b83461443093e5d1320a782727bc503a8ce15ce9191ffd1cb02a665fe330`; a fresh no-cache
 reproduction has not yet been run. This local digest is evidence for development only; deployment
 still requires a controlled registry artifact, signed release manifest, and verification on the
 qualified target host.

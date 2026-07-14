@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: `2026-07-14T09:19:39Z`
+Updated: `2026-07-14T09:27:34Z`
 
 Overall state: `M0_IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
 
@@ -85,7 +85,12 @@ Highest completed milestone: none
   evidence drafts from the issuance boundary. A fresh root-owned `0444` local-facts snapshot is
   strictly parsed and hash-checked; the assembler independently remeasures boot identity, complete
   artifact/release hashes and both Unix socket identities before constructing the only signable
-  content and its matching expectation. The executable root collector/service remains absent.
+  content and its matching expectation. The root facts collector remains absent.
+- Commit `d3711e0284ce1def8cb9a37f95b117c3da0a905a` adds the executable fail-closed
+  attestation issuer around that boundary. It reloads the protected plan, trust bundle and private
+  key for every refresh, binds the actually used keyring/trust/schema files to the evidence, issues
+  at most every 60 seconds, publishes atomically, and deletes the last evidence on handled stop or
+  refresh failure. Compose remains locked; the root facts collector and deployment inputs are absent.
 - Docker CE/Compose, Python 3.12.13 via `uv`, chrony, ripgrep and GNU time are installed for
   development. Initial chrony observations are healthy, but not a 24-hour deployment proof.
 
@@ -100,10 +105,10 @@ Detailed evidence: `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`.
 2. Implement and independently review the production exact-wire transport and gateway service only
    after startup evidence and destination policy exist. Multi-role endpoints remain denied because
    the frozen request contract does not provide a unique gateway-side causal derivation rule.
-3. Build the executable attestation service and root-authenticated local-facts collector around the
-   completed local-facts assembler, signer/issuer, atomic-publisher and monitor primitives. The
-   assembler already rejects caller-authored evidence drafts; collection and service lifecycle are
-   not yet implemented.
+3. Build the root-authenticated local-facts collector that supplies the completed executable
+   attestation issuer, then prove its lifecycle on the qualified deployment target. The issuer
+   already rejects caller-authored drafts and invalidates evidence on handled refresh failure; it is
+   intentionally not activated by locked Compose without real measured facts.
 4. Destination-specific host DNS/firewall enforcement proving exactly one Binance socket owner and
    zero business Binance routes; current Compose validation is static only.
 5. A different actor in fresh context must independently review and issue a valid
@@ -123,7 +128,7 @@ Detailed evidence: `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`.
 
 | Milestone | Status |
 |---|---|
-| M0 repository/contracts/config/migrations/audit/host control/gateway | IN PROGRESS; offline rate/gateway boundaries implemented, signed deployment/network/attestation/review outstanding |
+| M0 repository/contracts/config/migrations/audit/host control/gateway | IN PROGRESS; offline rate/gateway/attestation issuer boundaries implemented, collector/deployment/network/review outstanding |
 | M1 market data/order book/quality/archive/replay | NOT STARTED; M0 acceptance required |
 | M2 PA/OF/Top10/cost/Codex orchestration/unified backtest | NOT STARTED; Codex portion blocked by model catalog |
 | M3 risk/order state/user stream/native protection/reconciliation | NOT STARTED |
