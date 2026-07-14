@@ -62,7 +62,7 @@ def test_campaign_limits_enforce_cooldown_count_and_daily_loss() -> None:
     ) == (True, None)
     assert campaign_trade_allowed(
         now=now,
-        last_trade_at=now - timedelta(seconds=899),
+        last_trade_at=now - timedelta(seconds=299),
         daily_trade_count=0,
         daily_net_pnl=Decimal("0"),
         limits=limits,

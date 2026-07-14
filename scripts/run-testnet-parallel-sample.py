@@ -8,6 +8,7 @@ import json
 import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -29,7 +30,9 @@ def main() -> int:
     parser.add_argument("--telegram-chat-ids-file", required=True, type=Path)
     parser.add_argument("--output-directory", required=True, type=Path)
     parser.add_argument("--symbols", default="SOLUSDT,BNBUSDT,XRPUSDT")
-    parser.add_argument("--maximum-holding-seconds", type=int, default=180)
+    parser.add_argument("--target-net-profit", type=Decimal, default=Decimal("0.05"))
+    parser.add_argument("--maximum-net-loss", type=Decimal, default=Decimal("0.10"))
+    parser.add_argument("--maximum-holding-seconds", type=int, default=900)
     arguments = parser.parse_args()
     symbols = tuple(symbol.strip() for symbol in arguments.symbols.split(",") if symbol.strip())
     if not 2 <= len(symbols) <= 5 or len(set(symbols)) != len(symbols):
@@ -41,6 +44,8 @@ def main() -> int:
             api_secret_file=arguments.api_secret_file,
             repository_root=arguments.repository_root,
             symbol=symbol,
+            target_net_profit=arguments.target_net_profit,
+            maximum_net_loss=arguments.maximum_net_loss,
             maximum_holding_seconds=arguments.maximum_holding_seconds,
         )
 

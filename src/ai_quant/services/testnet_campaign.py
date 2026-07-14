@@ -34,13 +34,13 @@ from ai_quant.strategy.testnet_baseline import (
 class CampaignLimits:
     duration_seconds: int = 259_200
     evaluation_interval_seconds: int = 60
-    trade_cooldown_seconds: int = 900
+    trade_cooldown_seconds: int = 300
     maximum_trades_per_day: int = 8
     daily_net_loss_limit: Decimal = Decimal("0.30")
     margin_budget: Decimal = Decimal("1")
-    target_net_profit: Decimal = Decimal("0.1")
+    target_net_profit: Decimal = Decimal("0.05")
     maximum_net_loss: Decimal = Decimal("0.1")
-    maximum_holding_seconds: int = 180
+    maximum_holding_seconds: int = 900
 
     def __post_init__(self) -> None:
         if not 60 <= self.duration_seconds <= 604_800:
@@ -53,6 +53,10 @@ class CampaignLimits:
             raise ValueError("campaign daily trade count is invalid")
         if self.daily_net_loss_limit <= 0 or self.daily_net_loss_limit > Decimal("1"):
             raise ValueError("campaign daily loss limit is invalid")
+        if self.target_net_profit <= 0 or self.maximum_net_loss <= 0:
+            raise ValueError("campaign PnL budgets must be positive")
+        if not 30 <= self.maximum_holding_seconds <= 900:
+            raise ValueError("campaign maximum holding time is invalid")
 
 
 def campaign_trade_allowed(
@@ -517,10 +521,12 @@ def main() -> int:
     parser.add_argument("--symbols", default="SOLUSDT,BNBUSDT,XRPUSDT,DOGEUSDT,ADAUSDT")
     parser.add_argument("--duration-seconds", type=int, default=259_200)
     parser.add_argument("--evaluation-interval-seconds", type=int, default=60)
-    parser.add_argument("--trade-cooldown-seconds", type=int, default=900)
+    parser.add_argument("--trade-cooldown-seconds", type=int, default=300)
     parser.add_argument("--maximum-trades-per-day", type=int, default=8)
     parser.add_argument("--daily-net-loss-limit", type=Decimal, default=Decimal("0.30"))
-    parser.add_argument("--maximum-holding-seconds", type=int, default=180)
+    parser.add_argument("--target-net-profit", type=Decimal, default=Decimal("0.05"))
+    parser.add_argument("--maximum-net-loss", type=Decimal, default=Decimal("0.10"))
+    parser.add_argument("--maximum-holding-seconds", type=int, default=900)
     arguments = parser.parse_args()
     limits = CampaignLimits(
         duration_seconds=arguments.duration_seconds,
@@ -528,6 +534,8 @@ def main() -> int:
         trade_cooldown_seconds=arguments.trade_cooldown_seconds,
         maximum_trades_per_day=arguments.maximum_trades_per_day,
         daily_net_loss_limit=arguments.daily_net_loss_limit,
+        target_net_profit=arguments.target_net_profit,
+        maximum_net_loss=arguments.maximum_net_loss,
         maximum_holding_seconds=arguments.maximum_holding_seconds,
     )
     arguments.lock_file.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
