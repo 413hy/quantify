@@ -107,6 +107,13 @@ class VerifiedCapability:
     expires_at: datetime
 
 
+@dataclass(frozen=True, slots=True)
+class VerifiedSignedDocument:
+    content: Mapping[str, Any]
+    content_hash: str
+    signed_at: datetime
+
+
 def canonical_digest(value: Any) -> bytes:
     """Return SHA-256(RFC8785-JCS(value))."""
     return hashlib.sha256(rfc8785.dumps(value)).digest()
@@ -177,7 +184,7 @@ def _integer_set(value: object, reason: str) -> frozenset[int]:
     return result
 
 
-def _assert_root_owned_0444(path: Path) -> None:
+def assert_root_owned_0444(path: Path) -> None:
     metadata = path.lstat()
     if (
         not stat.S_ISREG(metadata.st_mode)
@@ -409,6 +416,55 @@ def verify_runtime_trust_bundle(
     )
 
 
+def verify_signed_config_document(
+    document: Mapping[str, Any],
+    keyring: Mapping[str, Any],
+    *,
+    expected_keyring_hash: str,
+    hash_field: str,
+    status_field: str,
+    now: datetime,
+) -> VerifiedSignedDocument:
+    """Verify a generic host-control SIGNED_RUNTIME content document."""
+    utc_now = now.astimezone(UTC)
+    content = _as_mapping(document.get("content"), "SIGNED_POLICY_INVALID")
+    if content.get(status_field) != "SIGNED_RUNTIME":
+        raise AuthorizationDenied("SIGNED_POLICY_NOT_RUNTIME")
+    digest = canonical_digest(content)
+    if document.get(hash_field) != digest.hex():
+        raise AuthorizationDenied("SIGNED_POLICY_HASH_MISMATCH")
+    signature = _as_mapping(document.get("signature"), "SIGNED_POLICY_SIGNATURE_MISSING")
+    if signature.get("algorithm") != "Ed25519":
+        raise AuthorizationDenied("SIGNED_POLICY_SIGNATURE_INVALID")
+    signed_at = _parse_time(signature.get("signed_at"), "SIGNED_POLICY_SIGNATURE_INVALID")
+    if signed_at > utc_now:
+        raise AuthorizationDenied("SIGNED_POLICY_SIGNATURE_INVALID")
+    key_id = signature.get("key_id")
+    if not isinstance(key_id, str):
+        raise AuthorizationDenied("SIGNED_POLICY_SIGNATURE_INVALID")
+    verification_key = _verification_key(
+        keyring,
+        expected_keyring_hash=expected_keyring_hash,
+        key_id=key_id,
+        signed_at=signed_at,
+        now=utc_now,
+    )
+    try:
+        verification_key.verify(
+            _decode_base64(
+                signature.get("signature_base64"), 64, "SIGNED_POLICY_SIGNATURE_INVALID"
+            ),
+            digest,
+        )
+    except InvalidSignature as exc:
+        raise AuthorizationDenied("SIGNED_POLICY_SIGNATURE_INVALID") from exc
+    return VerifiedSignedDocument(
+        content=content,
+        content_hash=digest.hex(),
+        signed_at=signed_at,
+    )
+
+
 def load_runtime_trust_bundle(
     bundle_path: Path,
     bundle_schema_path: Path,
@@ -419,7 +475,7 @@ def load_runtime_trust_bundle(
     now: datetime,
 ) -> RuntimeTrustBundle:
     """Load validated JSON, enforce the trust-root file boundary, and verify signatures."""
-    _assert_root_owned_0444(keyring_path)
+    assert_root_owned_0444(keyring_path)
     bundle = validate_config(bundle_path, bundle_schema_path)
     keyring = validate_config(keyring_path, keyring_schema_path)
     if not isinstance(bundle, dict) or not isinstance(keyring, dict):
