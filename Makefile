@@ -27,7 +27,7 @@ preflight:
 		evidence/preflight/2026-07-14/development/document-package-audit.json
 
 lint:
-	$(UV) run ruff check src tests tools scripts
+	$(UV) run ruff check src tests tools scripts migrations
 
 typecheck:
 	$(UV) run mypy src

@@ -72,20 +72,104 @@ HASH_E="$(printf 'e%.0s' {1..64})"
 HASH_F="$(printf 'f%.0s' {1..64})"
 docker exec -i "${RUN_ID}-host-postgres-1" psql -v ON_ERROR_STOP=1 \
   -U aiq_host_control_test -d aiq_host_rate_control_test <<SQL >/dev/null
+INSERT INTO rate_control.endpoint_runtime_policies(
+  endpoint_authority,endpoint_id,endpoint_catalog_hash,policy_payload_hash,status,
+  allowed_callers,derived_operation_class,cost_vector,valid_from,valid_until
+) VALUES (
+  'BINANCE_PRODUCTION_FAPI','REST_QUERY_TIME','$HASH_A','$HASH_B','SIGNED_RUNTIME',
+  ARRAY['execution-service'],'HOST_RATE_CONTROL',
+  '[{"scope_key_hash":"$HASH_C","rate_limit_type":"REQUEST_WEIGHT","interval_name":"MINUTE_1","cost":1,"ceiling_units":10}]',
+  now()-interval '1 minute',now()+interval '1 minute'
+);
+INSERT INTO rate_control.rate_windows(
+  endpoint_authority,scope_key_hash,rate_limit_type,interval_name,window_start,
+  window_end,effective_used,observed_max,hard_limit,limit_source_hash
+) VALUES (
+  'BINANCE_PRODUCTION_FAPI','$HASH_C','REQUEST_WEIGHT','MINUTE_1',
+  now()-interval '1 minute',now()+interval '1 minute',0,0,10,'$HASH_D'
+);
 INSERT INTO rate_control.capability_nonces(nonce,payload_hash,state,expires_at)
 VALUES ('nonce-1','$HASH_E','RESERVED',now()+interval '1 minute');
 INSERT INTO rate_control.permits(
   permit_id,request_key,subject_caller_service,subject_caller_instance_id,
-  endpoint_authority,endpoint_id,canonical_request_hash,parameter_hash,wire_bytes_hash,
+  environment,endpoint_authority,endpoint_id,endpoint_catalog_hash,derived_operation_class,
+  canonical_request_hash,parameter_hash,wire_bytes_hash,
   operation_facts_hash,capability_payload_hash,gateway_request_document_hash,
   capability_nonce,fencing_epoch,
   state,reserved_at,expires_at
 ) VALUES (
-  'permit-1','request-1','execution-service','execution-1','BINANCE_PRODUCTION_FAPI',
-  'REST_QUERY_TIME','$HASH_A','$HASH_B','$HASH_C','$HASH_D','$HASH_E','$HASH_F','nonce-1',1,
+  'permit-1','request-1','execution-service','execution-1','production',
+  'BINANCE_PRODUCTION_FAPI','REST_QUERY_TIME','$HASH_A','HOST_RATE_CONTROL',
+  '$HASH_A','$HASH_B','$HASH_C','$HASH_D','$HASH_E','$HASH_F','nonce-1',1,
   'RESERVED',now(),now()+interval '1 minute'
 );
 SQL
+
+RESERVE_FIRST="$(docker exec "${RUN_ID}-host-postgres-1" psql -U aiq_host_control_test \
+  -d aiq_host_rate_control_test -Atc \
+  "SELECT decision||':'||reason_code||':'||permit_id FROM rate_control.reserve_permit(
+    'permit-reserve-1','request-reserve-1','execution-service','execution-1','production',
+    'BINANCE_PRODUCTION_FAPI','REST_QUERY_TIME','$HASH_A','$HASH_A','$HASH_B','$HASH_C',
+    '$HASH_D','$HASH_E','$HASH_F','nonce-reserve-1',1,now()+interval '4 seconds')")"
+RESERVE_RETRY="$(docker exec "${RUN_ID}-host-postgres-1" psql -U aiq_host_control_test \
+  -d aiq_host_rate_control_test -Atc \
+  "SELECT decision||':'||reason_code||':'||permit_id FROM rate_control.reserve_permit(
+    'permit-reserve-ignored','request-reserve-1','execution-service','execution-1','production',
+    'BINANCE_PRODUCTION_FAPI','REST_QUERY_TIME','$HASH_A','$HASH_A','$HASH_B','$HASH_C',
+    '$HASH_D','$HASH_E','$HASH_F','nonce-reserve-1',1,now()+interval '4 seconds')")"
+RESERVE_REPLAY="$(docker exec "${RUN_ID}-host-postgres-1" psql -U aiq_host_control_test \
+  -d aiq_host_rate_control_test -Atc \
+  "SELECT decision||':'||reason_code FROM rate_control.reserve_permit(
+    'permit-reserve-2','request-reserve-2','execution-service','execution-1','production',
+    'BINANCE_PRODUCTION_FAPI','REST_QUERY_TIME','$HASH_A','$HASH_A','$HASH_B','$HASH_C',
+    '$HASH_D','$HASH_E','$HASH_F','nonce-reserve-1',1,now()+interval '4 seconds')")"
+printf 'reserve decisions first=%s retry=%s replay=%s\n' \
+  "$RESERVE_FIRST" "$RESERVE_RETRY" "$RESERVE_REPLAY"
+test "$RESERVE_FIRST" = 'GRANTED:RATE_GRANTED:permit-reserve-1'
+test "$RESERVE_RETRY" = 'GRANTED:RATE_GRANTED:permit-reserve-1'
+test "$RESERVE_REPLAY" = 'DENIED:RATE_CAPABILITY_REPLAYED'
+docker exec "${RUN_ID}-host-postgres-1" psql -U aiq_host_control_test \
+  -d aiq_host_rate_control_test -Atc \
+  "SELECT effective_used FROM rate_control.rate_windows WHERE scope_key_hash='$HASH_C'" \
+  | grep -qx '1'
+printf 'atomic reservation and idempotency PASS\n'
+
+RESERVE_CALLER_DENIED="$(docker exec "${RUN_ID}-host-postgres-1" psql \
+  -U aiq_host_control_test -d aiq_host_rate_control_test -Atc \
+  "SELECT decision||':'||reason_code FROM rate_control.reserve_permit(
+    'permit-denied-1','request-denied-1','trading-engine','trading-1','production',
+    'BINANCE_PRODUCTION_FAPI','REST_QUERY_TIME','$HASH_A','$HASH_A','$HASH_B','$HASH_C',
+    '$HASH_D','$HASH_E','$HASH_F','nonce-denied-1',1,now()+interval '4 seconds')")"
+RESERVE_FENCING_DENIED="$(docker exec "${RUN_ID}-host-postgres-1" psql \
+  -U aiq_host_control_test -d aiq_host_rate_control_test -Atc \
+  "SELECT decision||':'||reason_code FROM rate_control.reserve_permit(
+    'permit-denied-2','request-denied-2','execution-service','execution-1','production',
+    'BINANCE_PRODUCTION_FAPI','REST_QUERY_TIME','$HASH_A','$HASH_A','$HASH_B','$HASH_C',
+    '$HASH_D','$HASH_E','$HASH_F','nonce-denied-2',2,now()+interval '4 seconds')")"
+RESERVE_CATALOG_DENIED="$(docker exec "${RUN_ID}-host-postgres-1" psql \
+  -U aiq_host_control_test -d aiq_host_rate_control_test -Atc \
+  "SELECT decision||':'||reason_code FROM rate_control.reserve_permit(
+    'permit-denied-3','request-denied-3','execution-service','execution-1','production',
+    'BINANCE_PRODUCTION_FAPI','REST_QUERY_TIME','$HASH_F','$HASH_A','$HASH_B','$HASH_C',
+    '$HASH_D','$HASH_E','$HASH_F','nonce-denied-3',1,now()+interval '4 seconds')")"
+test "$RESERVE_CALLER_DENIED" = 'DENIED:RATE_CALLER_NOT_ALLOWED'
+test "$RESERVE_FENCING_DENIED" = 'DENIED:RATE_FENCING_STALE'
+test "$RESERVE_CATALOG_DENIED" = 'DENIED:RATE_ENDPOINT_UNKNOWN'
+
+docker exec "${RUN_ID}-host-postgres-1" psql -U aiq_host_control_test \
+  -d aiq_host_rate_control_test -Atc \
+  "UPDATE rate_control.rate_windows SET blocked_until=now()+interval '1 minute' WHERE scope_key_hash='$HASH_C'" \
+  >/dev/null
+RESERVE_BLOCKED="$(docker exec "${RUN_ID}-host-postgres-1" psql \
+  -U aiq_host_control_test -d aiq_host_rate_control_test -Atc \
+  "SELECT decision||':'||reason_code FROM rate_control.reserve_permit(
+    'permit-denied-4','request-denied-4','execution-service','execution-1','production',
+    'BINANCE_PRODUCTION_FAPI','REST_QUERY_TIME','$HASH_A','$HASH_A','$HASH_B','$HASH_C',
+    '$HASH_D','$HASH_E','$HASH_F','nonce-denied-4',1,now()+interval '4 seconds')")"
+test "$RESERVE_BLOCKED" = 'DENIED:RATE_SCOPE_BLOCKED'
+printf 'reservation denial gates caller=%s fencing=%s catalog=%s blocked=%s\n' \
+  "$RESERVE_CALLER_DENIED" "$RESERVE_FENCING_DENIED" \
+  "$RESERVE_CATALOG_DENIED" "$RESERVE_BLOCKED"
 
 FIRST_CONSUME="$(docker exec "${RUN_ID}-host-postgres-1" psql -U aiq_host_control_test \
   -d aiq_host_rate_control_test -Atc \
