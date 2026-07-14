@@ -616,6 +616,54 @@
       "version": "2026.6.17"
     },
     {
+      "bom-ref": "cffi==2.1.0",
+      "description": "Foreign Function Interface for Python calling C code.",
+      "externalReferences": [
+        {
+          "comment": "from packaging metadata Project-URL: Download",
+          "type": "distribution",
+          "url": "https://github.com/python-cffi/cffi/releases"
+        },
+        {
+          "comment": "from packaging metadata Project-URL: Documentation",
+          "type": "documentation",
+          "url": "https://cffi.readthedocs.io/"
+        },
+        {
+          "comment": "from packaging metadata Project-URL: Issue Tracker",
+          "type": "issue-tracker",
+          "url": "https://github.com/python-cffi/cffi/issues"
+        },
+        {
+          "comment": "from packaging metadata Project-URL: Source Code",
+          "type": "other",
+          "url": "https://github.com/python-cffi/cffi"
+        },
+        {
+          "comment": "from packaging metadata Project-URL: Contact",
+          "type": "other",
+          "url": "https://groups.google.com/forum/#!forum/python-cffi"
+        },
+        {
+          "comment": "from packaging metadata Project-URL: Changelog",
+          "type": "release-notes",
+          "url": "https://cffi.readthedocs.io/en/latest/whatsnew.html"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "acknowledgement": "declared",
+            "id": "MIT-0"
+          }
+        }
+      ],
+      "name": "cffi",
+      "purl": "pkg:pypi/cffi@2.1.0",
+      "type": "library",
+      "version": "2.1.0"
+    },
+    {
       "bom-ref": "chardet==5.2.0",
       "description": "Universal encoding detector for Python 3",
       "externalReferences": [
@@ -787,6 +835,47 @@
       "purl": "pkg:pypi/coverage@7.15.1",
       "type": "library",
       "version": "7.15.1"
+    },
+    {
+      "bom-ref": "cryptography==49.0.0",
+      "description": "cryptography is a package which provides cryptographic recipes and primitives to Python developers.",
+      "externalReferences": [
+        {
+          "comment": "from packaging metadata Project-URL: documentation",
+          "type": "documentation",
+          "url": "https://cryptography.io/"
+        },
+        {
+          "comment": "from packaging metadata Project-URL: issues",
+          "type": "issue-tracker",
+          "url": "https://github.com/pyca/cryptography/issues"
+        },
+        {
+          "comment": "from packaging metadata Project-URL: source",
+          "type": "other",
+          "url": "https://github.com/pyca/cryptography/"
+        },
+        {
+          "comment": "from packaging metadata Project-URL: changelog",
+          "type": "release-notes",
+          "url": "https://cryptography.io/en/latest/changelog/"
+        },
+        {
+          "comment": "from packaging metadata Project-URL: homepage",
+          "type": "website",
+          "url": "https://github.com/pyca/cryptography"
+        }
+      ],
+      "licenses": [
+        {
+          "acknowledgement": "declared",
+          "expression": "Apache-2.0 OR BSD-3-Clause"
+        }
+      ],
+      "name": "cryptography",
+      "purl": "pkg:pypi/cryptography@49.0.0",
+      "type": "library",
+      "version": "49.0.0"
     },
     {
       "bom-ref": "cyclonedx-bom==7.3.0",
@@ -2314,6 +2403,29 @@
       "version": "25.0.0"
     },
     {
+      "bom-ref": "pycparser==3.0",
+      "description": "C parser in Python",
+      "externalReferences": [
+        {
+          "comment": "from packaging metadata Project-URL: Homepage",
+          "type": "website",
+          "url": "https://github.com/eliben/pycparser"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "acknowledgement": "declared",
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "name": "pycparser",
+      "purl": "pkg:pypi/pycparser@3.0",
+      "type": "library",
+      "version": "3.0"
+    },
+    {
       "bom-ref": "pydantic==2.13.4",
       "description": "Data validation using Python type hints",
       "externalReferences": [
@@ -3739,6 +3851,12 @@
       "ref": "certifi==2026.6.17"
     },
     {
+      "dependsOn": [
+        "pycparser==3.0"
+      ],
+      "ref": "cffi==2.1.0"
+    },
+    {
       "ref": "chardet==5.2.0"
     },
     {
@@ -3752,6 +3870,13 @@
         "tomli==2.4.1"
       ],
       "ref": "coverage==7.15.1"
+    },
+    {
+      "dependsOn": [
+        "cffi==2.1.0",
+        "typing_extensions==4.16.0"
+      ],
+      "ref": "cryptography==49.0.0"
     },
     {
       "dependsOn": [
@@ -4051,6 +4176,9 @@
       "ref": "pyarrow==25.0.0"
     },
     {
+      "ref": "pycparser==3.0"
+    },
+    {
       "dependsOn": [
         "PyYAML==6.0.3",
         "pydantic==2.13.4",
@@ -4123,6 +4251,7 @@
     },
     {
       "dependsOn": [
+        "cryptography==49.0.0",
         "requests==2.34.2"
       ],
       "ref": "redis==8.0.1"
@@ -4183,6 +4312,7 @@
         "PyYAML==6.0.3",
         "SQLAlchemy==2.0.51",
         "alembic==1.18.5",
+        "cryptography==49.0.0",
         "fastapi==0.139.0",
         "jsonschema==4.26.0",
         "openapi-spec-validator==0.9.0",
@@ -4279,6 +4409,9 @@
       "ref": "webcolors==25.10.0"
     },
     {
+      "dependsOn": [
+        "cffi==2.1.0"
+      ],
       "ref": "zstandard==0.25.0"
     }
   ],

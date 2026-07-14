@@ -3,7 +3,8 @@
 - Status: accepted for M0 development; not a deployment approval
 - Date: 2026-07-14
 - Implementation commits: `3a5762e37a5311f0a7faeca2e93b6c77ab8500ff`,
-  `fca378cf7e4f18457f46a381e29fc8599bb5baa8`
+  `fca378cf7e4f18457f46a381e29fc8599bb5baa8`,
+  `d5a394e21776957f627c9c3e7da78dfd1accf53c`
 
 ## Decision
 
@@ -45,7 +46,9 @@ Debian 12 rather than the frozen Ubuntu 24 deployment target.
 
 ## Consequences
 
-The local image is reproducible for the same source and builder and currently has OCI image ID
-`sha256:52516cf6272b8663c00e8fdb5b87155aefe0d9e49365ef9831c2e1ab15a45121`.
-That local digest is evidence for this build only; deployment still requires a controlled registry
-artifact, signed release manifest, and verification on the qualified target host.
+The earlier local image was reproduced twice from the same source and builder. After adding the
+exact Ed25519 runtime dependency in ADR 0003, the current cached-build OCI image ID is
+`sha256:24ffaa143057bfa793b31fb9a35fa89f59dea1953fa15d61cd69dc09dd32854e`; a fresh no-cache
+reproduction has not yet been run. This local digest is evidence for development only; deployment
+still requires a controlled registry artifact, signed release manifest, and verification on the
+qualified target host.

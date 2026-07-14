@@ -1,1 +1,13 @@
-{"Id":"sha256:52516cf6272b8663c00e8fdb5b87155aefe0d9e49365ef9831c2e1ab15a45121","RepoTags":["aiq-app:m0"],"RepoDigests":["aiq-app@sha256:52516cf6272b8663c00e8fdb5b87155aefe0d9e49365ef9831c2e1ab15a45121"],"Comment":"buildkit.dockerfile.v0","Created":"2026-07-14T15:05:42.781672646+08:00","Config":{"User":"65532:65532","Env":["PATH=/app/.venv/bin:/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin","LANG=C.UTF-8","GPG_KEY=7169605F62C751356D054A26A821E680E5FA6305","PYTHON_VERSION=3.12.13","PYTHON_SHA256=c08bc65a81971c1dd5783182826503369466c7e67374d1646519adf05207b684","PYTHONDONTWRITEBYTECODE=1","PYTHONUNBUFFERED=1","UV_COMPILE_BYTECODE=1","UV_LINK_MODE=copy"],"Cmd":["python","-m","ai_quant.services.locked_process"],"WorkingDir":"/app","ArgsEscaped":true},"Architecture":"arm64","Os":"linux","Size":329833663,"RootFS":{"Type":"layers","Layers":["sha256:12cdff3b039e28c684ffd2097ff5a66df274a8500966a1431038b05f50bcf096","sha256:10b5151be3c11f9fd9e64043eaf4bf1dffbacf770da5b29e4480b710be81511f","sha256:cdb2f937b2d0224e8694c43077267d2484502f0e45095b92a24e7eb4f7f484ed","sha256:705c229bb06a03dde6eebf73743ebcb18dff129274ac3564d114a8926d73a628","sha256:4f0c5f3e21db9ebb386969b65661a9cf73fa67761779750d70fb277a9e18ee96","sha256:2a95a4f6452330edd3ff69df9895bfb448b461ab2417d511d267371b6c4275b2","sha256:8cf965229714208f791242cb26191e9071443320319b1c1428e6aee5063c003d","sha256:20c37d5d32a0340b00c51ec113b969db31ac3db6acccfc90e840632c24ed638b","sha256:011655f832bc9aa5b8a113ce719246eaecbd377f8c4011fd147b8cff1cd84381","sha256:e732d946f10dddbaaab0afd0eaccc731800af1a806f59da7f4022d0fc75d1c6c","sha256:647ecbb53774b7c3ba00c202994cd12d68a090eb44d77490b983477b3bbffa43","sha256:267bbbcf6c786f7cac6cda4634a565bbd81a990f79578b33cd16d04528836d8c"]},"Metadata":{"LastTagTime":"2026-07-14T07:06:08.432803782Z"},"Descriptor":{"mediaType":"application/vnd.oci.image.manifest.v1+json","digest":"sha256:52516cf6272b8663c00e8fdb5b87155aefe0d9e49365ef9831c2e1ab15a45121","size":2579,"annotations":{"config.digest":"sha256:17734c07134a9fcc0e311e3b9c90421c66779ce34ffd0ee6923bfad4ae2c115b"}},"Identity":{"Build":[{"Ref":"z93g3p1i9fej9orhtu2m06m6x","CreatedAt":"2026-07-14T15:06:13.259766686+08:00"}]}}
+{
+  "Id": "sha256:24ffaa143057bfa793b31fb9a35fa89f59dea1953fa15d61cd69dc09dd32854e",
+  "RepoTags": ["aiq-app:m0"],
+  "Architecture": "arm64",
+  "Os": "linux",
+  "Size": 340503631,
+  "Config": {
+    "User": "65532:65532",
+    "Cmd": ["python", "-m", "ai_quant.services.locked_process"],
+    "WorkingDir": "/app"
+  },
+  "evidence_scope": "local development image only; not a signed registry release"
+}

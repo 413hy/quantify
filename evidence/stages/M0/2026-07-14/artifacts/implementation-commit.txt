@@ -1,6 +1,8 @@
-fca378c (HEAD -> master) feat: add atomic durable rate reservation
- Makefile                                           |   2 +-
- .../versions/0002_atomic_reservation.py            | 271 +++++++++++++++++++++
- pyproject.toml                                     |   3 +
- scripts/test-migrations.sh                         |  90 ++++++-
- 4 files changed, 362 insertions(+), 4 deletions(-)
+d5a394e feat: enforce signed capability and fencing boundaries
+ .../host_control/versions/0003_fencing_lease.py    | 262 ++++++++++
+ pyproject.toml                                     |   1 +
+ scripts/test-migrations.sh                         |  64 ++-
+ src/ai_quant/rate_budget/authorization.py          | 556 +++++++++++++++++++++
+ tests/unit/test_authorization.py                   | 279 +++++++++++
+ uv.lock                                            |  71 +++
+ 6 files changed, 1223 insertions(+), 10 deletions(-)

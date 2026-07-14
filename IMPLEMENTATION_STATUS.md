@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: `2026-07-14T07:06:58Z`
+Updated: `2026-07-14T07:26:53Z`
 
 Overall state: `M0_IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
 
@@ -24,6 +24,10 @@ Highest completed milestone: none
   cost/ceiling, fencing, request idempotency and one-time capability nonce are checked under row
   locks. Tests prove one charge on retry and fail-closed denial for replay, caller, fencing, catalog
   and blocked-window violations.
+- Commit `d5a394e21776957f627c9c3e7da78dfd1accf53c` adds a closed signed-runtime
+  capability trust-bundle loader, config-root/capability Ed25519 verification over RFC 8785 JCS
+  hashes, full causal binding checks, Linux `SO_PEERCRED` caller/protocol ACLs, and durable
+  PostgreSQL epoch leases. Competing owners and expired/stale leases deny Reserve and Consume.
 - Docker CE/Compose, Python 3.12.13 via `uv`, chrony, ripgrep and GNU time are installed for
   development. Initial chrony observations are healthy, but not a 24-hour deployment proof.
 
@@ -31,10 +35,9 @@ Detailed evidence: `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`.
 
 ## M0 work still required
 
-1. Signed runtime policy ingestion and causal-capability signature verification, plus
-   `SO_PEERCRED` caller ACL and fencing
-   lease ownership.
-2. Complete bounded rate-budget and gateway Unix-socket protocols, gateway recomputation from wire
+1. Complete the bounded rate-budget Unix-socket service, connect peer/capability checks to atomic
+   Reserve, and ingest signed endpoint catalogs into append-only runtime policy rows.
+2. Complete the bounded gateway Unix-socket protocol, gateway recomputation from wire
    facts, send outcome/unknown accounting, and correlation audit.
 3. Signed startup evidence and attestation service.
 4. Destination-specific host DNS/firewall enforcement proving exactly one Binance socket owner and
@@ -56,7 +59,7 @@ Detailed evidence: `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`.
 
 | Milestone | Status |
 |---|---|
-| M0 repository/contracts/config/migrations/audit/host control/gateway | IN PROGRESS; atomic Reserve/Consume committed, full IPC/services/review outstanding |
+| M0 repository/contracts/config/migrations/audit/host control/gateway | IN PROGRESS; signed capability/peer/fencing boundary committed, full IPC/services/review outstanding |
 | M1 market data/order book/quality/archive/replay | NOT STARTED; M0 acceptance required |
 | M2 PA/OF/Top10/cost/Codex orchestration/unified backtest | NOT STARTED; Codex portion blocked by model catalog |
 | M3 risk/order state/user stream/native protection/reconciliation | NOT STARTED |
@@ -82,5 +85,5 @@ Deployment authorization: `NOT_AUTHORIZED`. Runtime default: `RISK_LOCKED`.
 cd /root/quantify/ai-quant-system && make ci && make test-migrations && make test-locked-runtime
 ```
 
-After this baseline re-verifies, continue M0 with signed policy/capability verification and the
-peer-identity boundary. Do not start M1 or enable a transport.
+After this baseline re-verifies, continue M0 with the bounded rate-budget UDS service and signed
+endpoint-policy ingestion. Do not start M1 or enable a transport.
