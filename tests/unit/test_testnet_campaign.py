@@ -10,6 +10,8 @@ from ai_quant.features.order_flow import OrderFlowFrame
 from ai_quant.features.price_action import Direction, PriceActionFrame, Regime, Structure
 from ai_quant.services.testnet_campaign import (
     CampaignLimits,
+    _experimental_candidate_rank,
+    _money,
     _select_candidate,
     _summary_text,
     campaign_trade_allowed,
@@ -201,12 +203,29 @@ def test_testnet_experiment_builds_structural_stop_without_time_exit(
     plan = decision.experimental_plan
     assert plan is not None
     assert plan.stop_anchor == Decimal("75.780")
-    assert Decimal("20") <= (
+    assert Decimal("35") <= (
         (plan.target_reference - plan.entry_reference)
         / plan.entry_reference
         * Decimal(10_000)
-    ) <= Decimal("35")
+    ) <= Decimal("60")
     assert "maximum_holding" not in str(plan.evidence()).lower()
+
+
+def test_fee_adjusted_v2_target_is_larger_than_v1_target() -> None:
+    entry = Decimal("100")
+    risk_bps = Decimal("30")
+    target_bps = max(Decimal(35), min(Decimal(60), risk_bps * Decimal("0.75")))
+
+    assert entry * target_bps / Decimal(10_000) == Decimal("0.35")
+    assert target_bps > Decimal("20")
+
+
+def test_experimental_candidates_prefer_price_action_alignment() -> None:
+    aligned = _decision_for_rank("BNBUSDT", Direction.SHORT)
+    neutral = _decision_for_rank("XRPUSDT", Direction.NEUTRAL)
+
+    assert _experimental_candidate_rank(aligned) < _experimental_candidate_rank(neutral)
+    assert _money("0.08470919") == "0.084709"
 
 
 def test_campaign_summary_translates_runtime_and_reason_codes_to_chinese() -> None:
@@ -247,3 +266,44 @@ def _klines(server_time_ms: int, *, interval_ms: int) -> list[list[object]]:
         ]
         for index in range(120)
     ]
+
+
+def _decision_for_rank(symbol: str, pa_direction: Direction) -> baseline.TestnetBaselineDecision:
+    now = datetime(2026, 7, 14, 12, tzinfo=UTC)
+    frame = PriceActionFrame(
+        as_of=now,
+        regime=Regime.TREND_DOWN if pa_direction is Direction.SHORT else Regime.TRANSITION,
+        structure=Structure.LH_LL if pa_direction is Direction.SHORT else Structure.UNCONFIRMED,
+        direction=pa_direction,
+        atr=Decimal("0.2"),
+        efficiency_ratio=Decimal("0.5"),
+        reason_codes=(),
+    )
+    flow = OrderFlowFrame(
+        book_imbalance=Decimal("-0.1"),
+        microprice=Decimal("100"),
+        microprice_mid_bps=Decimal("-0.2"),
+        trade_imbalance=Decimal("-0.8"),
+        aggressive_notional=Decimal("1000"),
+        cvd_notional=Decimal("-800"),
+        valid=True,
+        reason_codes=(),
+    )
+    return baseline.TestnetBaselineDecision(
+        eligible=False,
+        observed_at=now,
+        symbol=symbol,
+        direction=Direction.NEUTRAL,
+        pa_1m=frame,
+        pa_5m=frame,
+        order_flow=flow,
+        spread_bps=Decimal("1"),
+        reason_codes=(),
+        experimental_plan=baseline.TestnetExperimentalPlan(
+            symbol=symbol,
+            direction=Direction.SHORT,
+            entry_reference=Decimal("100"),
+            stop_anchor=Decimal("100.3"),
+            target_reference=Decimal("99.65"),
+        ),
+    )

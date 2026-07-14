@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
+from queue import Empty, SimpleQueue
 from typing import Any, cast
 
 from ai_quant.binance_egress.structural_experiment import run_structural_experiment
@@ -112,6 +113,7 @@ class TestnetCampaign:
             max_workers=min(3, len(symbols)), thread_name_prefix="testnet-experiment"
         )
         self.active_trades: dict[str, Future[dict[str, Any]]] = {}
+        self.position_events: SimpleQueue[dict[str, Any]] = SimpleQueue()
         self.stop_requested = False
 
     def request_stop(self) -> None:
@@ -135,6 +137,7 @@ class TestnetCampaign:
                 f"计划运行: {self.limits.duration_seconds // 86_400} 天\n"
                 f"评估间隔: {self.limits.evaluation_interval_seconds} 秒\n"
                 "运行模式: Testnet 实验下单 (最多 3 个币种并行)\n"
+                "决策来源: Testnet 确定性规则策略 (不依赖 Codex 在线状态)\n"
                 f"单笔保证金: 最高 {self.limits.margin_budget} USDT\n"
                 "杠杆: 各币种 Testnet 当前允许的最高初始杠杆\n"
                 f"单笔预计净亏损预算: {self.limits.maximum_net_loss_per_trade} USDT\n"
@@ -196,6 +199,7 @@ class TestnetCampaign:
         stopped_by_operator = self.stop_requested
         self.stop_requested = True
         while self.active_trades:
+            self._drain_position_events()
             self._reap_completed_trades(state)
             if self.active_trades:
                 time.sleep(1)
@@ -212,6 +216,7 @@ class TestnetCampaign:
         return result_code
 
     def _evaluate_once(self, state: dict[str, Any]) -> dict[str, Any]:
+        self._drain_position_events()
         self._reap_completed_trades(state)
         _, server_offset_ms = self.client.synchronize_time()
         worker_count = min(3, len(self.symbols))
@@ -250,19 +255,22 @@ class TestnetCampaign:
         available = min(3, len(self.symbols)) - len(self.active_trades)
         if available <= 0:
             return
-        plans = sorted(
+        candidates = sorted(
             (
-                decision.experimental_plan
+                decision
                 for decision in decisions
                 if decision.experimental_plan is not None
                 and decision.symbol not in self.active_trades
             ),
-            key=lambda plan: plan.symbol,
+            key=_experimental_candidate_rank,
         )
         last_by_symbol = cast(dict[str, str], state.setdefault("last_trade_by_symbol", {}))
-        for plan in plans:
+        for decision in candidates:
             if available <= 0:
                 break
+            plan = decision.experimental_plan
+            if plan is None:
+                continue
             last_value = last_by_symbol.get(plan.symbol)
             allowed, reason = campaign_trade_allowed(
                 now=observed_at,
@@ -290,6 +298,7 @@ class TestnetCampaign:
                 plan=plan,
                 margin_budget=self.limits.margin_budget,
                 maximum_net_loss=self.limits.maximum_net_loss_per_trade,
+                on_position_protected=self.position_events.put,
                 stop_requested=lambda: self.stop_requested,
             )
             self.active_trades[plan.symbol] = future
@@ -302,6 +311,7 @@ class TestnetCampaign:
                 {
                     "record_type": "TESTNET_EXPERIMENT_SUBMITTED",
                     "observed_at": timestamp,
+                    "decision_authority": "TESTNET_DETERMINISTIC_RULE",
                     "validation_status": "UNVALIDATED_TESTNET_EXPERIMENT",
                 }
             )
@@ -315,7 +325,8 @@ class TestnetCampaign:
                     f"参考入场: {plan.entry_reference}\n"
                     f"结构止损: {plan.stop_anchor}\n"
                     f"目标止盈: {plan.target_reference}\n"
-                    "仓位状态将以交易所成交回报为准。"
+                    "决策来源: Testnet 确定性规则策略 (不依赖 Codex)\n"
+                    "实际杠杆、数量和保证金将在仓位保护确认后通知。"
                 ),
                 key=f"experiment-submit-{plan.symbol}-{observed_at.timestamp()}",
             )
@@ -362,13 +373,51 @@ class TestnetCampaign:
                 summary=(
                     f"交易对: {symbol}\n"
                     f"方向: {'做多' if result['direction'] == 'LONG' else '做空'}\n"
+                    f"杠杆: {result['initial_leverage']}x (交易所当前最大)\n"
+                    f"数量: {result['quantity']}\n"
+                    f"名义价值: {_money(result['position_notional'])} USDT\n"
+                    f"实际初始保证金: {_money(result['actual_initial_margin'])} USDT\n"
                     f"入场价: {result['entry_price']}\n"
+                    f"平仓价: {result['exit_price']}\n"
+                    f"止盈触发价: {result['target_trigger']}\n"
+                    f"止损触发价: {result['stop_trigger']}\n"
                     f"退出原因: {_exit_reason_cn(str(result['exit_reason']))}\n"
-                    f"已实现盈亏: {result['realized_pnl']} USDT\n"
-                    f"手续费: {result['commission_paid']} USDT\n"
-                    f"净结果: {result['net_pnl']} USDT"
+                    f"已实现盈亏: {_money(result['realized_pnl'])} USDT\n"
+                    f"手续费: {_money(result['commission_paid'])} USDT\n"
+                    f"净结果: {_money(result['net_pnl'])} USDT\n"
+                    "决策来源: Testnet 确定性规则策略"
                 ),
                 key=f"experiment-result-{symbol}-{result['completed_at']}",
+            )
+
+    def _drain_position_events(self) -> None:
+        while True:
+            try:
+                event = self.position_events.get_nowait()
+            except Empty:
+                return
+            self._append_event(event)
+            self._notify(
+                severity="INFO",
+                event_type="测试网仓位已建立并完成保护",
+                summary=(
+                    f"交易对: {event['symbol']}\n"
+                    f"方向: {'做多' if event['direction'] == 'LONG' else '做空'}\n"
+                    f"杠杆: {event['initial_leverage']}x (交易所当前最大)\n"
+                    f"数量: {event['quantity']}\n"
+                    f"名义价值: {_money(event['position_notional'])} USDT\n"
+                    f"实际初始保证金: {_money(event['actual_initial_margin'])} USDT\n"
+                    f"成交入场价: {event['entry_price']}\n"
+                    f"止盈触发价: {event['target_trigger']}\n"
+                    f"预计止盈毛收益: {_money(event['estimated_target_gross_pnl'])} USDT\n"
+                    f"预计扣费滑点后止盈: {_money(event['estimated_target_net_pnl'])} USDT\n"
+                    f"止损触发价: {event['stop_trigger']}\n"
+                    f"预计止损净亏损: {_money(event['estimated_stop_net_loss'])} USDT\n"
+                    "保护状态: 交易所原生止盈/止损均已确认\n"
+                    "触发价格: 合约成交价 (CONTRACT_PRICE)\n"
+                    "决策来源: Testnet 确定性规则策略 (不依赖 Codex)"
+                ),
+                key=f"experiment-protected-{event['symbol']}-{event['protected_at']}",
             )
 
     def _observe_symbol(self, symbol: str, server_offset_ms: int) -> TestnetBaselineDecision:
@@ -437,8 +486,10 @@ class TestnetCampaign:
                 self.symbols
             ):
                 document["limits"] = self._limits_document()
-                document["strategy"] = "TESTNET_EXPERIMENT_OF_PA_V1"
+                document["strategy"] = "TESTNET_EXPERIMENT_OF_PA_V2"
                 document["validation_status"] = "UNVALIDATED_TESTNET_EXPERIMENT"
+                document["decision_authority"] = "TESTNET_DETERMINISTIC_RULE"
+                document["codex_dependency"] = False
                 document.setdefault("last_trade_by_symbol", {})
                 document.setdefault("active_symbols", [])
                 document.setdefault(
@@ -461,8 +512,10 @@ class TestnetCampaign:
             "schema_version": "1.0.0",
             "status": "RUNNING",
             "environment": "testnet",
-            "strategy": "TESTNET_EXPERIMENT_OF_PA_V1",
+            "strategy": "TESTNET_EXPERIMENT_OF_PA_V2",
             "validation_status": "UNVALIDATED_TESTNET_EXPERIMENT",
+            "decision_authority": "TESTNET_DETERMINISTIC_RULE",
+            "codex_dependency": False,
             "symbols": list(self.symbols),
             "started_at": now.isoformat().replace("+00:00", "Z"),
             "ends_at": (now + timedelta(seconds=self.limits.duration_seconds))
@@ -501,6 +554,8 @@ class TestnetCampaign:
                 self.limits.maximum_net_loss_per_trade, "f"
             ),
             "execution_mode": "TESTNET_EXPERIMENT",
+            "decision_authority": "TESTNET_DETERMINISTIC_RULE",
+            "codex_dependency": False,
             "maximum_parallel_observations": min(3, len(self.symbols)),
             "maximum_parallel_positions": min(3, len(self.symbols)),
             "maximum_candidates_per_round": min(3, len(self.symbols)),
@@ -528,6 +583,7 @@ def _summary_text(state: dict[str, Any]) -> str:
         f"已完成平仓: {trades} 单\n"
         f"达到目标: {hits} 单 ({hit_rate.quantize(Decimal('0.01'))}%)\n"
         f"累计净结果: {state['cumulative_net_pnl']} USDT\n"
+        "决策来源: Testnet 确定性规则策略 (不依赖 Codex)\n"
         f"最近跳过原因: {reasons or '无'}\n"
         "环境: Binance Testnet (未请求生产接口)"
     )
@@ -587,6 +643,31 @@ def _select_candidate(
         return -score, decision.symbol
 
     return sorted(eligible, key=rank)[0]
+
+
+def _experimental_candidate_rank(decision: TestnetBaselineDecision) -> tuple[Decimal, str]:
+    """Prefer persistent PA alignment and stronger executable order flow."""
+    plan = decision.experimental_plan
+    if plan is None:
+        return Decimal("Infinity"), decision.symbol
+    sign = Decimal(1) if str(plan.direction) == "LONG" else Decimal(-1)
+    pa_score = Decimal(0)
+    if decision.pa_1m.direction is plan.direction:
+        pa_score += Decimal(3) + (decision.pa_1m.efficiency_ratio or Decimal(0))
+    if decision.pa_5m.direction is plan.direction:
+        pa_score += Decimal(2) + (decision.pa_5m.efficiency_ratio or Decimal(0))
+    flow = decision.order_flow
+    flow_score = (
+        abs(flow.trade_imbalance)
+        + max(Decimal(0), sign * flow.book_imbalance)
+        + max(Decimal(0), sign * flow.microprice_mid_bps) / Decimal(10)
+    )
+    score = pa_score + flow_score - decision.spread_bps / Decimal(10)
+    return -score, decision.symbol
+
+
+def _money(value: object) -> str:
+    return format(Decimal(str(value)).quantize(Decimal("0.000001")), "f")
 
 
 def _parse_time(value: str) -> datetime:

@@ -98,7 +98,7 @@ class TestnetExperimentalPlan:
     entry_reference: Decimal
     stop_anchor: Decimal
     target_reference: Decimal
-    strategy_version: str = "TESTNET_EXPERIMENT_OF_PA_V1"
+    strategy_version: str = "TESTNET_EXPERIMENT_OF_PA_V2"
 
     def evidence(self) -> dict[str, str]:
         return {
@@ -250,7 +250,10 @@ def _experimental_plan(
     risk_bps = risk / entry * Decimal(10_000)
     if not Decimal(30) <= risk_bps <= Decimal(120):
         return None
-    target_bps = max(Decimal(20), min(Decimal(35), risk_bps * Decimal("0.50")))
+    # A 20 bps target left too little after two taker fills and adverse
+    # slippage at the observed 50x-75x notional. Keep this a short target, but
+    # require enough gross distance to leave a meaningful fee-adjusted result.
+    target_bps = max(Decimal(35), min(Decimal(60), risk_bps * Decimal("0.75")))
     target_distance = entry * target_bps / Decimal(10_000)
     target = entry + target_distance if long_flow else entry - target_distance
     return TestnetExperimentalPlan(symbol, direction, entry, stop, target)

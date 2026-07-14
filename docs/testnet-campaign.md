@@ -4,7 +4,7 @@
 SOLUSDT、BNBUSDT、XRPUSDT、DOGEUSDT 和 ADAUSDT 的闭合 1 分钟/5 分钟 K 线、20 档
 深度及最近 5 秒 WebSocket 聚合成交，并以最多 3 个观察 worker 并行生成信号。
 
-## 实验规则
+## 实验规则（V2）
 
 这是 `UNVALIDATED_TESTNET_EXPERIMENT`，不能声称已经盈利，也不能用于生产交易：
 
@@ -12,14 +12,20 @@ SOLUSDT、BNBUSDT、XRPUSDT、DOGEUSDT 和 ADAUSDT 的闭合 1 分钟/5 分钟 K
 - 1 分钟和 5 分钟 PA 不得与入场方向相反；当前点差不得超过 10 bps；
 - 止损使用最近 5 根闭合 1 分钟 K 线极值加 0.10 ATR 缓冲；若距离过近，外扩至
   0.30%，若超过 1.20%则拒绝；
-- 止盈为价格波动 0.20%–0.35%；
+- 止盈为价格波动 0.35%–0.60%，并按结构止损距离的 0.75 倍动态选择。该范围仍属于
+  短线目标，但在当前 50–75 倍名义仓位上为双边 taker 手续费和不利滑点留出空间；
+- 同一轮存在多个候选时，按 1 分钟/5 分钟 PA 同向程度、PA 效率、订单流强度和点差综合
+  排序，不再按交易对字母顺序选前三个；
 - 每个币最多一个仓位，最多 3 个不同币并行；单笔保证金上限约 1 USDT；执行器每次读取
   Testnet leverage bracket，使用该币种当前允许的最高初始杠杆（当前候选约 50–75 倍）。
   系统按结构止损距离、双边 taker 手续费和 2 bps 不利滑点自动缩小保证金，使单笔预计净
   亏损不超过 0.35 USDT；同币平仓后至少冷却 60 秒；
 - 每日最多 100 个已提交/活动样本，每日净亏损达到 1.00 USDT 后不再新增仓；
 - 退出只依赖 Binance 原生 `STOP_MARKET`、`TAKE_PROFIT_MARKET`，或操作员停止服务时的
-  reduce-only 平仓。没有按持仓秒数到期平仓。
+  reduce-only 平仓。Testnet 超短线实验使用 `CONTRACT_PRICE`，让触发源和可成交合约盘口
+  一致；没有按持仓秒数到期平仓。生产保护价源仍由独立风险配置和准入证据决定；
+- 交易所报告持仓归零后，执行器会短暂重试 Algo 查询，等待 `FINISHED` 状态后再区分止盈或
+  止损，避免异步状态传播造成 `NATIVE_EXIT_UNCLASSIFIED`。
 
 杠杆策略为 `EXCHANGE_MAXIMUM`：Testnet 和未来生产都不再施加项目自定义倍数上限，每次
 必须读取当前币种、账户及名义仓位对应的 Binance bracket。生产环境的校准、签名和
@@ -44,6 +50,16 @@ jq . /var/lib/ai-quant/evidence/testnet/user-stream/current/state.json
 `/var/lib/ai-quant/evidence/testnet/campaign/current/observations.jsonl`。状态文件分别记录已提交
 开仓数、已完成平仓数、活动币种、目标命中数、手续费后累计净结果和逐币冷却时间。
 
+按策略版本复核费用后胜率、profit factor、目标与非目标平均净值、退出原因和逐币结果：
+
+```bash
+uv run python scripts/review-testnet-results.py \
+  --observations /var/lib/ai-quant/evidence/testnet/campaign/current/observations.jsonl \
+  --strategy TESTNET_EXPERIMENT_OF_PA_V2
+```
+
+少于 30 个已完成 V2 样本时报告固定为 `INSUFFICIENT_SAMPLE`，不能据此宣称策略有效。
+
 独立的只读用户数据流观察器 `aiq-testnet-user-stream.service` 与实验执行线程解耦。它只连接
 当前 Testnet 私有 stream，维护 listen key、自动重连并对 `ORDER_TRADE_UPDATE`、
 `ACCOUNT_UPDATE` 和 `ALGO_UPDATE` 做哈希链、去重和脱敏留证；不具备下单接口。状态与事件为：
@@ -60,8 +76,21 @@ scripts/verify-testnet-user-stream.py \
   --output /var/lib/ai-quant/evidence/testnet/user-stream/current/verification.json
 ```
 
-Telegram 使用中文发送活动启动、信号提交、逐单平仓、异常、6 小时简报和活动结束通知。
-交易通知包括币种、方向、入场、结构止损、目标、已实现盈亏、手续费及净结果。
+Telegram 使用中文发送活动启动、信号提交、仓位及原生保护确认、逐单平仓、异常、6 小时
+简报和活动结束通知。仓位确认和结果通知包括实际杠杆倍数、数量、名义价值、实际初始保证金、
+入场、止损、止盈、预计费用后目标或实际已实现盈亏、手续费及净结果。
+
+## Codex 与备用规则策略状态
+
+当前 `aiq-testnet-campaign.service` 的决策权威固定为
+`TESTNET_DETERMINISTIC_RULE`，`codex_dependency=false`。也就是说，停止当前 Codex 会话、Codex
+CLI 不可用或额度耗尽，都不会让这个 Testnet 服务停止评估和交易；systemd 会独立维持服务。
+
+仓库中的 `AuthorityController` 已实现并测试 Codex 失败后切换 `RULE_FALLBACK` 的状态机，但
+生产实时 Codex runner、epoch lease 和规则 runner 尚未接入已部署交易路径。原因是 ADR 0001
+冻结的精确 `gpt-5.6` catalog 条件仍未满足，同时生产执行保持 `RISK_LOCKED`。因此不能把该
+组件测试描述成已经上线的生产自动切换。Testnet 的确定性策略是当前实际运行的独立路径，
+其状态和每笔通知都会明确标注“不依赖 Codex”。
 
 聚合成交来自 `demo-fstream.binance.com` 的公开实时 `aggTrade` 流，只接受带有效 `nq`
 normal quantity 的事件。订单、Algo 保护单和持仓通过 Testnet REST 签名接口核对。

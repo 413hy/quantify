@@ -116,6 +116,7 @@ def run_structural_experiment(
     plan: TestnetExperimentalPlan,
     margin_budget: Decimal = Decimal("1"),
     maximum_net_loss: Decimal = Decimal("0.35"),
+    on_position_protected: Callable[[dict[str, Any]], None] | None = None,
     stop_requested: Callable[[], bool] = lambda: False,
     sleep: Callable[[float], None] = time.sleep,
 ) -> dict[str, Any]:
@@ -175,6 +176,8 @@ def run_structural_experiment(
     actual_entry = Decimal(0)
     stop_trigger = Decimal(0)
     target_trigger = Decimal(0)
+    stop_final_status = "UNRESOLVED"
+    target_final_status = "UNRESOLVED"
     try:
         entry = client.place_order(
             {
@@ -219,6 +222,19 @@ def run_structural_experiment(
         target_id = _confirmed_algo_id(target_doc, target_client_id, "TAKE_PROFIT")
         _require_algo_new(client, symbol, target_id, target_client_id, "TAKE_PROFIT")
 
+        protected_position = _protected_position_event(
+            plan=plan,
+            leverage=leverage,
+            quantity=quantity,
+            actual_entry=actual_entry,
+            stop_trigger=stop_trigger,
+            target_trigger=target_trigger,
+            effective_margin_budget=effective_margin_budget,
+            taker_fee_rate=taker_fee_rate,
+        )
+        if on_position_protected is not None:
+            on_position_protected(protected_position)
+
         while _position_quantity(client, symbol) != 0 and not stop_requested():
             sleep(1)
         if _position_quantity(client, symbol) != 0:
@@ -227,18 +243,19 @@ def run_structural_experiment(
                 raise TestnetProbeError("EXPERIMENT_OPERATOR_EXIT_NOT_FILLED")
             exit_reason = "OPERATOR_SERVICE_STOP"
         else:
-            stop_status = _algo_status(client, symbol, stop_id, stop_client_id)
-            target_status = _algo_status(client, symbol, target_id, target_client_id)
-            if target_status in {"TRIGGERED", "FINISHED"}:
-                exit_reason = "TAKE_PROFIT"
-            elif stop_status in {"TRIGGERED", "FINISHED"}:
-                exit_reason = "STOP_LOSS"
-            else:
-                exit_reason = "NATIVE_EXIT_UNCLASSIFIED"
-        _terminalize_algo_after_flat(
+            exit_reason, stop_final_status, target_final_status = _classify_native_exit(
+                client,
+                symbol=symbol,
+                stop_id=stop_id,
+                stop_client_id=stop_client_id,
+                target_id=target_id,
+                target_client_id=target_client_id,
+                sleep=sleep,
+            )
+        stop_final_status = _terminalize_algo_after_flat(
             client, symbol=symbol, algo_id=stop_id, client_algo_id=stop_client_id
         )
-        _terminalize_algo_after_flat(
+        target_final_status = _terminalize_algo_after_flat(
             client, symbol=symbol, algo_id=target_id, client_algo_id=target_client_id
         )
     finally:
@@ -257,6 +274,8 @@ def run_structural_experiment(
     realized = sum((Decimal(str(item.get("realizedPnl", "0"))) for item in trades), Decimal(0))
     commission = sum((Decimal(str(item.get("commission", "0"))) for item in trades), Decimal(0))
     net = realized - commission
+    exit_price = _exit_trade_price(trades)
+    position_notional = quantity * actual_entry
     return {
         "schema_version": "1.0.0",
         "record_type": "TESTNET_EXPERIMENT_RESULT",
@@ -271,12 +290,18 @@ def run_structural_experiment(
         "leverage_policy": "EXCHANGE_MAXIMUM",
         "margin_budget": format(margin_budget, "f"),
         "effective_margin_budget": format(effective_margin_budget, "f"),
+        "actual_initial_margin": format(position_notional / Decimal(leverage), "f"),
+        "position_notional": format(position_notional, "f"),
         "maximum_net_loss_budget": format(maximum_net_loss, "f"),
         "quantity": format(quantity, "f"),
         "entry_price": format(actual_entry, "f"),
         "stop_trigger": format(stop_trigger, "f"),
         "target_trigger": format(target_trigger, "f"),
+        "protection_working_type": "CONTRACT_PRICE",
+        "stop_final_status": stop_final_status,
+        "target_final_status": target_final_status,
         "exit_reason": exit_reason,
+        "exit_price": format(exit_price, "f"),
         "realized_pnl": format(realized, "f"),
         "commission_paid": format(commission, "f"),
         "net_pnl": format(net, "f"),
@@ -323,7 +348,10 @@ def _place_protection(
             "positionSide": "BOTH",
             "type": order_type,
             "triggerPrice": format(trigger_price, "f"),
-            "workingType": "MARK_PRICE",
+            # The Testnet scalp signal and executable book both use contract
+            # prices. MARK_PRICE can cross a tiny target while the Testnet book
+            # remains near entry, producing a nominal target with a net loss.
+            "workingType": "CONTRACT_PRICE",
             "closePosition": "true",
             "priceProtect": "false",
             "clientAlgoId": client_algo_id,
@@ -366,6 +394,78 @@ def _algo_status(
         )
     except TestnetProbeError:
         return "REMOVED"
+
+
+def _classify_native_exit(
+    client: BinanceTestnetClient,
+    *,
+    symbol: str,
+    stop_id: int,
+    stop_client_id: str,
+    target_id: int,
+    target_client_id: str,
+    sleep: Callable[[float], None],
+) -> tuple[str, str, str]:
+    """Wait briefly for the asynchronous Algo status to identify the exit."""
+    stop_status = "UNRESOLVED"
+    target_status = "UNRESOLVED"
+    for attempt in range(10):
+        stop_status = _algo_status(client, symbol, stop_id, stop_client_id)
+        target_status = _algo_status(client, symbol, target_id, target_client_id)
+        if target_status in {"TRIGGERED", "FINISHED"}:
+            return "TAKE_PROFIT", stop_status, target_status
+        if stop_status in {"TRIGGERED", "FINISHED"}:
+            return "STOP_LOSS", stop_status, target_status
+        if attempt < 9:
+            sleep(0.2)
+    return "NATIVE_EXIT_UNCLASSIFIED", stop_status, target_status
+
+
+def _protected_position_event(
+    *,
+    plan: TestnetExperimentalPlan,
+    leverage: int,
+    quantity: Decimal,
+    actual_entry: Decimal,
+    stop_trigger: Decimal,
+    target_trigger: Decimal,
+    effective_margin_budget: Decimal,
+    taker_fee_rate: Decimal,
+) -> dict[str, Any]:
+    notional = quantity * actual_entry
+    target_gross = quantity * abs(target_trigger - actual_entry)
+    stop_gross = quantity * abs(actual_entry - stop_trigger)
+    round_trip_fee = notional * taker_fee_rate * Decimal(2)
+    adverse_slippage = notional * Decimal("0.0002")
+    return {
+        "record_type": "TESTNET_POSITION_PROTECTED",
+        "environment": "testnet",
+        "validation_status": "UNVALIDATED_TESTNET_EXPERIMENT",
+        "strategy": plan.strategy_version,
+        "symbol": plan.symbol,
+        "direction": plan.direction,
+        "initial_leverage": leverage,
+        "leverage_policy": "EXCHANGE_MAXIMUM",
+        "quantity": format(quantity, "f"),
+        "entry_price": format(actual_entry, "f"),
+        "position_notional": format(notional, "f"),
+        "actual_initial_margin": format(notional / Decimal(leverage), "f"),
+        "effective_margin_budget": format(effective_margin_budget, "f"),
+        "stop_trigger": format(stop_trigger, "f"),
+        "target_trigger": format(target_trigger, "f"),
+        "estimated_target_gross_pnl": format(target_gross, "f"),
+        "estimated_round_trip_fee": format(round_trip_fee, "f"),
+        "estimated_adverse_slippage": format(adverse_slippage, "f"),
+        "estimated_target_net_pnl": format(
+            target_gross - round_trip_fee - adverse_slippage, "f"
+        ),
+        "estimated_stop_net_loss": format(
+            stop_gross + round_trip_fee + adverse_slippage, "f"
+        ),
+        "protection_working_type": "CONTRACT_PRICE",
+        "protected_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        "production_endpoint_requests": 0,
+    }
 
 
 def _filled_average_price(document: Mapping[str, Any]) -> Decimal:
@@ -415,3 +515,17 @@ def _load_run_trades(
             return trades
         sleep(0.2)
     raise TestnetProbeError("EXPERIMENT_TRADES_INCOMPLETE")
+
+
+def _exit_trade_price(trades: list[dict[str, Any]]) -> Decimal:
+    try:
+        exit_trade = max(
+            trades,
+            key=lambda item: (int(item.get("time", 0)), int(item.get("id", 0))),
+        )
+        price = Decimal(str(exit_trade["price"]))
+    except (KeyError, TypeError, ValueError, ArithmeticError) as exc:
+        raise TestnetProbeError("EXPERIMENT_EXIT_PRICE_MISSING") from exc
+    if price <= 0:
+        raise TestnetProbeError("EXPERIMENT_EXIT_PRICE_MISSING")
+    return price
