@@ -34,7 +34,8 @@ root_storage_gb=180..220
 
 The root measurement process and its source envelope are defined in
 `docs/deployment/root-local-facts-collector.md`. Its implementation is present but must not be
-activated until the six real measurement producers and the network boundary have been qualified.
+activated until the six implemented measurement producers have real signed inputs and the network
+boundary has been qualified.
 
 ## Host package boundary
 

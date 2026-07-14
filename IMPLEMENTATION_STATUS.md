@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: `2026-07-14T10:10:49Z`
+Updated: `2026-07-14T10:36:39Z`
 
 Overall state: `M0_IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
 
@@ -99,6 +99,12 @@ Highest completed milestone: none
   remeasures artifacts, release files, image digests, boot ID and sockets, validates the immutable
   evidence Schema, and atomically publishes `0444 root:root`; the signer independently repeats the
   source and binding checks.
+- Commit `632fd52b7470291abfb9c5712de891582ecffebc` adds all six deployment
+  measurement producer boundaries. Migration `0010_local_measurements` exposes one fixed,
+  read-only database/WAL/fencing/integrity snapshot; authority journals, live Docker+nftables,
+  two complete bootstrap traces and readiness are independently closed before all six root source
+  files are published with one exact capture timestamp. It also corrects startup observation time
+  ordering so real observations precede evidence issuance while remaining short-lived.
 - ADR 0004 records the owner's explicit platform correction: Debian 12 Bookworm/aarch64 on Oracle
   Cloud is the sole deployment target. The live host matches that profile and the read-only Debian
   platform verifier passes; the original source archives remain immutable for provenance.
@@ -116,10 +122,10 @@ Detailed evidence: `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`.
 2. Implement and independently review the production exact-wire transport and gateway service only
    after startup evidence and destination policy exist. Multi-role endpoints remain denied because
    the frozen request contract does not provide a unique gateway-side causal derivation rule.
-3. Provision the six real root-protected measurement producers consumed by the completed local-facts
-   collector, then prove collector/issuer lifecycle on the qualified deployment target. Both
-   processes invalidate their output on handled refresh failure and remain intentionally inactive
-   in locked Compose without real measured facts.
+3. Provision the implemented six-source measurement cycle with real signed connection profiles,
+   network policy, bootstrap traces and UDS readiness probes, then prove collector/issuer lifecycle
+   on the qualified deployment target. The code rejects mixed-generation snapshots and invalidates
+   output on handled refresh failure; locked Compose remains inactive without real measured facts.
 4. Destination-specific host DNS/firewall enforcement proving exactly one Binance socket owner and
    zero business Binance routes; current Compose validation is static only.
 5. A different actor in fresh context must independently review and issue a valid

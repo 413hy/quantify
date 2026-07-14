@@ -31,15 +31,21 @@ Each dynamic source is a direct `0444 root:root` JSON file in a protected root-o
 }
 ```
 
-All six source snapshots must be no more than five seconds old. The collector validates the
-combined facts against the immutable startup-evidence Schema before publication. The independent
-signer then reloads those same sources and remeasures the boot ID, artifacts, release files, image
-digests and sockets; changing a source after collection therefore invalidates issuance.
+All six source snapshots must be no more than five seconds old and must carry exactly the same
+capture timestamp; a partially replaced or mixed-generation set fails closed. The collector
+validates the combined facts against the immutable startup-evidence Schema before publication. The
+independent signer then reloads those same sources and remeasures the boot ID, artifacts, release
+files, image digests and sockets; changing a source after collection therefore invalidates issuance.
+
+The implemented producers use a fixed security-definer database snapshot, authenticated gateway
+journals, fixed read-only Docker/nftables inspection commands, two non-replayed causal bootstrap
+traces and independent readiness probes. These are executable boundaries, not proof that the real
+deployment inputs or firewall rules currently exist.
 
 ## Failure semantics
 
 Non-root execution, missing coverage, duplicate keys, unsafe paths, stale sources, hash mismatch,
 Schema failure, socket replacement, artifact replacement or an unsafe output directory fails
 closed. No failure path enables the signer, gateway or exchange transport. Until real measurement
-producers and deployment evidence exist, `deploy/host-control.compose.yaml` must continue to run
+inputs and deployment evidence exist, `deploy/host-control.compose.yaml` must continue to run
 the signer as `ai_quant.services.locked_process` with `RISK_LOCKED`.

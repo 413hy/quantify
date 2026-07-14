@@ -1,13 +1,13 @@
 # Handoff state
 
-Updated: `2026-07-14T10:10:49Z`
+Updated: `2026-07-14T10:36:39Z`
 
 Resume in `/root/quantify/ai-quant-system`. Read `IMPLEMENTATION_STATUS.md`, ADR 0001–0004,
 `docs/deployment/debian-12-platform.md` and
 `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`. Never modify
 `/root/quantify/reference-materials`.
 
-Current implementation head is commit `4b71424`. M0 is not complete
+Current implementation head is commit `632fd52`. M0 is not complete
 or accepted. Commit `8516679` adds the executable bounded rate service, PostgreSQL v2 Reserve and
 full-bind Consume, deterministic multi-class policy ingestion, idempotent outcome/observation
 journals and durable 429/418 reconciliation. Commit `42624ef` adds closed gateway IPC validation,
@@ -54,7 +54,12 @@ Commit `fcbcba2` turns that deployment lock into a CI-enforced Compose rule and 
 Commit `4b71424` adds the root-only local-facts collector. It accepts exactly six fresh,
 root-protected hashed measurement sources; remeasures artifacts, release files, image digests, boot
 ID and sockets; Schema-validates and atomically publishes `0444 root:root`; and makes the signer
-repeat the dynamic-source checks. Real deployment measurement producers are still absent.
+repeat the dynamic-source checks.
+Commit `632fd52` implements the six producer boundaries: fixed read-only database snapshot at
+`0010_local_measurements`, authenticated authority journals, fixed-command Docker+nftables host
+inspection, dual causal bootstrap traces and closed readiness aggregation. All source timestamps
+must match exactly, and observations must precede issuance while staying fresh. Real signed inputs,
+host rules and runtime measurements are still not provisioned.
 ADR 0004 is an owner-approved baseline amendment: Debian 12 Bookworm/aarch64 on Oracle Cloud is the
 only supported host platform. It supersedes conflicting OS selections in the immutable historical
 inputs without changing their bytes. `BLK-003` is resolved; the live Debian host is a deployment
@@ -66,8 +71,8 @@ Exact verification command:
 cd /root/quantify/ai-quant-system && make validate-debian-platform && make ci && make test-migrations && make test-locked-runtime
 ```
 
-Expected: CI passes 97 unit, 3 property, 2 contract and 9 security tests; migrations pass both
-independent round-trips through host head `0009_runtime_role`, least-privilege role checks,
+Expected: CI passes 125 unit, 3 property, 2 contract and 9 security tests; migrations pass both
+independent round-trips through host head `0010_local_measurements`, least-privilege role checks,
 multi-class Reserve,
 full-bind Consume, journaling, 429 reconciliation and lease gates; the no-network runtime returns
 `RISK_LOCKED`.

@@ -57,6 +57,8 @@ existing features:
   release tree.
 - Host migration `0009_runtime_role` creates the narrow `aiq_rate_authority` role as `NOLOGIN` by
   default, revokes public function execution and hardens security-definer search paths.
+- Host migration `0010_local_measurements` adds the fixed read-only database/WAL/fencing/integrity
+  snapshot callable by the narrow runtime role.
 - Endpoint source artifacts, authority/transport/scheme/host tuples and denied Consume connection
   bindings are exact and fail closed.
 - Startup evidence no longer accepts caller-authored draft content. A fresh root-owned `0444`
@@ -67,7 +69,10 @@ existing features:
   refreshes within 60 seconds; and removes the evidence on handled stop or refresh failure.
 - A root-only local-facts collector now requires six fresh protected measurement sources, remeasures
   artifacts/releases/image digests/boot ID/sockets, validates the immutable evidence Schema and
-  atomically publishes `0444 root:root`. Real deployment sources are not provisioned yet.
+  atomically publishes `0444 root:root`.
+- All six measurement producer/verifier boundaries are implemented. They require one coherent
+  capture timestamp, authenticated journals, complete dual bootstrap traces and enforceable live
+  nftables/Docker facts. Real deployment sources and rules are not provisioned yet.
 - Compose validation explicitly forbids activating that issuer without real deployment facts. It
   must remain `ai_quant.services.locked_process` with `RISK_LOCKED` in the current baseline.
 
@@ -78,6 +83,7 @@ Important commits include:
 - `d3711e0` — executable fail-closed attestation issuer.
 - `fcbcba2` — deployment-lock policy and security test.
 - `4b71424` — root-only local-facts collector and independent source revalidation.
+- `632fd52` — coherent database/authority/network/bootstrap/readiness measurement producers.
 - `3c4469d` — evidence/status update for that implementation baseline.
 
 ## Last verified results
@@ -86,7 +92,7 @@ The final functional checks before this handoff passed:
 
 ```text
 make ci
-  unit:     97 passed
+  unit:    125 passed
   property:  3 passed
   contract:  2 passed
   security:  9 passed
@@ -98,14 +104,14 @@ make test-locked-runtime
   network=none
 ```
 
-The host-control migration head is `0009_runtime_role`; the independent disposable migration
+The host-control migration head is `0010_local_measurements`; the independent disposable migration
 round-trip previously passed and no later migration changed it.
 
 Latest local arm64 cached-build image evidence:
 
 ```text
-sha256:cae02b3e08243bb6d0d08ad9020b26e514d6f277b552870514f7e6e0949d0a36
-size=340807518
+sha256:743e3a73e427473061081b9f60e5338996c2e1995e1a315035b2f86375e6d495
+size=340874175
 ```
 
 Do not treat that local image ID as a signed registry release or deployment attestation.

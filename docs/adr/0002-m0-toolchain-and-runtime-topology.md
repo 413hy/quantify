@@ -47,8 +47,8 @@ platform. This matching OS makes the host a deployment candidate, not an accepte
 ## Consequences
 
 The earlier local image was reproduced twice from the same source and builder. After the reviewed
-M0 authority-boundary increment through commit `4b71424`, the current cached-build OCI image ID is
-`sha256:cae02b3e08243bb6d0d08ad9020b26e514d6f277b552870514f7e6e0949d0a36`; a fresh no-cache
+M0 authority-boundary increment through commit `632fd52`, the current cached-build OCI image ID is
+`sha256:743e3a73e427473061081b9f60e5338996c2e1995e1a315035b2f86375e6d495`; a fresh no-cache
 reproduction has not yet been run. This local digest is evidence for development only; deployment
 still requires a controlled registry artifact, signed release manifest, and verification on the
 qualified target host.

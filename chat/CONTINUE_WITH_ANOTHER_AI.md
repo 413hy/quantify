@@ -48,16 +48,18 @@ Mandatory state and safety constraints:
 
 Current implementation facts to verify rather than assume:
 - Reviewed UDS commit ACK and gateway failure latch exist.
-- Database runtime role head is 0009_runtime_role and the locked rate service receives no bootstrap
+- Database runtime role head is 0010_local_measurements and the locked rate service receives no bootstrap
   database secret.
 - Root-authenticated local-facts assembly rejects caller-authored evidence drafts.
 - The root-only local-facts collector closes six protected dynamic-source types, remeasures static
   bindings, validates the immutable evidence Schema and atomically publishes `0444 root:root`.
+- All six producer/verifier boundaries exist offline; mixed capture timestamps, broken bootstrap
+  causality, incomplete nftables policy, journal mismatch and failed readiness deny publication.
 - The executable attestation issuer binds the actual keyring/trust/schema artifacts, refreshes no
   slower than 60 seconds, atomically publishes and removes evidence on handled failure.
 - Compose intentionally keeps the attestation signer on locked_process/RISK_LOCKED until real
   deployment facts exist.
-- Last recorded tests were 97 unit, 3 property, 2 contract and 9 security tests, but rerun them.
+- Last recorded tests were 125 unit, 3 property, 2 contract and 9 security tests, but rerun them.
 
 Known external blockers:
 - BLK-001 Testnet WS endpoint conflict.
