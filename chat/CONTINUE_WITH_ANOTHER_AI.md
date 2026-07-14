@@ -23,6 +23,8 @@ Before implementation:
    - docs/adr/0001-implementation-baseline.md
    - docs/adr/0002-m0-toolchain-and-runtime-topology.md
    - docs/adr/0003-signed-capability-peer-and-fencing.md
+   - docs/adr/0004-debian-12-sole-platform.md
+   - docs/deployment/debian-12-platform.md
    - evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md
 3. Review the relevant existing code deeply against the frozen documentation and explicit
    requirements before changing it. Do not superficially inspect or duplicate an existing feature.
@@ -31,6 +33,8 @@ Before implementation:
 
 Mandatory state and safety constraints:
 - Current state is M0_IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED.
+- Debian 12 Bookworm/aarch64 on Oracle Cloud is the sole owner-approved host platform. Do not select
+  or recommend another distribution. Run `make validate-debian-platform` on deployment candidates.
 - Keep runtime default RISK_LOCKED.
 - Do not enable production transport, connect to Binance, send REST/WS/control traffic, request or
   inject production credentials, deploy live trading, or claim deployment evidence from local tests.
@@ -56,7 +60,7 @@ Current implementation facts to verify rather than assume:
 Known external blockers:
 - BLK-001 Testnet WS endpoint conflict.
 - BLK-002 exact gpt-5.6 unavailable; substitution prohibited.
-- BLK-003 Debian development host differs from Ubuntu 24 deployment target.
+- BLK-003 resolved by owner-approved ADR 0004; Debian 12 is the sole platform.
 - BLK-004 qualified deployment/network/clock/storage/restore/heartbeat/signed evidence absent.
 - BLK-005 independent fresh-context reviewer absent.
 

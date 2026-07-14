@@ -1,8 +1,9 @@
 # Handoff state
 
-Updated: `2026-07-14T09:29:39Z`
+Updated: `2026-07-14T10:01:25Z`
 
-Resume in `/root/quantify/ai-quant-system`. Read `IMPLEMENTATION_STATUS.md`, ADR 0001–0003 and
+Resume in `/root/quantify/ai-quant-system`. Read `IMPLEMENTATION_STATUS.md`, ADR 0001–0004,
+`docs/deployment/debian-12-platform.md` and
 `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`. Never modify
 `/root/quantify/reference-materials`.
 
@@ -50,11 +51,15 @@ the files bound into the evidence, signs and atomically publishes, and refreshes
 seconds. Handled stop/refresh failure removes the last evidence. The root collector is still absent,
 and locked Compose intentionally does not activate this service.
 Commit `fcbcba2` turns that deployment lock into a CI-enforced Compose rule and security test.
+ADR 0004 is an owner-approved baseline amendment: Debian 12 Bookworm/aarch64 on Oracle Cloud is the
+only supported host platform. It supersedes conflicting OS selections in the immutable historical
+inputs without changing their bytes. `BLK-003` is resolved; the live Debian host is a deployment
+candidate but still lacks the remaining deployment and independent-review evidence.
 
 Exact verification command:
 
 ```bash
-cd /root/quantify/ai-quant-system && make ci && make test-migrations && make test-locked-runtime
+cd /root/quantify/ai-quant-system && make validate-debian-platform && make ci && make test-migrations && make test-locked-runtime
 ```
 
 Expected: CI passes 97 unit, 3 property, 2 contract and 9 security tests; migrations pass both
@@ -63,6 +68,7 @@ multi-class Reserve,
 full-bind Consume, journaling, 429 reconciliation and lease gates; the no-network runtime returns
 `RISK_LOCKED`.
 
-Do not substitute `gpt-5.6-sol`, change the Testnet host allowlist, deploy this Debian development
-host, add a business Binance route, add a secret to the gateway, or request production credentials.
+Do not substitute `gpt-5.6-sol`, change the Testnet host allowlist, treat OS compatibility as full
+deployment approval, add a business Binance route, add a secret to the gateway, or request
+production credentials.
 M1 must not start before M0 implementation and fresh-context independent review are accepted.

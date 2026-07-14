@@ -4,7 +4,7 @@
 
 The user asked the agent to continue the existing project, complete everything in the frozen
 M0→M9 order, and first perform a substantive review of the current code against the development
-documents and explicit requirements. The user later asked how to migrate to Ubuntu without losing
+documents and explicit requirements. The user later asked how to preserve the host without losing
 the code or conversation, then authorized uploading the repository and this sanitized continuity
 package to `https://github.com/413hy/quantify`.
 
@@ -14,7 +14,7 @@ Human-authored requests from this session were:
 2. `直接一次性全部吧这个项目按照流程全部做完吧`
 3. Continue from the actual repository and documentation state; review relevant existing code
    deeply before implementing anything, and do not duplicate existing functionality.
-4. Ask whether Ubuntu must be reinstalled and how to preserve the code and conversation.
+4. Ask whether the host must be reinstalled and how to preserve the code and conversation.
 5. Upload the project to the GitHub repository, create `chat/`, preserve the session, and add a
    prompt that lets another AI continue.
 
@@ -112,16 +112,17 @@ Do not treat that local image ID as a signed registry release or deployment atte
   owner-approved baseline change or authoritative account evidence is required.
 - `BLK-002`: exact required `gpt-5.6` was absent from the authenticated model catalog;
   substitution is prohibited.
-- `BLK-003`: the development host was Debian 12, while the frozen deployment target is Ubuntu 24.
+- `BLK-003`: resolved by owner-approved ADR 0004; Debian 12 is the sole platform.
 - `BLK-004`: qualified deployment, 24-hour clock/network/static-IP proof, signed runtime inputs,
   destination-specific DNS/firewall evidence, remote storage/restore/heartbeat and related evidence
   are absent.
 - `BLK-005`: a different fresh-context reviewer has not issued a valid `CodexReviewReport` with zero
   open P0/P1.
 
-The safe migration approach is to retain the Debian host as a development/rollback source and use a
-separate Ubuntu 24.04 host as the deployment target. If the old host must be reinstalled, first keep
-both the GitHub push and an independently verified off-host archive.
+The owner subsequently clarified that Debian 12 is the only supported platform. Retain the current
+host, create a rollback image if desired, and complete the remaining deployment qualification on
+Debian. If the host must be replaced, first keep both the GitHub push and an independently verified
+off-host archive.
 
 ## Authoritative continuation files
 
@@ -132,13 +133,16 @@ Read these before changing code:
 3. `docs/adr/0001-implementation-baseline.md`
 4. `docs/adr/0002-m0-toolchain-and-runtime-topology.md`
 5. `docs/adr/0003-signed-capability-peer-and-fencing.md`
-6. `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`
-7. `contracts/codex-review-report.schema.json` and its example if performing independent review
+6. `docs/adr/0004-debian-12-sole-platform.md`
+7. `docs/deployment/debian-12-platform.md`
+8. `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`
+9. `contracts/codex-review-report.schema.json` and its example if performing independent review
 
 After restoring the repository, run:
 
 ```bash
 make bootstrap
+make validate-debian-platform
 make ci
 make test-migrations
 make test-locked-runtime

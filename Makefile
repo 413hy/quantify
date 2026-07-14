@@ -7,7 +7,7 @@ UV := uv
 	validate-capability-trust-bundle validate-mandatory-endpoint-inventory \
 	test-rate-budget-contract test-binance-gateway-contract test-host-rate-startup-evidence \
 	test-migrations test-locked-runtime test-unit test-property test-contract test-security security-scan \
-	compose-check build ci
+	compose-check validate-platform-amendment validate-debian-platform build ci
 
 help:
 	@sed -n 's/^\([a-zA-Z0-9_-]*\):.*$$/\1/p' Makefile | sort
@@ -97,7 +97,13 @@ compose-check:
 	AIQ_APP_IMAGE=registry.invalid/aiq-app@sha256:0000000000000000000000000000000000000000000000000000000000000000 \
 		docker compose -f deploy/compose.yaml config --quiet
 
+validate-debian-platform:
+	./scripts/validate/debian-platform.sh
+
+validate-platform-amendment:
+	$(UV) run python scripts/validate/platform_amendment.py
+
 build:
 	docker build --pull=false --provenance=false -f docker/app.Dockerfile -t aiq-app:m0 .
 
-ci: lint typecheck validate-contracts validate-config validate-docs compose-check test-unit test-property test-contract test-security security-scan
+ci: lint typecheck validate-contracts validate-config validate-docs validate-platform-amendment compose-check test-unit test-property test-contract test-security security-scan

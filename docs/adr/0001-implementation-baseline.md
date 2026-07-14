@@ -44,9 +44,13 @@ The user's rule is stricter than public API alias documentation: if the required
 
 Decision: implement the catalog verifier and failure path, but freeze actual real-time/monthly Codex analysis runs and all affected M2/M9 acceptance until the exact model appears in the account catalog or the owner explicitly changes the immutable model requirement. Deterministic fallback design remains available and cannot weaken shared gates.
 
-### D. Host OS and clock
+### D. Host OS and clock — platform conflict resolved
 
-Observed host is Debian 12/aarch64 rather than the documented Ubuntu 24 target. CPU, RAM, and disk size match approximately. This is a deployment-baseline conflict, so offline development may continue but deployment qualification is blocked pending reprovision to Ubuntu 24 or an explicit supported-platform amendment after compatibility review.
+Observed host is Debian 12/aarch64. The account owner subsequently clarified that Debian is the
+project's sole intended platform and approved ADR 0004, which supersedes conflicting OS selections
+in the immutable source package. CPU, RAM and disk size match the required envelope. Deployment
+qualification is no longer blocked by host distribution, but all remaining platform, network,
+clock, restore and independent-review evidence is still required.
 
 The clock was initially unsynchronized and chrony absent. Chrony 4.3 was installed during preflight; the first healthy sample showed normal leap status and roughly sub-millisecond system offset. A single sample is not the required 24-hour deployment proof.
 
@@ -56,4 +60,3 @@ The clock was initially unsynchronized and chrony absent. Chrony 4.3 was install
 - No Testnet success, 72-hour validation, live readiness, deployment completion, or profitability claim is allowed.
 - M0 cannot be declared accepted until independent review by a different actor/fresh context and all M0 command gates pass.
 - Any change to the Testnet allowlist, required Codex model, hard risk, secret boundary, execution state machine, or egress topology requires a new ADR and account-owner approval.
-

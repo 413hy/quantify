@@ -32,8 +32,8 @@ Unix-socket process and permits zero outbound traffic.
 
 Docker CE was installed from Docker's signed Debian repository using the repository signing key
 whose observed fingerprint was `9DC858229FC7DD38854AE2D88D81803C0EBFCD88`. The installed versions
-are recorded in the M0 toolchain evidence. This host remains a development host because it is
-Debian 12 rather than the frozen Ubuntu 24 deployment target.
+are recorded in the M0 toolchain evidence. ADR 0004 makes Debian 12/aarch64 the sole supported host
+platform. This matching OS makes the host a deployment candidate, not an accepted deployment.
 
 ## Rejected alternatives
 

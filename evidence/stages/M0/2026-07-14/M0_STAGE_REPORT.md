@@ -2,7 +2,7 @@
 
 - Stage: M0 — repository, contracts, configuration, migrations, audit and egress skeleton
 - Status: `IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
-- Report time: `2026-07-14T09:29:39Z`
+- Report time: `2026-07-14T10:01:25Z`
 - Implementation commits: `3a5762e37a5311f0a7faeca2e93b6c77ab8500ff`,
   `fca378cf7e4f18457f46a381e29fc8599bb5baa8`,
   `d5a394e21776957f627c9c3e7da78dfd1accf53c`,
@@ -48,6 +48,7 @@ metadata, and evidence.
 | M0-R10 full Reserve→gateway→PermitConsume→send service | PARTIAL | bounded rate/gateway IPC, v2 Reserve/Consume, exact-wire single-send core and outcome journal pass; production transport is intentionally absent |
 | M0-R11 signed startup evidence and host destination firewall | PARTIAL | root-authenticated facts assembly, executable independent issuer, full measurement binding, atomic publisher and monitor pass; root collector, signed deployment evidence and host firewall proof remain absent |
 | M0-R12 independent fresh-context review | BLOCKED | reviewer and valid `CodexReviewReport` absent |
+| M0-R13 deployment host platform | PASS for OS compatibility | owner-approved ADR 0004; `make validate-debian-platform`; Debian 12 Bookworm/aarch64 OCI profile passes |
 
 ## Artifact and configuration identity
 
@@ -94,6 +95,7 @@ startup-evidence, or live authorization has been issued.
 | Boundary | root-authenticated local facts | no evidence draft is accepted; fresh root snapshot, boot ID, complete artifact/release bindings and both socket identities are remeasured before content construction |
 | Boundary | executable attestation issuer | actual keyring/trust/schema inputs are evidence-bound; refresh is at most 60 seconds and handled stop/failure removes the published evidence |
 | Boundary | attestation deployment lock | Compose validation and a security test reject activating the issuer before real deployment facts and gates exist |
+| Platform | Debian 12 sole-host amendment | mutable guidance contains no legacy platform selection; live OCI host passes OS, architecture, kernel, cgroup, resource, systemd, Docker, chrony and nftables checks |
 | Boundary | any changed binding hash, expiry, or replay | property tests deny without reopening permit |
 | Startup failure | non-root container, no network, no startup evidence | `RISK_LOCKED`, new egress false |
 | Database | business + host `upgrade → downgrade base → upgrade` | PASS on fresh disposable volumes |
@@ -110,6 +112,8 @@ migration shape test and containerized migration round-trip also passed.
   a measurement of this increment.
 - Host at report time: 2 vCPU, 12,536,565,760 bytes RAM, 199,142,084,608-byte root filesystem,
   7% used, no swap.
+- ADR 0004 makes Debian 12 Bookworm/aarch64 the sole owner-approved platform. The platform verifier
+  passes on this Oracle Cloud host; this is OS compatibility evidence, not full deployment approval.
 - Chrony: synchronized, leap status normal, 0.026 ms observed system offset; this is not 24-hour
   deployment evidence.
 - Bandit: PASS. Repository/evidence secret scan: PASS.
@@ -133,6 +137,10 @@ only forward. The integration test downgrades disposable empty test volumes only
 
 All runtime and live gates remain `NOT_AUTHORIZED`; `RISK_LOCKED` is mandatory. No credentials are
 needed for the next work.
+
+The previous host-distribution conflict is resolved. Remaining deployment evidence is independent
+of that correction and still includes the 24-hour clock/network/static-IP record, destination
+firewall proof, signed inputs, restore/heartbeat checks and independent review.
 
 M0 cannot be accepted until real signed runtime inputs populate the deployment database, the
 attestation signer issues deployment-bound evidence, an independently reviewed production transport

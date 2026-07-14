@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: `2026-07-14T09:29:39Z`
+Updated: `2026-07-14T10:01:25Z`
 
 Overall state: `M0_IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
 
@@ -94,6 +94,9 @@ Highest completed milestone: none
 - Commit `fcbcba230d75327ae155e1717fe23dc661a2debd` makes that non-activation an
   executable Compose policy: the signer command must remain `locked_process`/`RISK_LOCKED` until
   deployment facts and gates exist, and an independent security test pins the same boundary.
+- ADR 0004 records the owner's explicit platform correction: Debian 12 Bookworm/aarch64 on Oracle
+  Cloud is the sole deployment target. The live host matches that profile and the read-only Debian
+  platform verifier passes; the original source archives remain immutable for provenance.
 - Docker CE/Compose, Python 3.12.13 via `uv`, chrony, ripgrep and GNU time are installed for
   development. Initial chrony observations are healthy, but not a 24-hour deployment proof.
 
@@ -103,7 +106,7 @@ Detailed evidence: `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`.
 
 1. Provision the `aiq_rate_authority` LOGIN/password out of band, real signed runtime
    catalog/trust/policy/window inputs, and prove the executable rate service startup on the
-   authorized Ubuntu 24 deployment target; until then Compose stays locked and receives no database
+   authorized Debian 12 deployment target; until then Compose stays locked and receives no database
    credential.
 2. Implement and independently review the production exact-wire transport and gateway service only
    after startup evidence and destination policy exist. Multi-role endpoints remain denied because
@@ -123,9 +126,11 @@ Detailed evidence: `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`.
 |---|---|---|---|
 | BLK-001 | M5 Testnet and later validation | Official Testnet WS base is `wss://demo-fstream.binance.com`; frozen schemas require routed `fstream.binancefuture.com` hosts | Owner-approved baseline amendment or current primary-source/account evidence |
 | BLK-002 | M2 Codex execution, M9 | Exact `gpt-5.6` absent from current authenticated Codex catalog; substitution prohibited | Wait for catalog availability or explicit baseline change |
-| BLK-003 | Deployment/M6+ | Host is Debian 12 rather than frozen Ubuntu 24 target | Reprovision or approve a reviewed platform amendment |
 | BLK-004 | Deployment/M6+ | 24-hour network/clock/static-IP, independent backtest, remote storage, restore, heartbeat, credential-isolation and signature evidence absent | Complete deployment preflight; no secrets requested now |
 | BLK-005 | M0 acceptance and every later milestone | Independent fresh-context reviewer absent | Perform independent review after the remaining M0 implementation |
+
+Resolved baseline item: `BLK-003` is closed by owner-approved ADR 0004. Debian 12 is now the sole
+supported platform; OS matching alone does not satisfy deployment qualification.
 
 ## M0–M9 plan
 
@@ -154,7 +159,7 @@ Deployment authorization: `NOT_AUTHORIZED`. Runtime default: `RISK_LOCKED`.
 ## Next exact command
 
 ```bash
-cd /root/quantify/ai-quant-system && make ci && make test-migrations && make test-locked-runtime
+cd /root/quantify/ai-quant-system && make validate-debian-platform && make ci && make test-migrations && make test-locked-runtime
 ```
 
 After this baseline re-verifies, continue M0 with deployment-safe attestation issuance and host
