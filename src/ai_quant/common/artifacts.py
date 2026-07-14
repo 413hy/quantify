@@ -92,3 +92,22 @@ def verify_artifact_bindings(
             raise AuthorizationDenied("ARTIFACT_BINDING_MISMATCH")
         observed[name] = observed_hash
     return observed
+
+
+def measure_artifact_bindings(
+    sources: Mapping[str, ArtifactBindingSource],
+    *,
+    approved_roots: Sequence[Path],
+) -> Mapping[str, str]:
+    """Hash a closed set of local artifacts while detecting path replacement races."""
+    if not approved_roots or not sources:
+        raise AuthorizationDenied("ARTIFACT_BINDING_COVERAGE_INVALID")
+    observed: dict[str, str] = {}
+    for name in sorted(sources):
+        source = sources[name]
+        before = _safe_identity(source.path, approved_roots)
+        observed[name] = _artifact_hash(source)
+        after = _safe_identity(source.path, approved_roots)
+        if before != after:
+            raise AuthorizationDenied("ARTIFACT_FILE_CHANGED")
+    return observed

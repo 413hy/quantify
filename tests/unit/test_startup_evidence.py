@@ -18,6 +18,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from ai_quant.binance_egress.local_facts import (
     LocalFactsExpectation,
     assemble_startup_content_from_local_facts,
+    collect_and_publish_local_facts,
     load_local_facts_plan,
 )
 from ai_quant.binance_egress.startup import (
@@ -176,20 +177,33 @@ def test_local_facts_assembler_remeasures_files_boot_and_sockets(
             )
             socket_sources[role] = path
 
-        measured_fields = {
-            key: value
-            for key, value in content.items()
-            if key not in {"evidence_id", "evidence_status", "issued_at", "expires_at"}
-        }
-        measured_fields["captured_at"] = "2026-07-14T00:00:00Z"
-        facts_document = {
-            "schema_version": "1.0.0",
-            "facts_hash": canonical_digest(measured_fields).hex(),
-            "facts": measured_fields,
-        }
         facts_path = tmp_path / "root-startup-facts.json"
-        facts_path.write_text(json.dumps(facts_document), encoding="utf-8")
-        facts_path.chmod(0o444)
+        release_image_digest_sources: dict[str, Path] = {}
+        for name in ("rate_allocator_image_digest", "gateway_image_digest"):
+            path = tmp_path / name
+            path.write_text(f"{content['release_binding'][name]}\n", encoding="ascii")
+            path.chmod(0o444)
+            release_image_digest_sources[name] = path
+        dynamic_fact_sources: dict[str, Path] = {}
+        for name in (
+            "database_authority",
+            "network_boundary",
+            "authority_observations",
+            "nonce_permit_integrity",
+            "bootstrap_chain",
+            "readiness",
+        ):
+            measurement = content[name]
+            source_document = {
+                "schema_version": "1.0.0",
+                "captured_at": "2026-07-14T00:00:00Z",
+                "measurement_hash": canonical_digest(measurement).hex(),
+                "measurement": measurement,
+            }
+            path = tmp_path / f"{name}.json"
+            path.write_text(json.dumps(source_document), encoding="utf-8")
+            path.chmod(0o444)
+            dynamic_fact_sources[name] = path
         local_expectation = LocalFactsExpectation(
             stage=content["stage"],
             enabled_environments=frozenset(content["enabled_environments"]),
@@ -209,6 +223,8 @@ def test_local_facts_assembler_remeasures_files_boot_and_sockets(
                 role: content["sockets"][role]["peer_acl_hash"]
                 for role in socket_sources
             },
+            release_image_digest_sources=release_image_digest_sources,
+            dynamic_fact_sources=dynamic_fact_sources,
         )
         plan_document = {
             "schema_version": "1.0.0",
@@ -227,6 +243,10 @@ def test_local_facts_assembler_remeasures_files_boot_and_sockets(
                 name: {"path": str(source.path), "hash_mode": source.hash_mode.value}
                 for name, source in release_sources.items()
             },
+            "release_image_digest_sources": {
+                name: str(path)
+                for name, path in release_image_digest_sources.items()
+            },
             "approved_artifact_roots": [
                 str(tmp_path),
                 str(artifact_root),
@@ -237,6 +257,9 @@ def test_local_facts_assembler_remeasures_files_boot_and_sockets(
                 name: str(path) for name, path in socket_sources.items()
             },
             "peer_acl_hashes": dict(local_expectation.peer_acl_hashes),
+            "dynamic_fact_sources": {
+                name: str(path) for name, path in dynamic_fact_sources.items()
+            },
         }
         plan_path = tmp_path / "attestation-plan.json"
         plan_path.write_text(json.dumps(plan_document), encoding="utf-8")
@@ -246,6 +269,11 @@ def test_local_facts_assembler_remeasures_files_boot_and_sockets(
             trusted_plan_directory=tmp_path,
         )
         assert loaded_plan.expectation == local_expectation
+        facts_document = collect_and_publish_local_facts(loaded_plan, now=NOW)
+        assert facts_document["facts"]["database_authority"]["migration_head"] == (
+            "0009_runtime_role"
+        )
+        assert facts_path.stat().st_mode & 0o7777 == 0o444
         assembled, assembled_expectation = assemble_startup_content_from_local_facts(
             facts_path,
             trusted_facts_directory=tmp_path,
@@ -358,6 +386,62 @@ def test_local_facts_assembler_remeasures_files_boot_and_sockets(
         with pytest.raises(RuntimeError, match="refresh stop"):
             attestation_service.run()
         assert not service_output.exists()
+
+        readiness_source = dynamic_fact_sources["readiness"]
+        original_readiness_source = readiness_source.read_text(encoding="utf-8")
+        changed_readiness_source = json.loads(original_readiness_source)
+        changed_readiness_source["measurement"]["result"] = "NOT_READY"
+        changed_readiness_source["measurement_hash"] = canonical_digest(
+            changed_readiness_source["measurement"]
+        ).hex()
+        readiness_source.write_text(
+            json.dumps(changed_readiness_source),
+            encoding="utf-8",
+        )
+        readiness_source.chmod(0o444)
+        with pytest.raises(AuthorizationDenied, match="LOCAL_FACTS_SCHEMA_INVALID"):
+            collect_and_publish_local_facts(loaded_plan, now=NOW)
+        with pytest.raises(
+            AuthorizationDenied,
+            match="LOCAL_DYNAMIC_FACT_BINDING_MISMATCH",
+        ):
+            assemble_startup_content_from_local_facts(
+                facts_path,
+                trusted_facts_directory=tmp_path,
+                expectation=local_expectation,
+                evidence_id="host-startup-local-0002",
+                now=NOW,
+                ttl_seconds=300,
+            )
+        readiness_source.write_text(original_readiness_source, encoding="utf-8")
+        readiness_source.chmod(0o444)
+
+        image_source = release_image_digest_sources["gateway_image_digest"]
+        original_image_digest = image_source.read_text(encoding="ascii")
+        image_source.write_text(f"sha256:{'f' * 64}\n", encoding="ascii")
+        image_source.chmod(0o444)
+        with pytest.raises(AuthorizationDenied, match="LOCAL_RELEASE_BINDING_MISMATCH"):
+            assemble_startup_content_from_local_facts(
+                facts_path,
+                trusted_facts_directory=tmp_path,
+                expectation=local_expectation,
+                evidence_id="host-startup-local-0003",
+                now=NOW,
+                ttl_seconds=300,
+            )
+        image_source.write_text(original_image_digest, encoding="ascii")
+        image_source.chmod(0o444)
+
+        with monkeypatch.context() as local_patch:
+            local_patch.setattr(
+                "ai_quant.binance_egress.local_facts.os.geteuid",
+                lambda: 11008,
+            )
+            with pytest.raises(
+                AuthorizationDenied,
+                match="LOCAL_FACTS_COLLECTOR_NOT_ROOT",
+            ):
+                collect_and_publish_local_facts(loaded_plan, now=NOW)
 
         boot_id_path.write_text("different-host-boot-0001\n", encoding="ascii")
         with pytest.raises(AuthorizationDenied, match="LOCAL_FACTS_BINDING_MISMATCH"):

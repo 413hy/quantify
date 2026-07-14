@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import json
+import os
 import re
 import stat
+import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+
+from jsonschema import Draft202012Validator, FormatChecker
 
 from ai_quant.binance_egress.startup import (
     StartupEvidenceExpectation,
@@ -17,6 +22,7 @@ from ai_quant.binance_egress.startup import (
 from ai_quant.common.artifacts import (
     ArtifactBindingSource,
     ArtifactHashMode,
+    measure_artifact_bindings,
     verify_artifact_bindings,
 )
 from ai_quant.common.config import ConfigurationError, load_strict_document
@@ -56,6 +62,20 @@ _RELEASE_HASH_FIELDS = frozenset(
         "gateway_config_hash",
     }
 )
+_RELEASE_IMAGE_FIELDS = frozenset(
+    {"rate_allocator_image_digest", "gateway_image_digest"}
+)
+_DYNAMIC_FACT_FIELDS = frozenset(
+    {
+        "database_authority",
+        "network_boundary",
+        "authority_observations",
+        "nonce_permit_integrity",
+        "bootstrap_chain",
+        "readiness",
+    }
+)
+_IMAGE_DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,6 +90,8 @@ class LocalFactsExpectation:
     approved_artifact_roots: Sequence[Path]
     socket_sources: Mapping[str, Path]
     peer_acl_hashes: Mapping[str, str]
+    release_image_digest_sources: Mapping[str, Path]
+    dynamic_fact_sources: Mapping[str, Path]
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,9 +174,11 @@ def load_local_facts_plan(
         "host_boot_id_path",
         "artifact_sources",
         "release_sources",
+        "release_image_digest_sources",
         "approved_artifact_roots",
         "socket_sources",
         "peer_acl_hashes",
+        "dynamic_fact_sources",
     }
     if set(plan) != required or plan.get("schema_version") != "1.0.0":
         raise AuthorizationDenied("LOCAL_FACTS_PLAN_INVALID")
@@ -199,6 +223,10 @@ def load_local_facts_plan(
             approved_artifact_roots=tuple(_absolute_path(root) for root in roots),
             socket_sources=_path_mapping(plan.get("socket_sources")),
             peer_acl_hashes=dict(peer_acl_hashes),
+            release_image_digest_sources=_path_mapping(
+                plan.get("release_image_digest_sources")
+            ),
+            dynamic_fact_sources=_path_mapping(plan.get("dynamic_fact_sources")),
         ),
     )
 
@@ -235,6 +263,119 @@ def _host_boot_id(path: Path) -> str:
     return value
 
 
+def _stable_file_identity(path: Path) -> tuple[int, int, int, int, int]:
+    try:
+        metadata = path.lstat()
+    except OSError as exc:
+        raise AuthorizationDenied("LOCAL_MEASUREMENT_SOURCE_UNSAFE") from exc
+    if not stat.S_ISREG(metadata.st_mode):
+        raise AuthorizationDenied("LOCAL_MEASUREMENT_SOURCE_UNSAFE")
+    return (
+        metadata.st_ino,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        metadata.st_uid,
+        stat.S_IMODE(metadata.st_mode),
+    )
+
+
+def _load_dynamic_facts(
+    sources: Mapping[str, Path],
+    *,
+    now: datetime,
+    maximum_age_seconds: int,
+) -> Mapping[str, Any]:
+    if set(sources) != _DYNAMIC_FACT_FIELDS:
+        raise AuthorizationDenied("LOCAL_DYNAMIC_FACT_COVERAGE_INVALID")
+    measurements: dict[str, Any] = {}
+    utc_now = now.astimezone(UTC)
+    for field in sorted(sources):
+        path = sources[field]
+        assert_root_owned_0444(path, trusted_directory=path.parent)
+        before = _stable_file_identity(path)
+        try:
+            document = load_strict_document(path)
+        except ConfigurationError as exc:
+            raise AuthorizationDenied("LOCAL_DYNAMIC_FACT_INVALID") from exc
+        after = _stable_file_identity(path)
+        if before != after:
+            raise AuthorizationDenied("LOCAL_MEASUREMENT_SOURCE_CHANGED")
+        source = _mapping(document)
+        if set(source) != {
+            "schema_version",
+            "captured_at",
+            "measurement_hash",
+            "measurement",
+        } or source.get("schema_version") != "1.0.0":
+            raise AuthorizationDenied("LOCAL_DYNAMIC_FACT_INVALID")
+        captured_at = _time(source.get("captured_at"))
+        if not timedelta(0) <= utc_now - captured_at <= timedelta(
+            seconds=maximum_age_seconds
+        ):
+            raise AuthorizationDenied("LOCAL_DYNAMIC_FACT_STALE")
+        measurement = source.get("measurement")
+        try:
+            measurement_hash = canonical_digest(measurement).hex()
+        except (TypeError, ValueError) as exc:
+            raise AuthorizationDenied("LOCAL_DYNAMIC_FACT_INVALID") from exc
+        if source.get("measurement_hash") != measurement_hash:
+            raise AuthorizationDenied("LOCAL_DYNAMIC_FACT_HASH_MISMATCH")
+        measurements[field] = measurement
+    return measurements
+
+
+def _read_release_image_digests(sources: Mapping[str, Path]) -> Mapping[str, str]:
+    if set(sources) != _RELEASE_IMAGE_FIELDS:
+        raise AuthorizationDenied("LOCAL_IMAGE_DIGEST_COVERAGE_INVALID")
+    digests: dict[str, str] = {}
+    for field in sorted(sources):
+        path = sources[field]
+        assert_root_owned_0444(path, trusted_directory=path.parent)
+        before = _stable_file_identity(path)
+        try:
+            value = path.read_text(encoding="ascii").strip()
+        except (OSError, UnicodeError) as exc:
+            raise AuthorizationDenied("LOCAL_IMAGE_DIGEST_INVALID") from exc
+        after = _stable_file_identity(path)
+        if before != after:
+            raise AuthorizationDenied("LOCAL_MEASUREMENT_SOURCE_CHANGED")
+        if not _IMAGE_DIGEST.fullmatch(value):
+            raise AuthorizationDenied("LOCAL_IMAGE_DIGEST_INVALID")
+        digests[field] = value
+    return digests
+
+
+def _measure_sockets(
+    sources: Mapping[str, Path],
+    peer_acl_hashes: Mapping[str, str],
+) -> Mapping[str, Mapping[str, Any]]:
+    if set(sources) != set(_SOCKET_PATHS) or set(peer_acl_hashes) != set(_SOCKET_PATHS):
+        raise AuthorizationDenied("LOCAL_SOCKET_COVERAGE_INVALID")
+    measured: dict[str, Mapping[str, Any]] = {}
+    for role, logical_path in _SOCKET_PATHS.items():
+        source = sources[role]
+        try:
+            metadata = source.lstat()
+        except OSError as exc:
+            raise AuthorizationDenied("LOCAL_SOCKET_IDENTITY_INVALID") from exc
+        if (
+            not source.is_absolute()
+            or not stat.S_ISSOCK(metadata.st_mode)
+            or stat.S_IMODE(metadata.st_mode) != 0o660
+        ):
+            raise AuthorizationDenied("LOCAL_SOCKET_IDENTITY_INVALID")
+        measured[role] = {
+            "path": logical_path,
+            "inode": metadata.st_ino,
+            "mode": "0660",
+            "owner_uid": metadata.st_uid,
+            "owner_gid": metadata.st_gid,
+            "peer_acl_hash": peer_acl_hashes[role],
+            "so_peercred_enforced": True,
+        }
+    return measured
+
+
 def _verify_sockets(
     declared: object,
     sources: Mapping[str, Path],
@@ -268,6 +409,172 @@ def _verify_sockets(
             raise AuthorizationDenied("LOCAL_SOCKET_IDENTITY_INVALID")
 
 
+def _validate_collected_facts(
+    facts: Mapping[str, Any],
+    *,
+    startup_evidence_schema_path: Path,
+    now: datetime,
+) -> None:
+    content: dict[str, Any] = {
+        "evidence_id": "root-facts-schema-check-0001",
+        "evidence_status": "UNVALIDATED_ENGINEERING_BASELINE",
+        "issued_at": now.astimezone(UTC).isoformat().replace("+00:00", "Z"),
+        "expires_at": (now.astimezone(UTC) + timedelta(seconds=300))
+        .isoformat()
+        .replace("+00:00", "Z"),
+    }
+    content.update({field: facts[field] for field in _MEASURED_FIELDS})
+    document = {
+        "schema_version": "1.0.0",
+        "evidence_hash": canonical_digest(content).hex(),
+        "content": content,
+        "signature": None,
+    }
+    try:
+        schema = json.loads(startup_evidence_schema_path.read_text(encoding="utf-8"))
+        Draft202012Validator.check_schema(schema)
+        errors = list(
+            Draft202012Validator(
+                schema,
+                format_checker=FormatChecker(),
+            ).iter_errors(document)
+        )
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise AuthorizationDenied("LOCAL_FACTS_SCHEMA_INVALID") from exc
+    if errors:
+        raise AuthorizationDenied("LOCAL_FACTS_SCHEMA_INVALID")
+
+
+def _publish_root_facts(document: Mapping[str, Any], plan: LocalFactsPlan) -> None:
+    output_path = plan.facts_path
+    parent = plan.trusted_facts_directory
+    if os.geteuid() != 0 or os.getegid() != 0:
+        raise AuthorizationDenied("LOCAL_FACTS_COLLECTOR_NOT_ROOT")
+    try:
+        parent_metadata = parent.lstat()
+    except OSError as exc:
+        raise AuthorizationDenied("LOCAL_FACTS_PUBLISH_UNSAFE") from exc
+    if (
+        not output_path.is_absolute()
+        or output_path.parent != parent
+        or parent.is_symlink()
+        or parent.resolve() != parent
+        or not stat.S_ISDIR(parent_metadata.st_mode)
+        or parent_metadata.st_uid != 0
+        or stat.S_IMODE(parent_metadata.st_mode) & 0o022
+        or output_path.is_symlink()
+    ):
+        raise AuthorizationDenied("LOCAL_FACTS_PUBLISH_UNSAFE")
+    encoded = json.dumps(
+        document,
+        ensure_ascii=False,
+        allow_nan=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8") + b"\n"
+    temporary = parent / f".{output_path.name}.{uuid.uuid4().hex}.tmp"
+    descriptor = -1
+    try:
+        descriptor = os.open(
+            temporary,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+            0o444,
+        )
+        os.fchmod(descriptor, 0o444)
+        with os.fdopen(descriptor, "wb", closefd=True) as stream:
+            descriptor = -1
+            stream.write(encoded)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, output_path)
+        directory_descriptor = os.open(parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory_descriptor)
+        finally:
+            os.close(directory_descriptor)
+    except OSError as exc:
+        raise AuthorizationDenied("LOCAL_FACTS_PUBLISH_FAILED") from exc
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        temporary.unlink(missing_ok=True)
+    published = output_path.lstat()
+    if (
+        not stat.S_ISREG(published.st_mode)
+        or published.st_uid != 0
+        or published.st_gid != 0
+        or stat.S_IMODE(published.st_mode) != 0o444
+    ):
+        output_path.unlink(missing_ok=True)
+        raise AuthorizationDenied("LOCAL_FACTS_PUBLISH_UNSAFE")
+
+
+def collect_and_publish_local_facts(
+    plan: LocalFactsPlan,
+    *,
+    now: datetime,
+    maximum_source_age_seconds: int = 5,
+) -> Mapping[str, Any]:
+    """Collect root-protected measurements and atomically publish one short-lived snapshot."""
+    if maximum_source_age_seconds < 1 or maximum_source_age_seconds > 60:
+        raise AuthorizationDenied("LOCAL_FACTS_CONFIGURATION_INVALID")
+    expectation = plan.expectation
+    if (
+        set(expectation.release_sources) != _RELEASE_HASH_FIELDS
+        or set(expectation.release_image_digest_sources) != _RELEASE_IMAGE_FIELDS
+        or set(expectation.dynamic_fact_sources) != _DYNAMIC_FACT_FIELDS
+    ):
+        raise AuthorizationDenied("LOCAL_FACTS_CONFIGURATION_INVALID")
+    dynamic = _load_dynamic_facts(
+        expectation.dynamic_fact_sources,
+        now=now,
+        maximum_age_seconds=maximum_source_age_seconds,
+    )
+    release_binding = dict(
+        measure_artifact_bindings(
+            expectation.release_sources,
+            approved_roots=expectation.approved_artifact_roots,
+        )
+    )
+    release_binding.update(
+        _read_release_image_digests(expectation.release_image_digest_sources)
+    )
+    facts: dict[str, Any] = {
+        "captured_at": now.astimezone(UTC).isoformat().replace("+00:00", "Z"),
+        "stage": expectation.stage,
+        "enabled_environments": sorted(expectation.enabled_environments),
+        "enabled_authorities": sorted(expectation.enabled_authorities),
+        "host_boot_id": _host_boot_id(expectation.host_boot_id_path),
+        "release_binding": release_binding,
+        "artifact_binding": dict(
+            measure_artifact_bindings(
+                expectation.artifact_sources,
+                approved_roots=expectation.approved_artifact_roots,
+            )
+        ),
+        "sockets": _measure_sockets(
+            expectation.socket_sources,
+            expectation.peer_acl_hashes,
+        ),
+    }
+    facts.update(dynamic)
+    schema_source = expectation.artifact_sources.get("startup_evidence_schema_hash")
+    if schema_source is None or schema_source.hash_mode is not ArtifactHashMode.RAW_BYTES:
+        raise AuthorizationDenied("LOCAL_FACTS_CONFIGURATION_INVALID")
+    _validate_collected_facts(
+        facts,
+        startup_evidence_schema_path=schema_source.path,
+        now=now,
+    )
+    document: Mapping[str, Any] = {
+        "schema_version": "1.0.0",
+        "facts_hash": canonical_digest(facts).hex(),
+        "facts": facts,
+    }
+    _publish_root_facts(document, plan)
+    return document
+
+
 def assemble_startup_content_from_local_facts(
     facts_path: Path,
     *,
@@ -286,6 +593,8 @@ def assemble_startup_content_from_local_facts(
         or maximum_facts_age_seconds < 1
         or maximum_facts_age_seconds > 60
         or set(expectation.release_sources) != _RELEASE_HASH_FIELDS
+        or set(expectation.release_image_digest_sources) != _RELEASE_IMAGE_FIELDS
+        or set(expectation.dynamic_fact_sources) != _DYNAMIC_FACT_FIELDS
     ):
         raise AuthorizationDenied("LOCAL_FACTS_CONFIGURATION_INVALID")
     assert_root_owned_0444(facts_path, trusted_directory=trusted_facts_directory)
@@ -335,6 +644,20 @@ def assemble_startup_content_from_local_facts(
         expectation.release_sources,
         approved_roots=expectation.approved_artifact_roots,
     )
+    if any(
+        release_binding.get(name) != digest
+        for name, digest in _read_release_image_digests(
+            expectation.release_image_digest_sources
+        ).items()
+    ):
+        raise AuthorizationDenied("LOCAL_RELEASE_BINDING_MISMATCH")
+    dynamic = _load_dynamic_facts(
+        expectation.dynamic_fact_sources,
+        now=utc_now,
+        maximum_age_seconds=maximum_facts_age_seconds,
+    )
+    if any(facts.get(field) != value for field, value in dynamic.items()):
+        raise AuthorizationDenied("LOCAL_DYNAMIC_FACT_BINDING_MISMATCH")
     database = _mapping(facts.get("database_authority"))
     if database.get("migration_head") != expectation.migration_head:
         raise AuthorizationDenied("LOCAL_DATABASE_BINDING_MISMATCH")
