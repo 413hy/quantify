@@ -1,9 +1,9 @@
 {
-  "Id": "sha256:24ffaa143057bfa793b31fb9a35fa89f59dea1953fa15d61cd69dc09dd32854e",
+  "Id": "sha256:f15ab84db9c6f0da442cb358787f6c4e725fc55dc58b6693b868f368804e711a",
   "RepoTags": ["aiq-app:m0"],
   "Architecture": "arm64",
   "Os": "linux",
-  "Size": 340503631,
+  "Size": 340930816,
   "Config": {
     "User": "65532:65532",
     "Cmd": ["python", "-m", "ai_quant.services.locked_process"],

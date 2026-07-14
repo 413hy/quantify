@@ -1,9 +1,9 @@
 M0 rate/gateway v2 verification summary
-time=2026-07-14T10:36:39Z
-implementation_head=632fd52b7470291abfb9c5712de891582ecffebc
+time=2026-07-14T11:07:21Z
+implementation_head=543791d761eb21112562338395673736545f2ee9
 rate_authority_commit=8516679
 gateway_pipeline_commit=42624ef909aa25cc4aa7c46c392a7c856eaa82f3
-ci=PASS unit=125 property=3 contract=2 security=9 mypy=PASS bandit=PASS secret_scan=PASS
+ci=PASS unit=135 property=3 contract=2 security=9 mypy=PASS bandit=PASS secret_scan=PASS
 platform_amendment=PASS target=debian-12-bookworm-aarch64 owner_approved=true legacy_mutable_refs=0 frozen_provenance_files=123
 debian_platform=PASS provider=oci os=12 codename=bookworm arch=aarch64 kernel=6.1.0-50-cloud-arm64 cgroup=v2 cpu=2 memory_kib=12242740 root_bytes=199142084608
 host_migration_head=0010_local_measurements
@@ -27,11 +27,16 @@ destination_binding=PASS authority_transport_scheme_host=exact consume_denial_co
 local_facts_assembly=PASS caller_draft_accepted=false root_snapshot=true max_age_seconds=5 boot_id_remeasured=true artifacts_rehashed=true releases_rehashed=true sockets_remeasured=true
 local_facts_collector=PASS root_only=true dynamic_sources=6 source_max_age_seconds=5 source_hashes=true schema_validated=true image_digests_reverified=true atomic_publish=true fsync=true mode=0444 owner=root stop_failure_unpublishes=true compose_activated=false
 dynamic_measurement_cycle=PASS source_count=6 exact_capture_timestamp=true partial_generation_denied=true
-database_measurements=PASS fixed_security_definer=true serializable_read_only=true wal_fencing_bound=true integrity_counts=4 runtime_role_execute_only=true
+database_measurements=PASS fixed_security_definer=true serializable_read_only=true wal_fencing_bound=true integrity_counts=4
+database_runtime_privileges=PASS table_selects=5 function_executes=6 observations_direct_select=false authority_blocks_direct_select=false
+database_authority_blocks=PASS same_snapshot=true sorted=true table_select_granted=false
 authority_measurements=PASS journal_hash_recomputed=true rest_pair_bound=true stream_open_required=true max_age_seconds=300
 network_measurements=PASS commands=fixed_read_only nft_markers=3 gateway_count=1 business_external_routes=0 gateway_secrets=false tcp_ipc=false
 bootstrap_measurements=PASS traces=2 replay_denied=true full_causal_binding=true
 readiness_measurements=PASS observations_closed=true integrity_zero=true blocked_authorities=0 all_gates=true
+measurement_orchestrator=PASS root_only=true closed_plan=true caller_dsn=false caller_command=false caller_ready=false signed_connection=true signed_catalog=true uds_probes=2 cached_plan_cleanup=true
+debian_systemd_units=PASS static_hardening=true units=2 installed=false enabled=false
+nftables_renderer=PASS table=ai_quant_egress input_hook=false flush_ruleset=false nft_check=true applied=false
 startup_observation_order=PASS observation_before_or_at_issuance=true future_denied=true stale_denied=true
 attestation_issuer=PASS executable=true actual_runtime_artifacts_bound=true refresh_max_seconds=60 handled_failure_unpublishes=true compose_activated=false
 attestation_compose_gate=PASS required_command=locked_process required_state=RISK_LOCKED

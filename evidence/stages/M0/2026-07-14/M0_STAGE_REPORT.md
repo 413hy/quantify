@@ -2,7 +2,7 @@
 
 - Stage: M0 — repository, contracts, configuration, migrations, audit and egress skeleton
 - Status: `IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
-- Report time: `2026-07-14T10:36:39Z`
+- Report time: `2026-07-14T11:07:21Z`
 - Implementation commits: `3a5762e37a5311f0a7faeca2e93b6c77ab8500ff`,
   `fca378cf7e4f18457f46a381e29fc8599bb5baa8`,
   `d5a394e21776957f627c9c3e7da78dfd1accf53c`,
@@ -22,7 +22,9 @@
   `fcbcba230d75327ae155e1717fe23dc661a2debd`,
   `be6c46a5884c7a666c1963df33b28f5442fbebe2`,
   `4b71424c0f0fd0f385d3d2f1f6a89088f2cb1d9e`,
-  `632fd52b7470291abfb9c5712de891582ecffebc`
+  `632fd52b7470291abfb9c5712de891582ecffebc`,
+  `123428d8754cdfa162a0bb854583521a66386320`,
+  `543791d761eb21112562338395673736545f2ee9`
 - Implementer: `/root` engineering session
 - Independent reviewer: not assigned; a different actor with fresh context is still required
 - `CodexReviewReport`: absent by design; the implementer cannot self-sign it
@@ -49,7 +51,7 @@ metadata, and evidence.
 | M0-R08 atomic reserve/permit/nonce consume and replay denial | PASS for implemented database boundary | `migrations.log`; unit/property tests |
 | M0-R09 locked non-root container startup | PASS | `locked-runtime.log` |
 | M0-R10 full Reserve→gateway→PermitConsume→send service | PARTIAL | bounded rate/gateway IPC, v2 Reserve/Consume, exact-wire single-send core and outcome journal pass; production transport is intentionally absent |
-| M0-R11 signed startup evidence and host destination firewall | PARTIAL | root-only collector plus all six producer/verifier boundaries, executable independent issuer, full measurement binding, coherent atomic publishers and monitor pass; real signed inputs, deployment measurements and host firewall proof remain absent |
+| M0-R11 signed startup evidence and host destination firewall | PARTIAL | root-only collector plus executable six-source cycle, hardened Debian unit artifacts, non-applying nftables renderer, independent issuer, full measurement binding and monitor pass; real signed inputs, installed lifecycle, applied firewall and deployment proof remain absent |
 | M0-R12 independent fresh-context review | BLOCKED | reviewer and valid `CodexReviewReport` absent |
 | M0-R13 deployment host platform | PASS for OS compatibility | owner-approved ADR 0004; `make validate-debian-platform`; Debian 12 Bookworm/aarch64 OCI profile passes |
 
@@ -60,8 +62,8 @@ metadata, and evidence.
 - The earlier foundation implementation manifest hash was
   `b13e7e76e1f6ad5e08b4d2b846f7ea15cdcefab163b25db5256541f7dd60b91a`; Git commit identity is
   authoritative for the later increments.
-- Local application OCI image ID: `sha256:743e3a73e427473061081b9f60e5338996c2e1995e1a315035b2f86375e6d495`.
-- Image architecture/size: Linux arm64, 340,874,175 bytes.
+- Local application OCI image ID: `sha256:f15ab84db9c6f0da442cb358787f6c4e725fc55dc58b6693b868f368804e711a`.
+- Image architecture/size: Linux arm64, 340,930,816 bytes.
 - The earlier image was reproduced twice. This new dependency-bearing image was built repeatedly
   from cache with the same ID but has not had a fresh no-cache reproducibility run.
 - Business migration head: `0001_business_core`.
@@ -94,10 +96,14 @@ startup-evidence, or live authorization has been issued.
 | Boundary | durable local notification | EOF/handler failure cannot impersonate commit; only a post-handler ACK succeeds and repeated outcome failure latches gateway closed |
 | Boundary | private service files | database password and attestation key require exact `0400`, current UID, absolute non-symlink paths outside the release tree |
 | Boundary | database runtime role | `aiq_rate_authority` defaults `NOLOGIN`, has no superuser/DDL role flags, public function execute is revoked, and hardened functions carry mutations |
+| Boundary | database least privilege | runtime access is closed to five directly read operational tables and six named functions; observation and block journals deny direct reads and are exposed only through fixed security-definer measurement readers |
 | Boundary | destination tuple | authority, transport, scheme and host are an exact tuple; denied Consume replies retain non-null connection binding |
 | Boundary | root-authenticated local facts | no evidence draft is accepted; fresh root snapshot, boot ID, complete artifact/release bindings and both socket identities are remeasured before content construction |
 | Boundary | root local-facts collector | root-only; six fresh protected source types exactly covered; source hashes, evidence Schema, artifacts, release files, image digests, boot ID and sockets rechecked; `0444 root:root` output is atomically replaced and removed on stop/failure |
 | Boundary | deployment measurement producers | fixed read-only database function, authenticated authority journal pairing, fixed Docker/nftables inspection, two non-replayed complete bootstrap traces and closed readiness aggregation pass offline; all six capture timestamps must be identical |
+| Boundary | deployment measurement orchestration | one root-owned closed plan, no caller DSN/command/READY fields, signed connection/catalog source closure, same-snapshot authority blocks, two SO_PEERCRED probes and six-file failure invalidation pass; cached plans remove old generations on change/stop |
+| Boundary | Debian unit artifacts | two units pass static hardening policy; PostgreSQL is host-visible only through a fixed Unix socket and publishes no TCP port; units remain uninstalled and disabled |
+| Boundary | nftables renderer | dedicated `inet ai_quant_egress` table has no input hook or ruleset flush; example passes real `nft --check`; no rules were applied |
 | Boundary | executable attestation issuer | actual keyring/trust/schema inputs are evidence-bound; refresh is at most 60 seconds and handled stop/failure removes the published evidence |
 | Boundary | attestation deployment lock | Compose validation and a security test reject activating the issuer before real deployment facts and gates exist |
 | Platform | Debian 12 sole-host amendment | mutable guidance contains no legacy platform selection; live OCI host passes OS, architecture, kernel, cgroup, resource, systemd, Docker, chrony and nftables checks |
@@ -107,7 +113,7 @@ startup-evidence, or live authorization has been issued.
 | Configuration/contracts | all recommended M0 validation targets | PASS |
 
 Primary logs and SHA-256 values are stored below this report in `tests/`, `security/`, and
-`artifacts/`. The final CI run passed 125 unit, 3 property, 2 contract, and 9 security tests. The
+`artifacts/`. The final CI run passed 135 unit, 3 property, 2 contract, and 9 security tests. The
 migration shape test and containerized migration round-trip also passed.
 
 ## Resource and security observations

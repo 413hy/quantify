@@ -38,3 +38,24 @@ uv run pytest -q tests/security
 uv run bandit -q -r src
 uv run python scripts/validate/secret_scan.py
 secret scan PASS
+
+=== 2026-07-14T11:01:03Z implementation 123428d ===
+ruff=PASS source_files=34
+mypy=PASS source_files=34
+contracts=PASS schemas=42 instances=39 jcs=26 openapi=1
+config=PASS examples=14 secrets=not-embedded
+provenance=PASS copied_files=123
+platform_amendment=PASS target=debian-12-bookworm-aarch64
+deployment_static_policy=PASS units=2 postgres_tcp=none nft_table=ai_quant_egress
+compose_policy=PASS files=4 gateway_definitions=1
+unit=PASS count=134
+property=PASS count=3
+contract=PASS count=2
+security=PASS count=9
+bandit=PASS
+secret_scan=PASS
+
+=== 2026-07-14T11:07:21Z implementation 543791d ===
+ci=PASS unit=135 property=3 contract=2 security=9
+ruff=PASS mypy=PASS bandit=PASS secret_scan=PASS
+deployment_static_policy=PASS nft_check=PASS

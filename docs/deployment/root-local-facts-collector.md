@@ -59,7 +59,9 @@ contract, keyring, pin, bootstrap envelope and both plans must be direct files i
 root-only `0400` file under `/run/ai-quant-secrets`; it is never part of either plan.
 
 The database snapshot now also returns the sorted effective authority-block list through the same
-security-definer function. The runtime role receives no table-level privilege for that addition.
+security-definer function. The authority-observation rows use a second fixed reader capped to the
+last 300 seconds. The runtime role is limited to five operational table reads and six named function
+entry points; observation and authority-block tables cannot be read directly.
 Readiness is derived from the verified inputs, database block state and live socket probes; the plan
 has no field that can assert `READY`.
 

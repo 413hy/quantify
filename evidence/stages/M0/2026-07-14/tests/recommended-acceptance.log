@@ -1,5 +1,10 @@
 uv run python scripts/validate/contracts.py
 contracts PASS schemas=42 instances=39 jcs=26 openapi=1
+
+2026-07-14T11:01:03Z additional non-activating Debian deployment gates
+make validate-deployment: PASS units=2 postgres_tcp=none nft_table=ai_quant_egress
+make validate-nftables-policy: PASS nft=--check applied=false
+2026-07-14T11:07:21Z restricted database role PASS table_selects=5 function_executes=6
 uv run python scripts/validate/config.py --only binance-endpoint-cost-catalog
 config PASS examples=1 secrets=not-embedded
 uv run python scripts/validate/config.py --only binance-connection-contract

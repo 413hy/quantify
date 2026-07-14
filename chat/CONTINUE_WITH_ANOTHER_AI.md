@@ -55,11 +55,17 @@ Current implementation facts to verify rather than assume:
   bindings, validates the immutable evidence Schema and atomically publishes `0444 root:root`.
 - All six producer/verifier boundaries exist offline; mixed capture timestamps, broken bootstrap
   causality, incomplete nftables policy, journal mismatch and failed readiness deny publication.
+- A root-only executable cycle now connects those producers using a closed root-owned plan, fixed
+  local PostgreSQL Unix socket, signed connection/catalog verification, live Docker/nftables state
+  and UDS `SO_PEERCRED` probes. Hardened Debian units and an nftables renderer are staged only; they
+  are not installed, enabled or applied.
 - The executable attestation issuer binds the actual keyring/trust/schema artifacts, refreshes no
   slower than 60 seconds, atomically publishes and removes evidence on handled failure.
 - Compose intentionally keeps the attestation signer on locked_process/RISK_LOCKED until real
   deployment facts exist.
-- Last recorded tests were 125 unit, 3 property, 2 contract and 9 security tests, but rerun them.
+- The restricted database role now has five explicit table reads and six explicit function entry
+  points; observations and authority blocks are measurement-reader-only.
+- Last recorded tests were 135 unit, 3 property, 2 contract and 9 security tests, but rerun them.
 
 Known external blockers:
 - BLK-001 Testnet WS endpoint conflict.

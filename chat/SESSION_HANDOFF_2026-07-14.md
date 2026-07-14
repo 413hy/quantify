@@ -84,7 +84,8 @@ Important commits include:
 - `fcbcba2` — deployment-lock policy and security test.
 - `4b71424` — root-only local-facts collector and independent source revalidation.
 - `632fd52` — coherent database/authority/network/bootstrap/readiness measurement producers.
-- `3c4469d` — evidence/status update for that implementation baseline.
+- `123428d` — executable Debian measurement cycle, unit artifacts and checked nftables renderer.
+- `543791d` — narrow runtime database table/function privileges and fixed observation reader.
 
 ## Last verified results
 
@@ -92,7 +93,7 @@ The final functional checks before this handoff passed:
 
 ```text
 make ci
-  unit:    125 passed
+  unit:    135 passed
   property:  3 passed
   contract:  2 passed
   security:  9 passed
@@ -110,8 +111,8 @@ round-trip previously passed and no later migration changed it.
 Latest local arm64 cached-build image evidence:
 
 ```text
-sha256:743e3a73e427473061081b9f60e5338996c2e1995e1a315035b2f86375e6d495
-size=340874175
+sha256:f15ab84db9c6f0da442cb358787f6c4e725fc55dc58b6693b868f368804e711a
+size=340930816
 ```
 
 Do not treat that local image ID as a signed registry release or deployment attestation.

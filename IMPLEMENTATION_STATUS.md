@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: `2026-07-14T10:36:39Z`
+Updated: `2026-07-14T11:07:21Z`
 
 Overall state: `M0_IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
 
@@ -105,6 +105,18 @@ Highest completed milestone: none
   two complete bootstrap traces and readiness are independently closed before all six root source
   files are published with one exact capture timestamp. It also corrects startup observation time
   ordering so real observations precede evidence issuance while remaining short-lived.
+- Commit `123428d8754cdfa162a0bb854583521a66386320` closes the offline host
+  orchestration gap. A root-only cycle verifies signed connection/catalog inputs and their source
+  bytes, reads database/journal/block state through the narrow role, inspects live Docker/nftables,
+  validates dual bootstrap traces, probes both UDS peers and publishes all six sources as one
+  generation. Two hardened but uninstalled Debian systemd units, a fixed local PostgreSQL Unix
+  socket and a non-applying destination nftables renderer are statically checked. Invalid local
+  clients no longer terminate the rate service. No unit or firewall rule was activated.
+- Commit `543791d761eb21112562338395673736545f2ee9` corrects a least-privilege
+  discrepancy found during evidence review. The runtime role no longer has blanket table-read or
+  function-execute access: five operational tables and six callable functions are explicit, while
+  observation journals and authority blocks are available to measurement only through fixed
+  security-definer readers. Disposable migration tests exercise both readers under `SET ROLE`.
 - ADR 0004 records the owner's explicit platform correction: Debian 12 Bookworm/aarch64 on Oracle
   Cloud is the sole deployment target. The live host matches that profile and the read-only Debian
   platform verifier passes; the original source archives remain immutable for provenance.
@@ -122,12 +134,13 @@ Detailed evidence: `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`.
 2. Implement and independently review the production exact-wire transport and gateway service only
    after startup evidence and destination policy exist. Multi-role endpoints remain denied because
    the frozen request contract does not provide a unique gateway-side causal derivation rule.
-3. Provision the implemented six-source measurement cycle with real signed connection profiles,
-   network policy, bootstrap traces and UDS readiness probes, then prove collector/issuer lifecycle
-   on the qualified deployment target. The code rejects mixed-generation snapshots and invalidates
-   output on handled refresh failure; locked Compose remains inactive without real measured facts.
-4. Destination-specific host DNS/firewall enforcement proving exactly one Binance socket owner and
-   zero business Binance routes; current Compose validation is static only.
+3. Provision the implemented six-source systemd cycle with real signed connection profiles,
+   network policy, bootstrap traces and UDS services, then prove collector/issuer lifecycle on the
+   qualified deployment target. The staged units are not installed or enabled and the locked
+   Compose services cannot yet supply real probes.
+4. Resolve real destination addresses, independently review and apply the generated nftables table,
+   then prove exactly one Binance socket owner and zero business Binance routes. The renderer and
+   `nft --check` pass, but no host rule was applied and documentation-only addresses are not proof.
 5. A different actor in fresh context must independently review and issue a valid
    `CodexReviewReport` with zero open P0/P1 before M0 acceptance.
 
@@ -170,7 +183,7 @@ Deployment authorization: `NOT_AUTHORIZED`. Runtime default: `RISK_LOCKED`.
 ## Next exact command
 
 ```bash
-cd /root/quantify/ai-quant-system && make validate-debian-platform && make ci && make test-migrations && make test-locked-runtime
+cd /root/quantify/ai-quant-system && make validate-debian-platform validate-deployment validate-nftables-policy && make ci && make test-migrations && make test-locked-runtime
 ```
 
 After this baseline re-verifies, continue M0 with deployment-safe attestation issuance and host
