@@ -87,6 +87,15 @@ def test_attestation_private_key_is_granted_only_to_its_fixed_holder() -> None:
     }
 
 
+def test_attestation_issuer_remains_locked_without_deployment_facts() -> None:
+    document = yaml.safe_load(
+        (ROOT / "deploy/host-control.compose.yaml").read_text(encoding="utf-8")
+    )
+    signer = document["services"]["host-attestation-signer"]
+    assert signer["command"] == ["python", "-m", "ai_quant.services.locked_process"]
+    assert signer["environment"]["AIQ_RUNTIME_STATE"] == "RISK_LOCKED"
+
+
 def test_host_database_bootstrap_secret_is_not_exposed_to_rate_service() -> None:
     document = yaml.safe_load(
         (ROOT / "deploy/host-control.compose.yaml").read_text(encoding="utf-8")

@@ -33,6 +33,7 @@ ATTESTATION_SECRET_GRANT = {
     "gid": "11007",
     "mode": 0o400,
 }
+LOCKED_ATTESTATION_COMMAND = ["python", "-m", "ai_quant.services.locked_process"]
 
 
 def _secret_source(grant: object) -> object:
@@ -67,6 +68,14 @@ def main() -> int:
                 failures.append(f"{path.name}:{name}: non-gateway joins Binance egress network")
             if service.get("privileged") or service.get("network_mode") == "host":
                 failures.append(f"{path.name}:{name}: privileged/host network forbidden")
+            if name == "host-attestation-signer" and (
+                service.get("command") != LOCKED_ATTESTATION_COMMAND
+                or service.get("environment", {}).get("AIQ_RUNTIME_STATE")
+                != "RISK_LOCKED"
+            ):
+                failures.append(
+                    f"{path.name}:{name}: issuer activation requires deployment gates"
+                )
             mounts = service.get("volumes", [])
             if any("docker.sock" in str(mount) for mount in mounts):
                 failures.append(f"{path.name}:{name}: Docker socket mount forbidden")
