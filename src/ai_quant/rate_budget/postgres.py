@@ -85,6 +85,21 @@ def host_control_database_dsn(credential: str) -> str:
     )
 
 
+def host_measurement_database_dsn(credential: str) -> str:
+    """Construct the root collector's fixed local Unix-socket database target."""
+    if not credential or "\n" in credential or "\r" in credential:
+        raise AuthorizationDenied("RATE_DATABASE_PASSWORD_INVALID")
+    return make_conninfo(
+        host="/run/ai-quant-host-postgres",
+        port=5432,
+        dbname="aiq_host_rate_control",
+        user="aiq_rate_authority",
+        password=credential,
+        connect_timeout=5,
+        application_name="aiq-root-measurement",
+    )
+
+
 class PostgresRateAuthority:
     """Translate contract messages into atomic host-control database functions."""
 

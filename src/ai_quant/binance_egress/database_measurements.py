@@ -63,7 +63,11 @@ def validate_database_measurement_snapshot(
 ) -> Mapping[str, Mapping[str, Any]]:
     """Validate the exact security-definer result before it enters root facts."""
     document = _mapping(snapshot, "DATABASE_MEASUREMENT_INVALID")
-    if set(document) != {"database_authority", "nonce_permit_integrity"}:
+    if set(document) != {
+        "database_authority",
+        "nonce_permit_integrity",
+        "active_authority_blocks",
+    }:
         raise AuthorizationDenied("DATABASE_MEASUREMENT_INVALID")
     database = _mapping(
         document.get("database_authority"),
@@ -107,10 +111,22 @@ def validate_database_measurement_snapshot(
         )
     ):
         raise AuthorizationDenied("DATABASE_INTEGRITY_NOT_READY")
+    raw_blocks = document.get("active_authority_blocks")
+    if (
+        not isinstance(raw_blocks, list)
+        or not all(
+            isinstance(authority, str) and _ID.fullmatch(authority)
+            for authority in raw_blocks
+        )
+        or len(set(raw_blocks)) != len(raw_blocks)
+        or raw_blocks != sorted(raw_blocks)
+    ):
+        raise AuthorizationDenied("DATABASE_BLOCK_MEASUREMENT_INVALID")
     integrity["integrity_query_hash"] = INTEGRITY_QUERY_HASH
     return {
         "database_authority": dict(database),
         "nonce_permit_integrity": integrity,
+        "active_authority_blocks": {"authorities": list(raw_blocks)},
     }
 
 

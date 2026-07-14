@@ -1,0 +1,41 @@
+[Unit]
+Description=AI Quant root local-facts collector
+After=aiq-measurement-cycle.service
+Requires=aiq-measurement-cycle.service
+ConditionPathIsDirectory=/etc/ai-quant/trust
+
+[Service]
+Type=simple
+User=root
+Group=root
+Environment=AIQ_LOCAL_FACTS_PLAN_FILE=/etc/ai-quant/trust/local-facts-plan.json
+ExecStart=/opt/ai-quant/.venv/bin/python -m ai_quant.services.local_facts_collector
+Restart=on-failure
+RestartSec=2s
+UMask=0333
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateNetwork=yes
+PrivateTmp=yes
+ProtectClock=yes
+ProtectControlGroups=yes
+ProtectHome=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectProc=invisible
+ProtectSystem=strict
+ReadOnlyPaths=/etc/ai-quant/trust /opt/ai-quant /run/ai-quant-measurements
+ReadWritePaths=/run/ai-quant-facts
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

@@ -7,7 +7,8 @@ UV := uv
 	validate-capability-trust-bundle validate-mandatory-endpoint-inventory \
 	test-rate-budget-contract test-binance-gateway-contract test-host-rate-startup-evidence \
 	test-migrations test-locked-runtime test-unit test-property test-contract test-security security-scan \
-	compose-check validate-platform-amendment validate-debian-platform build ci
+	compose-check validate-platform-amendment validate-debian-platform validate-deployment \
+	validate-nftables-policy build ci
 
 help:
 	@sed -n 's/^\([a-zA-Z0-9_-]*\):.*$$/\1/p' Makefile | sort
@@ -103,7 +104,14 @@ validate-debian-platform:
 validate-platform-amendment:
 	$(UV) run python scripts/validate/platform_amendment.py
 
+validate-deployment:
+	$(UV) run python scripts/validate/deployment.py
+
+validate-nftables-policy:
+	$(UV) run python tools/render_nftables_policy.py \
+		deploy/host-hardening/ai-quant-egress.example.json | /usr/sbin/nft --check -f -
+
 build:
 	docker build --pull=false --provenance=false -f docker/app.Dockerfile -t aiq-app:m0 .
 
-ci: lint typecheck validate-contracts validate-config validate-docs validate-platform-amendment compose-check test-unit test-property test-contract test-security security-scan
+ci: lint typecheck validate-contracts validate-config validate-docs validate-platform-amendment validate-deployment compose-check test-unit test-property test-contract test-security security-scan

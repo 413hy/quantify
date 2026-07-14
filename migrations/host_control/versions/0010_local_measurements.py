@@ -52,10 +52,19 @@ def upgrade() -> None:
                   FROM rate_control.consume_decisions AS decision
                   LEFT JOIN rate_control.send_outcomes AS outcome
                     ON outcome.permit_id = decision.permit_id
-                 WHERE decision.decision = 'CONSUME_GRANTED'
+                WHERE decision.decision = 'CONSUME_GRANTED'
                    AND decision.send_deadline < clock_timestamp()
                    AND outcome.permit_id IS NULL
               )
+            ),
+            'active_authority_blocks', (
+              SELECT COALESCE(
+                jsonb_agg(block.endpoint_authority ORDER BY block.endpoint_authority),
+                '[]'::jsonb
+              )
+                FROM rate_control.authority_blocks AS block
+               WHERE block.blocked_until IS NULL
+                  OR block.blocked_until > clock_timestamp()
             )
           )
           FROM rate_control.fencing_state AS fencing

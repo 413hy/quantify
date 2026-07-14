@@ -11,9 +11,12 @@ services:
     networks: [host_control_db_net]
     volumes:
       - host_control_pgdata:/var/lib/postgresql/data
+      - type: bind
+        source: /run/ai-quant-host-postgres
+        target: /var/run/postgresql
     restart: unless-stopped
     read_only: true
-    tmpfs: [/tmp, /var/run/postgresql]
+    tmpfs: [/tmp]
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
     cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]

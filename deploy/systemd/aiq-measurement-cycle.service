@@ -1,0 +1,45 @@
+[Unit]
+Description=AI Quant root measurement generation cycle
+After=docker.service
+Requires=docker.service
+ConditionPathIsDirectory=/etc/ai-quant/trust
+ConditionPathIsDirectory=/run/ai-quant-host-postgres
+
+[Service]
+Type=simple
+User=root
+Group=root
+Environment=AIQ_MEASUREMENT_CYCLE_PLAN_FILE=/etc/ai-quant/trust/measurement-cycle-plan.json
+ExecStart=/opt/ai-quant/.venv/bin/python -m ai_quant.services.measurement_cycle
+Restart=on-failure
+RestartSec=2s
+RuntimeDirectory=ai-quant-measurements ai-quant-facts
+RuntimeDirectoryMode=0750
+RuntimeDirectoryPreserve=yes
+UMask=0333
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectClock=yes
+ProtectControlGroups=yes
+ProtectHome=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectProc=invisible
+ProtectSystem=strict
+ReadOnlyPaths=/etc/ai-quant/trust /opt/ai-quant /var/run/docker.sock
+ReadWritePaths=/run/ai-quant-measurements /run/ai-quant-facts
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+CapabilityBoundingSet=CAP_NET_ADMIN
+AmbientCapabilities=CAP_NET_ADMIN
+
+[Install]
+WantedBy=multi-user.target

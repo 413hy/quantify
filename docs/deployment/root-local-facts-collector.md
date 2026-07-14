@@ -42,6 +42,47 @@ journals, fixed read-only Docker/nftables inspection commands, two non-replayed 
 traces and independent readiness probes. These are executable boundaries, not proof that the real
 deployment inputs or firewall rules currently exist.
 
+## Measurement generation cycle
+
+`ai_quant.services.measurement_cycle` is the only implemented host process that may generate the
+six dynamic source files. It reloads the direct root-owned `0444` measurement plan on every cycle,
+uses the fixed `/run/ai-quant-host-postgres` Unix socket (never a caller-supplied DSN), verifies the
+signed runtime connection contract and endpoint catalog against the pinned config keyring, verifies
+the source artifact bytes, reads the database snapshot and authenticated journals, inspects Docker
+and nftables with fixed absolute read-only commands, verifies two fresh causal bootstrap traces,
+and probes both Unix sockets with filesystem identity plus `SO_PEERCRED`.
+
+The plan shape is shown by `deploy/measurement-cycle-plan.example.json`. The example is not a
+runtime authorization and must not be copied unchanged. Runtime policy, catalog, connection
+contract, keyring, pin, bootstrap envelope and both plans must be direct files in
+`/etc/ai-quant/trust`, owned by root and mode `0444`. The database credential remains a distinct
+root-only `0400` file under `/run/ai-quant-secrets`; it is never part of either plan.
+
+The database snapshot now also returns the sorted effective authority-block list through the same
+security-definer function. The runtime role receives no table-level privilege for that addition.
+Readiness is derived from the verified inputs, database block state and live socket probes; the plan
+has no field that can assert `READY`.
+
+Two Debian unit files are staged under `deploy/systemd/`. They are repository artifacts only: this
+change neither installs nor enables them. The measurement unit has access to the Docker socket,
+nftables netlink, the local PostgreSQL socket and its two output directories; the local-facts unit
+has a private network namespace and only reads the generated measurements. Both remove their
+published state on handled stop or refresh failure.
+
+The PostgreSQL Compose service binds its Unix socket to `/run/ai-quant-host-postgres` without
+publishing a TCP port. Activation still requires an out-of-band `LOGIN` credential for
+`aiq_rate_authority`; the repository does not create, store or guess that credential.
+
+## Host firewall artifact
+
+`tools/render_nftables_policy.py` renders a deterministic `inet ai_quant_egress` table from resolved
+deployment addresses. The table touches only Docker-forwarded and host-output traffic to the
+resolved Binance sets; it has no input hook and cannot alter SSH, OCI boot-volume iSCSI or the
+provider firewall. `make validate-nftables-policy` runs nftables parser validation with `--check`
+and does not apply rules. The checked-in plan uses documentation-only addresses and is never
+deployment evidence. Applying a real rendered table remains a separate, explicitly reviewed host
+operation after address resolution and SSH recovery checks.
+
 ## Failure semantics
 
 Non-root execution, missing coverage, duplicate keys, unsafe paths, stale sources, hash mismatch,

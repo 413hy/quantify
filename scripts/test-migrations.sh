@@ -63,9 +63,10 @@ docker exec "${RUN_ID}-host-postgres-1" psql -U aiq_host_control_test \
   "SELECT (measurement->'database_authority'->>'migration_head')||':'||
           (measurement->'nonce_permit_integrity'->>'duplicate_capability_nonce_count')||':'||
           (measurement->'nonce_permit_integrity'->>'consumed_without_gateway_count')||':'||
-          (measurement->'nonce_permit_integrity'->>'outcome_missing_past_deadline_count')
+          (measurement->'nonce_permit_integrity'->>'outcome_missing_past_deadline_count')||':'||
+          jsonb_array_length(measurement->'active_authority_blocks')
      FROM (SELECT rate_control.read_startup_measurements() AS measurement) AS snapshot" \
-  | grep -qx '0010_local_measurements:0:0:0'
+  | grep -qx '0010_local_measurements:0:0:0:0'
 docker exec "${RUN_ID}-business-postgres-1" psql -U aiq_business_test -d aiq_business_test -Atc \
   "SELECT extversion FROM pg_extension WHERE extname='timescaledb'" | grep -Eq '^2\.'
 docker exec "${RUN_ID}-redis-1" redis-cli ping | grep -qx PONG

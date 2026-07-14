@@ -31,6 +31,7 @@ def _snapshot() -> dict[str, object]:
             "consumed_without_gateway_count": 0,
             "outcome_missing_past_deadline_count": 0,
         },
+        "active_authority_blocks": [],
     }
 
 
@@ -75,6 +76,7 @@ def test_database_measurements_use_one_read_only_serializable_transaction() -> N
     assert measured["nonce_permit_integrity"]["integrity_query_hash"] == (
         INTEGRITY_QUERY_HASH
     )
+    assert measured["active_authority_blocks"] == {"authorities": []}
 
 
 @pytest.mark.parametrize(
@@ -114,3 +116,22 @@ def test_database_measurement_rejects_wrong_head_and_boolean_integer() -> None:
         match="DATABASE_INTEGRITY_MEASUREMENT_INVALID",
     ):
         validate_database_measurement_snapshot(boolean_count)
+
+
+def test_database_measurement_closes_sorted_authority_blocks() -> None:
+    snapshot = _snapshot()
+    snapshot["active_authority_blocks"] = ["BINANCE_PRODUCTION_FAPI"]
+    measured = validate_database_measurement_snapshot(snapshot)
+    assert measured["active_authority_blocks"] == {
+        "authorities": ["BINANCE_PRODUCTION_FAPI"]
+    }
+
+    snapshot["active_authority_blocks"] = [
+        "BINANCE_PRODUCTION_FSTREAM",
+        "BINANCE_PRODUCTION_FAPI",
+    ]
+    with pytest.raises(
+        AuthorizationDenied,
+        match="DATABASE_BLOCK_MEASUREMENT_INVALID",
+    ):
+        validate_database_measurement_snapshot(snapshot)

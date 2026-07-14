@@ -8,7 +8,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from ai_quant.rate_budget.application import RateBudgetApplication
-from ai_quant.rate_budget.authorization import load_pinned_sha256, load_runtime_trust_bundle
+from ai_quant.rate_budget.authorization import (
+    AuthorizationDenied,
+    load_pinned_sha256,
+    load_runtime_trust_bundle,
+)
 from ai_quant.rate_budget.policy import load_runtime_endpoint_catalog
 from ai_quant.rate_budget.postgres import (
     PostgresRateAuthority,
@@ -16,7 +20,11 @@ from ai_quant.rate_budget.postgres import (
     load_database_password,
 )
 from ai_quant.services.locked_process import validated_socket_path
-from ai_quant.services.uds import BoundedUnixServer, UnixSocketServerExpectation
+from ai_quant.services.uds import (
+    BoundedUnixServer,
+    UdsProtocolError,
+    UnixSocketServerExpectation,
+)
 
 
 def _path(name: str) -> Path:
@@ -95,7 +103,9 @@ def run() -> None:
                 next_renewal = time.monotonic() + 10
             try:
                 server.serve_one()
-            except TimeoutError:
+            except (TimeoutError, AuthorizationDenied, UdsProtocolError):
+                # An unauthenticated or malformed local peer must never terminate
+                # the authority process. The peer receives no grant and no bytes.
                 pass
     finally:
         server.close()

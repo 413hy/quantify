@@ -37,6 +37,17 @@ The root measurement process and its source envelope are defined in
 activated until the six implemented measurement producers have real signed inputs and the network
 boundary has been qualified.
 
+Repository-staged systemd units and the nftables renderer are described in
+`docs/deployment/root-local-facts-collector.md`. Static verification commands are:
+
+```bash
+make validate-deployment
+make validate-nftables-policy
+```
+
+Both commands are non-activating. They do not install a unit, enable a service, create a database
+credential or apply a firewall table.
+
 ## Host package boundary
 
 Use Debian bookworm repositories plus Docker's signed Debian repository. Pin or record every

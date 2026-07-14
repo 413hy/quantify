@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0.0",
+  "policy_id": "aiq-egress-offline-example",
+  "gateway_ipv4": "172.31.0.2",
+  "business_ipv4_subnets": ["172.32.0.0/16"],
+  "binance_ipv4": ["192.0.2.10", "192.0.2.11"],
+  "gateway_ipv6": null,
+  "business_ipv6_subnets": [],
+  "binance_ipv6": []
+}

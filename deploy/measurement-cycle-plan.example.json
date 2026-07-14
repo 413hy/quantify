@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0.0",
+  "local_facts_plan_file": "/etc/ai-quant/trust/local-facts-plan.json",
+  "database_password_file": "/run/ai-quant-secrets/rate-authority-password",
+  "network_policy_file": "/etc/ai-quant/trust/network-egress.runtime.yaml",
+  "network_policy_schema_file": "/opt/ai-quant/config/network-egress.schema.json",
+  "connection_contract_file": "/etc/ai-quant/trust/binance-connection-contract.runtime.json",
+  "connection_contract_schema_file": "/opt/ai-quant/config/binance-connection-contract.schema.json",
+  "connection_source_artifact_root": "/opt/ai-quant",
+  "endpoint_catalog_file": "/etc/ai-quant/trust/binance-endpoint-cost-catalog.runtime.json",
+  "endpoint_catalog_schema_file": "/opt/ai-quant/config/binance-endpoint-cost-catalog.schema.json",
+  "endpoint_source_artifact_root": "/opt/ai-quant",
+  "gateway_request_schema_file": "/opt/ai-quant/contracts/binance-gateway-request.schema.json",
+  "keyring_file": "/etc/ai-quant/trust/verification-keyring.host-control.json",
+  "keyring_schema_file": "/opt/ai-quant/config/verification-keyring.schema.json",
+  "keyring_hash_file": "/etc/ai-quant/trust/verification-keyring.host-control.sha256",
+  "bootstrap_traces_file": "/etc/ai-quant/trust/bootstrap-traces.json"
+}
