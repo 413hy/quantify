@@ -214,8 +214,40 @@ def _validate_measurement_plan_example() -> None:
         raise SystemExit("measurement-cycle plan example is not closed")
 
 
+def _validate_baseline_unit() -> None:
+    path = ROOT / "deploy/systemd/aiq-deployment-baseline.service"
+    text = path.read_text(encoding="utf-8")
+    required = {
+        "User=root",
+        "Group=root",
+        "NoNewPrivileges=yes",
+        "ProtectSystem=strict",
+        "ProtectHome=yes",
+        "PrivateDevices=yes",
+        "ProtectKernelTunables=yes",
+        "ProtectKernelModules=yes",
+        "ProtectControlGroups=yes",
+        "RestrictNamespaces=yes",
+        "RestrictSUIDSGID=yes",
+        "MemoryDenyWriteExecute=yes",
+        "ReadWritePaths=/var/lib/ai-quant/preflight",
+    }
+    if not required <= set(text.splitlines()):
+        raise SystemExit("deployment baseline unit hardening is incomplete")
+    expected = (
+        "ExecStart=/opt/ai-quant/scripts/collect_deployment_baseline.py collect "
+        "--output /var/lib/ai-quant/preflight/deployment-baseline.jsonl "
+        "--duration-seconds 86400 --interval-seconds 60"
+    )
+    if expected not in text.splitlines() or any(
+        token in text for token in ("/bin/sh", "bash -c", "curl ", "wget ")
+    ):
+        raise SystemExit("deployment baseline unit command is unsafe")
+
+
 def main() -> int:
     _validate_bootstrap_bundle()
+    _validate_baseline_unit()
     _validate_unit(
         "aiq-measurement-cycle.service",
         "/opt/ai-quant/.venv/bin/python -m ai_quant.services.measurement_cycle",

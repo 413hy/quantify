@@ -1,0 +1,25 @@
+[Unit]
+Description=AI Quant 24-hour deployment baseline collector
+After=network-online.target chrony.service
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=root
+Group=root
+ExecStart=/opt/ai-quant/scripts/collect_deployment_baseline.py collect --output /var/lib/ai-quant/preflight/deployment-baseline.jsonl --duration-seconds 86400 --interval-seconds 60
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+ReadWritePaths=/var/lib/ai-quant/preflight
+
