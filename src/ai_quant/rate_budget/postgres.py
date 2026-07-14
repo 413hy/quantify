@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import stat
 import uuid
 from collections.abc import Callable, Mapping
@@ -50,12 +51,58 @@ def _timestamp(value: datetime) -> str:
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
-def load_database_dsn(path: Path) -> str:
-    """Read a non-empty DSN from a private regular file, never from process env."""
-    metadata = path.stat()
-    if not stat.S_ISREG(metadata.st_mode) or stat.S_IMODE(metadata.st_mode) & 0o077:
+def load_database_dsn(path: Path, *, forbidden_repository_root: Path) -> str:
+    """Read a bounded DSN from an exact private file outside the release tree."""
+    if not path.is_absolute():
         raise AuthorizationDenied("RATE_DATABASE_DSN_FILE_UNSAFE")
-    dsn = path.read_text(encoding="utf-8").strip()
+    try:
+        resolved = path.resolve(strict=True)
+        repository_root = forbidden_repository_root.resolve(strict=True)
+    except OSError as exc:
+        raise AuthorizationDenied("RATE_DATABASE_DSN_FILE_UNSAFE") from exc
+    if resolved != path or resolved.is_relative_to(repository_root):
+        raise AuthorizationDenied("RATE_DATABASE_DSN_FILE_UNSAFE")
+
+    file_descriptor: int | None = None
+    try:
+        file_descriptor = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        metadata = os.fstat(file_descriptor)
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or stat.S_IMODE(metadata.st_mode) != 0o400
+            or metadata.st_uid != os.geteuid()
+            or metadata.st_size < 1
+            or metadata.st_size > 4096
+        ):
+            raise AuthorizationDenied("RATE_DATABASE_DSN_FILE_UNSAFE")
+        chunks: list[bytes] = []
+        remaining = 4097
+        while remaining:
+            chunk = os.read(file_descriptor, remaining)
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        raw_dsn = b"".join(chunks)
+        final_metadata = os.fstat(file_descriptor)
+        if (
+            len(raw_dsn) != metadata.st_size
+            or final_metadata.st_dev != metadata.st_dev
+            or final_metadata.st_ino != metadata.st_ino
+            or final_metadata.st_size != metadata.st_size
+            or final_metadata.st_mtime_ns != metadata.st_mtime_ns
+            or final_metadata.st_ctime_ns != metadata.st_ctime_ns
+        ):
+            raise AuthorizationDenied("RATE_DATABASE_DSN_FILE_UNSAFE")
+    except OSError as exc:
+        raise AuthorizationDenied("RATE_DATABASE_DSN_FILE_UNSAFE") from exc
+    finally:
+        if file_descriptor is not None:
+            os.close(file_descriptor)
+    try:
+        dsn = raw_dsn.decode("utf-8").strip()
+    except UnicodeDecodeError as exc:
+        raise AuthorizationDenied("RATE_DATABASE_DSN_INVALID") from exc
     if not dsn or "\n" in dsn or "\r" in dsn:
         raise AuthorizationDenied("RATE_DATABASE_DSN_INVALID")
     return dsn

@@ -55,7 +55,10 @@ def run() -> None:
         now=now,
     )
     authority = PostgresRateAuthority(
-        dsn=load_database_dsn(_path("AIQ_HOST_CONTROL_DATABASE_DSN_FILE")),
+        dsn=load_database_dsn(
+            _path("AIQ_HOST_CONTROL_DATABASE_DSN_FILE"),
+            forbidden_repository_root=Path("/app"),
+        ),
         instance_id=os.environ["AIQ_RATE_ALLOCATOR_INSTANCE_ID"],
     )
     authority.assert_runtime_ready(catalog)

@@ -88,12 +88,47 @@ def _authority(cursor: FakeCursor) -> PostgresRateAuthority:
 
 def test_private_dsn_file_is_required(tmp_path: Path) -> None:
     path = tmp_path / "host-dsn"
-    path.write_text("postgresql://host-control", encoding="utf-8")
+    path.write_text("postgresql:///host-control", encoding="utf-8")
+    path.chmod(0o400)
+    assert (
+        load_database_dsn(path, forbidden_repository_root=ROOT)
+        == "postgresql:///host-control"
+    )
     path.chmod(0o600)
-    assert load_database_dsn(path) == "postgresql://host-control"
-    path.chmod(0o640)
     with pytest.raises(ValueError, match="RATE_DATABASE_DSN_FILE_UNSAFE"):
-        load_database_dsn(path)
+        load_database_dsn(path, forbidden_repository_root=ROOT)
+
+
+def test_dsn_file_rejects_relative_symlink_and_repository_paths(tmp_path: Path) -> None:
+    path = tmp_path / "host-dsn"
+    path.write_text("postgresql:///host-control", encoding="utf-8")
+    path.chmod(0o400)
+    link = tmp_path / "host-dsn-link"
+    link.symlink_to(path)
+
+    for candidate, repository_root in (
+        (Path("host-dsn"), ROOT),
+        (link, ROOT),
+        (path, tmp_path),
+    ):
+        with pytest.raises(ValueError, match="RATE_DATABASE_DSN_FILE_UNSAFE"):
+            load_database_dsn(
+                candidate,
+                forbidden_repository_root=repository_root,
+            )
+
+
+def test_dsn_file_must_belong_to_current_service_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "host-dsn"
+    path.write_text("postgresql:///host-control", encoding="utf-8")
+    path.chmod(0o400)
+    monkeypatch.setattr("ai_quant.rate_budget.postgres.os.geteuid", lambda: 2**31 - 1)
+
+    with pytest.raises(ValueError, match="RATE_DATABASE_DSN_FILE_UNSAFE"):
+        load_database_dsn(path, forbidden_repository_root=ROOT)
 
 
 def test_reserve_uses_v2_and_returns_contract_complete_allocations() -> None:
