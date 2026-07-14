@@ -30,6 +30,7 @@ class TestnetBaselineDecision:
     order_flow: OrderFlowFrame
     spread_bps: Decimal
     reason_codes: tuple[str, ...]
+    experimental_plan: TestnetExperimentalPlan | None = None
 
     @property
     def execution_ready(self) -> bool:
@@ -84,6 +85,29 @@ class TestnetBaselineDecision:
             "microprice": format(self.order_flow.microprice, "f"),
             "reason_codes": list(self.reason_codes),
             "validation_status": "UNVALIDATED_TESTNET_BASELINE",
+            "testnet_experimental_plan": (
+                None if self.experimental_plan is None else self.experimental_plan.evidence()
+            ),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class TestnetExperimentalPlan:
+    symbol: str
+    direction: Direction
+    entry_reference: Decimal
+    stop_anchor: Decimal
+    target_reference: Decimal
+    strategy_version: str = "TESTNET_EXPERIMENT_OF_PA_V1"
+
+    def evidence(self) -> dict[str, str]:
+        return {
+            "symbol": self.symbol,
+            "direction": self.direction,
+            "entry_reference": format(self.entry_reference, "f"),
+            "stop_anchor": format(self.stop_anchor, "f"),
+            "target_reference": format(self.target_reference, "f"),
+            "strategy_version": self.strategy_version,
         }
 
 
@@ -131,6 +155,16 @@ def evaluate_testnet_baseline(
     order_flow = calculate_order_flow(bids, asks, trades, depth_levels=20)
     mid = (bids[0].price + asks[0].price) / Decimal(2)
     spread_bps = (asks[0].price - bids[0].price) / mid * Decimal(10_000)
+    experimental_plan = _experimental_plan(
+        symbol=symbol,
+        bars_1m=bars_1m,
+        pa_1m=pa_1m,
+        pa_5m=pa_5m,
+        order_flow=order_flow,
+        bid=bids[0].price,
+        ask=asks[0].price,
+        spread_bps=spread_bps,
+    )
 
     reasons: list[str] = []
     if pa_1m.direction is not Direction.LONG:
@@ -161,7 +195,65 @@ def evaluate_testnet_baseline(
         order_flow=order_flow,
         spread_bps=spread_bps,
         reason_codes=tuple(dict.fromkeys(reasons)),
+        experimental_plan=experimental_plan,
     )
+
+
+def _experimental_plan(
+    *,
+    symbol: str,
+    bars_1m: list[ClosedBar],
+    pa_1m: PriceActionFrame,
+    pa_5m: PriceActionFrame,
+    order_flow: OrderFlowFrame,
+    bid: Decimal,
+    ask: Decimal,
+    spread_bps: Decimal,
+) -> TestnetExperimentalPlan | None:
+    """Create a deliberately unvalidated Testnet-only OF momentum experiment."""
+    if not order_flow.valid or pa_1m.atr is None or spread_bps > Decimal(10):
+        return None
+    long_flow = (
+        order_flow.trade_imbalance >= Decimal("0.20")
+        and (
+            order_flow.book_imbalance >= Decimal("0.02")
+            or order_flow.microprice_mid_bps >= Decimal("0.05")
+        )
+        and pa_5m.direction is not Direction.SHORT
+        and pa_1m.direction is not Direction.SHORT
+    )
+    short_flow = (
+        order_flow.trade_imbalance <= Decimal("-0.20")
+        and (
+            order_flow.book_imbalance <= Decimal("-0.02")
+            or order_flow.microprice_mid_bps <= Decimal("-0.05")
+        )
+        and pa_5m.direction is not Direction.LONG
+        and pa_1m.direction is not Direction.LONG
+    )
+    if long_flow == short_flow:
+        return None
+    direction = Direction.LONG if long_flow else Direction.SHORT
+    entry = ask if long_flow else bid
+    atr = pa_1m.atr
+    recent = bars_1m[-5:]
+    if long_flow:
+        stop = min(bar.low for bar in recent) - atr * Decimal("0.10")
+        stop = min(stop, entry * Decimal("0.9970"))
+        risk = entry - stop
+    else:
+        stop = max(bar.high for bar in recent) + atr * Decimal("0.10")
+        stop = max(stop, entry * Decimal("1.0030"))
+        risk = stop - entry
+    if min(entry, stop, risk) <= 0:
+        return None
+    risk_bps = risk / entry * Decimal(10_000)
+    if not Decimal(30) <= risk_bps <= Decimal(120):
+        return None
+    target_bps = max(Decimal(20), min(Decimal(35), risk_bps * Decimal("0.50")))
+    target_distance = entry * target_bps / Decimal(10_000)
+    target = entry + target_distance if long_flow else entry - target_distance
+    return TestnetExperimentalPlan(symbol, direction, entry, stop, target)
 
 
 def _closed_bars(

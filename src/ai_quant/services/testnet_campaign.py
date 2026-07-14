@@ -8,13 +8,14 @@ import json
 import os
 import signal
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, cast
 
+from ai_quant.binance_egress.structural_experiment import run_structural_experiment
 from ai_quant.binance_egress.testnet_probe import BinanceTestnetClient, _credential
 from ai_quant.binance_egress.testnet_stream import TestnetAggregateTradeStream
 from ai_quant.notifications import (
@@ -36,7 +37,7 @@ class CampaignLimits:
     evaluation_interval_seconds: int = 60
     trade_cooldown_seconds: int = 300
     maximum_trades_per_day: int = 8
-    daily_net_loss_limit: Decimal = Decimal("0.30")
+    daily_net_loss_limit: Decimal = Decimal("1.00")
     margin_budget: Decimal = Decimal("1")
 
     def __post_init__(self) -> None:
@@ -46,7 +47,7 @@ class CampaignLimits:
             raise ValueError("campaign evaluation interval is invalid")
         if not 60 <= self.trade_cooldown_seconds <= 86_400:
             raise ValueError("campaign trade cooldown is invalid")
-        if not 1 <= self.maximum_trades_per_day <= 24:
+        if not 1 <= self.maximum_trades_per_day <= 200:
             raise ValueError("campaign daily trade count is invalid")
         if self.daily_net_loss_limit <= 0 or self.daily_net_loss_limit > Decimal("1"):
             raise ValueError("campaign daily loss limit is invalid")
@@ -102,6 +103,10 @@ class TestnetCampaign:
         secret = _credential(api_secret_file, repository_root)
         self.client = BinanceTestnetClient(key, secret)
         self.trade_stream = TestnetAggregateTradeStream(symbols)
+        self.trade_executor = ThreadPoolExecutor(
+            max_workers=min(3, len(symbols)), thread_name_prefix="testnet-experiment"
+        )
+        self.active_trades: dict[str, Future[dict[str, Any]]] = {}
         self.stop_requested = False
 
     def request_stop(self) -> None:
@@ -113,23 +118,26 @@ class TestnetCampaign:
             return self._run_campaign()
         finally:
             self.trade_stream.stop()
+            self.trade_executor.shutdown(wait=True, cancel_futures=False)
 
     def _run_campaign(self) -> int:
         state = self._load_or_create_state()
         self._notify(
             severity="INFO",
-            event_type="测试网策略观察已启动",
+            event_type="测试网实验交易已启动",
             summary=(
                 f"候选池: {', '.join(self.symbols)}\n"
                 f"计划运行: {self.limits.duration_seconds // 86_400} 天\n"
                 f"评估间隔: {self.limits.evaluation_interval_seconds} 秒\n"
-                "运行模式: 只观察、不下单\n"
-                "当前基线仅验证 PA/OF 条件; 完整 setup、结构止损/目标和已签名成本模型"
-                "尚未形成, 因此按文档固定拒绝入场。"
+                "运行模式: Testnet 实验下单 (最多 3 个币种并行)\n"
+                "单笔保证金: 最高 1 USDT; 杠杆: 10 倍\n"
+                "退出方式: 原生结构止损/止盈, 不使用持仓时间到期平仓\n"
+                "说明: 这是未验证实验策略, 仅用于收集测试网真实成交样本。"
             ),
             key=f"campaign-start-{state['started_at']}",
         )
         consecutive_errors = 0
+        result_code = 0
         last_heartbeat = datetime.now(UTC)
         while not self.stop_requested:
             now = datetime.now(UTC)
@@ -151,18 +159,26 @@ class TestnetCampaign:
                 if consecutive_errors == 1:
                     self._notify(
                         severity="WARNING",
-                        event_type="测试网策略观察异常",
-                        summary=f"本轮评估已安全跳过, 不会下单。异常类型: {reason}",
+                        event_type="测试网策略评估异常",
+                        summary=(
+                            "本轮评估已跳过。已有仓位仍由交易所原生止盈止损保护。"
+                            f"异常类型: {reason}"
+                        ),
                         key=f"campaign-error-{now:%Y%m%d%H}",
                     )
                 if consecutive_errors >= 10:
                     self._notify(
                         severity="ERROR",
-                        event_type="测试网策略观察已暂停",
-                        summary="连续 10 轮评估异常, 服务退出并等待自动重启; 当前不会新增仓位。",
+                        event_type="测试网策略评估已暂停",
+                        summary=(
+                            "连续 10 轮评估异常, 服务退出并等待自动重启; "
+                            "已有仓位会先执行人工停止平仓。"
+                        ),
                         key=f"campaign-paused-{now:%Y%m%d%H}",
                     )
-                    return 2
+                    result_code = 2
+                    self.stop_requested = True
+                    break
             now = datetime.now(UTC)
             if now - last_heartbeat >= timedelta(hours=6):
                 self._send_heartbeat(state, now)
@@ -170,18 +186,26 @@ class TestnetCampaign:
             remaining = (_parse_time(str(state["ends_at"])) - now).total_seconds()
             if remaining > 0 and not self.stop_requested:
                 time.sleep(min(self.limits.evaluation_interval_seconds, remaining))
+        stopped_by_operator = self.stop_requested
+        self.stop_requested = True
+        while self.active_trades:
+            self._reap_completed_trades(state)
+            if self.active_trades:
+                time.sleep(1)
+        state["active_symbols"] = []
         self._notify(
             severity="INFO",
-            event_type="测试网策略观察已结束",
+            event_type="测试网实验交易已结束",
             summary=_summary_text(state),
             key=f"campaign-finished-{state['started_at']}",
         )
-        state["status"] = "STOPPED" if self.stop_requested else "COMPLETED"
+        state["status"] = "STOPPED" if stopped_by_operator else "COMPLETED"
         state["updated_at"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
         _atomic_write_json(self.state_file, state)
-        return 0
+        return result_code
 
     def _evaluate_once(self, state: dict[str, Any]) -> dict[str, Any]:
+        self._reap_completed_trades(state)
         _, server_offset_ms = self.client.synchronize_time()
         worker_count = min(3, len(self.symbols))
         with ThreadPoolExecutor(
@@ -204,14 +228,140 @@ class TestnetCampaign:
         state["last_reason_codes"] = reason_codes
         latest_observed_at = max(decision.observed_at for decision in decisions)
         self._reset_daily_state_if_needed(state, latest_observed_at)
-        selected = _select_candidate(decisions)
-        if selected is not None:
-            blocked = selected.evidence()
-            blocked["record_type"] = "SIGNAL_BLOCKED_INCOMPLETE_TRADE_PLAN"
-            self._append_event(blocked)
+        self._submit_experiments(state, decisions, latest_observed_at)
+        state["active_symbols"] = sorted(self.active_trades)
         state["updated_at"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
         _atomic_write_json(self.state_file, state)
         return state
+
+    def _submit_experiments(
+        self,
+        state: dict[str, Any],
+        decisions: list[TestnetBaselineDecision],
+        observed_at: datetime,
+    ) -> None:
+        available = min(3, len(self.symbols)) - len(self.active_trades)
+        if available <= 0:
+            return
+        plans = sorted(
+            (
+                decision.experimental_plan
+                for decision in decisions
+                if decision.experimental_plan is not None
+                and decision.symbol not in self.active_trades
+            ),
+            key=lambda plan: plan.symbol,
+        )
+        last_by_symbol = cast(dict[str, str], state.setdefault("last_trade_by_symbol", {}))
+        for plan in plans:
+            if available <= 0:
+                break
+            last_value = last_by_symbol.get(plan.symbol)
+            allowed, reason = campaign_trade_allowed(
+                now=observed_at,
+                last_trade_at=None if last_value is None else _parse_time(last_value),
+                daily_trade_count=int(state["daily_trade_count"]) + len(self.active_trades),
+                daily_net_pnl=Decimal(str(state["daily_net_pnl"])),
+                limits=self.limits,
+            )
+            if not allowed:
+                event = plan.evidence()
+                event.update(
+                    {
+                        "record_type": "TESTNET_EXPERIMENT_BLOCKED",
+                        "observed_at": observed_at.isoformat().replace("+00:00", "Z"),
+                        "reason_code": str(reason),
+                    }
+                )
+                self._append_event(event)
+                continue
+            future = self.trade_executor.submit(
+                run_structural_experiment,
+                api_key_file=self.api_key_file,
+                api_secret_file=self.api_secret_file,
+                repository_root=self.repository_root,
+                plan=plan,
+                margin_budget=self.limits.margin_budget,
+                stop_requested=lambda: self.stop_requested,
+            )
+            self.active_trades[plan.symbol] = future
+            state["submitted_trade_count"] = int(state.get("submitted_trade_count", 0)) + 1
+            timestamp = observed_at.isoformat().replace("+00:00", "Z")
+            last_by_symbol[plan.symbol] = timestamp
+            state["last_trade_at"] = timestamp
+            event = plan.evidence()
+            event.update(
+                {
+                    "record_type": "TESTNET_EXPERIMENT_SUBMITTED",
+                    "observed_at": timestamp,
+                    "validation_status": "UNVALIDATED_TESTNET_EXPERIMENT",
+                }
+            )
+            self._append_event(event)
+            self._notify(
+                severity="INFO",
+                event_type="测试网开仓信号已提交",
+                summary=(
+                    f"交易对: {plan.symbol}\n"
+                    f"方向: {'做多' if str(plan.direction) == 'LONG' else '做空'}\n"
+                    f"参考入场: {plan.entry_reference}\n"
+                    f"结构止损: {plan.stop_anchor}\n"
+                    f"目标止盈: {plan.target_reference}\n"
+                    "仓位状态将以交易所成交回报为准。"
+                ),
+                key=f"experiment-submit-{plan.symbol}-{observed_at.timestamp()}",
+            )
+            available -= 1
+
+    def _reap_completed_trades(self, state: dict[str, Any]) -> None:
+        for symbol, future in list(self.active_trades.items()):
+            if not future.done():
+                continue
+            del self.active_trades[symbol]
+            try:
+                result = future.result()
+            except Exception as exc:
+                occurred_at = datetime.now(UTC)
+                self._append_event(
+                    {
+                        "record_type": "TESTNET_EXPERIMENT_ERROR",
+                        "occurred_at": occurred_at.isoformat().replace("+00:00", "Z"),
+                        "symbol": symbol,
+                        "reason_code": type(exc).__name__,
+                        "message": str(exc),
+                    }
+                )
+                self._notify(
+                    severity="ERROR",
+                    event_type="测试网交易执行失败",
+                    summary=f"交易对: {symbol}\n异常: {type(exc).__name__}\n详情: {exc}",
+                    key=f"experiment-error-{symbol}-{occurred_at:%Y%m%d%H%M%S}",
+                )
+                continue
+            self._append_event(result)
+            net = Decimal(str(result["net_pnl"]))
+            state["trade_count"] = int(state["trade_count"]) + 1
+            state["daily_trade_count"] = int(state["daily_trade_count"]) + 1
+            state["daily_net_pnl"] = format(Decimal(str(state["daily_net_pnl"])) + net, "f")
+            state["cumulative_net_pnl"] = format(
+                Decimal(str(state["cumulative_net_pnl"])) + net, "f"
+            )
+            if result["target_achieved"]:
+                state["target_hit_count"] = int(state["target_hit_count"]) + 1
+            self._notify(
+                severity="INFO" if net >= 0 else "WARNING",
+                event_type="测试网交易已平仓",
+                summary=(
+                    f"交易对: {symbol}\n"
+                    f"方向: {'做多' if result['direction'] == 'LONG' else '做空'}\n"
+                    f"入场价: {result['entry_price']}\n"
+                    f"退出原因: {_exit_reason_cn(str(result['exit_reason']))}\n"
+                    f"已实现盈亏: {result['realized_pnl']} USDT\n"
+                    f"手续费: {result['commission_paid']} USDT\n"
+                    f"净结果: {result['net_pnl']} USDT"
+                ),
+                key=f"experiment-result-{symbol}-{result['completed_at']}",
+            )
 
     def _observe_symbol(self, symbol: str, server_offset_ms: int) -> TestnetBaselineDecision:
         one_minute_klines = self.client.klines(symbol, "1m", limit=120)
@@ -279,7 +429,14 @@ class TestnetCampaign:
                 self.symbols
             ):
                 document["limits"] = self._limits_document()
-                document["validation_status"] = "UNVALIDATED_TESTNET_BASELINE"
+                document["strategy"] = "TESTNET_EXPERIMENT_OF_PA_V1"
+                document["validation_status"] = "UNVALIDATED_TESTNET_EXPERIMENT"
+                document.setdefault("last_trade_by_symbol", {})
+                document.setdefault("active_symbols", [])
+                document.setdefault(
+                    "submitted_trade_count",
+                    int(document.get("trade_count", 0)) + len(document["active_symbols"]),
+                )
                 _atomic_write_json(self.state_file, document)
                 return document
             prior_campaign = {
@@ -296,8 +453,8 @@ class TestnetCampaign:
             "schema_version": "1.0.0",
             "status": "RUNNING",
             "environment": "testnet",
-            "strategy": "TESTNET_UNVALIDATED_PA_OF_BASELINE_V1",
-            "validation_status": "UNVALIDATED_TESTNET_BASELINE",
+            "strategy": "TESTNET_EXPERIMENT_OF_PA_V1",
+            "validation_status": "UNVALIDATED_TESTNET_EXPERIMENT",
             "symbols": list(self.symbols),
             "started_at": now.isoformat().replace("+00:00", "Z"),
             "ends_at": (now + timedelta(seconds=self.limits.duration_seconds))
@@ -307,6 +464,7 @@ class TestnetCampaign:
             "observation_count": 0,
             "evaluation_round_count": 0,
             "trade_count": 0,
+            "submitted_trade_count": 0,
             "target_hit_count": 0,
             "cumulative_net_pnl": "0",
             "last_observed_at": None,
@@ -315,6 +473,8 @@ class TestnetCampaign:
             "daily_utc_date": now.date().isoformat(),
             "daily_trade_count": 0,
             "daily_net_pnl": "0",
+            "last_trade_by_symbol": {},
+            "active_symbols": [],
             "production_endpoint_requests": 0,
             "limits": self._limits_document(),
             "prior_campaign": prior_campaign,
@@ -329,15 +489,18 @@ class TestnetCampaign:
             "maximum_trades_per_day": self.limits.maximum_trades_per_day,
             "daily_net_loss_limit": format(self.limits.daily_net_loss_limit, "f"),
             "margin_budget": format(self.limits.margin_budget, "f"),
-            "execution_mode": "OBSERVATION_ONLY",
+            "execution_mode": "TESTNET_EXPERIMENT",
             "maximum_parallel_observations": min(3, len(self.symbols)),
-            "maximum_candidates_per_round": 1,
+            "maximum_parallel_positions": min(3, len(self.symbols)),
+            "maximum_candidates_per_round": min(3, len(self.symbols)),
+            "elapsed_time_exit_enabled": False,
         }
 
 
 def _summary_text(state: dict[str, Any]) -> str:
     observations = int(state["observation_count"])
     trades = int(state["trade_count"])
+    submitted = int(state.get("submitted_trade_count", trades))
     hits = int(state["target_hit_count"])
     hit_rate = Decimal(0) if trades == 0 else Decimal(hits) / Decimal(trades) * Decimal(100)
     status = {
@@ -350,7 +513,8 @@ def _summary_text(state: dict[str, Any]) -> str:
         f"运行状态: {status}\n"
         f"信号评估: {observations} 次\n"
         f"评估轮次: {state.get('evaluation_round_count', observations)} 轮\n"
-        f"实际交易: {trades} 单\n"
+        f"已提交开仓: {submitted} 单\n"
+        f"已完成平仓: {trades} 单\n"
         f"达到目标: {hits} 单 ({hit_rate.quantize(Decimal('0.01'))}%)\n"
         f"累计净结果: {state['cumulative_net_pnl']} USDT\n"
         f"最近跳过原因: {reasons or '无'}\n"
@@ -368,6 +532,15 @@ def _reason_code_cn(reason: str) -> str:
         "OF_TRADE_IMBALANCE_INSUFFICIENT": "主动买入成交失衡不足",
         "OF_CVD_NOT_POSITIVE": "成交量差未转正",
         "SPREAD_TOO_WIDE": "买卖点差过宽",
+    }.get(reason, reason)
+
+
+def _exit_reason_cn(reason: str) -> str:
+    return {
+        "TAKE_PROFIT": "达到止盈目标",
+        "STOP_LOSS": "跌破/突破结构止损",
+        "OPERATOR_SERVICE_STOP": "服务停止时人工平仓",
+        "NATIVE_EXIT_UNCLASSIFIED": "交易所原生保护单平仓",
     }.get(reason, reason)
 
 
@@ -439,7 +612,7 @@ def main() -> int:
     parser.add_argument("--evaluation-interval-seconds", type=int, default=60)
     parser.add_argument("--trade-cooldown-seconds", type=int, default=300)
     parser.add_argument("--maximum-trades-per-day", type=int, default=8)
-    parser.add_argument("--daily-net-loss-limit", type=Decimal, default=Decimal("0.30"))
+    parser.add_argument("--daily-net-loss-limit", type=Decimal, default=Decimal("1.00"))
     arguments = parser.parse_args()
     limits = CampaignLimits(
         duration_seconds=arguments.duration_seconds,

@@ -2,8 +2,10 @@
 
 ## Verdict
 
-`FAIL_RESEARCH_GATE`. The current strategy must remain observation-only and must not submit Testnet
-orders merely to increase trade count.
+`FAIL_RESEARCH_GATE` for production qualification. This historical verdict originally kept the
+campaign observation-only. Owner direction later superseded that operational restriction for
+explicitly labelled Testnet experiment sampling only; ADR 0007 does not alter this failed result or
+unlock production.
 
 ## Exact forward result
 
@@ -47,7 +49,8 @@ exit analysis without inventing old prices.
 
 ## Runtime decision
 
-`aiq-testnet-campaign.service` remains active in `OBSERVATION_ONLY`. Its order-submission path is
-absent, all candidate entries remain fail-closed and the account is flat. A Chinese Telegram
-notification with the result was delivered. Testnet strategy execution may only be reintroduced
-after adequate forward samples show positive net results after fees and slippage.
+At the time of this review, `aiq-testnet-campaign.service` was `OBSERVATION_ONLY`, its
+order-submission path was absent and the account was flat. A Chinese Telegram notification with the
+result was delivered. ADR 0007 subsequently added a separately classified
+`UNVALIDATED_TESTNET_EXPERIMENT` execution path to collect the missing forward samples; production
+entry remains fail-closed.

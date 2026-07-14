@@ -12,10 +12,11 @@ roundtrip, signed decryption receipt and isolated restore probe also pass, and i
 200 GB with about 178 GB free. Historical bounded Testnet samples verified the 1 USDT margin
 ceiling, native protection and zero-state cleanup, but did not verify a profitable strategy. Their
 fixed-duration runner has been removed under owner-approved ADR 0006; elapsed time can no longer
-close a position. Calibration, Shadow and live gates remain pending. A three-day Testnet-only PA/OF observation
-campaign runs as `aiq-testnet-campaign.service`; it observes five 1-USDT-feasible symbols and
-records every evaluation. It is explicitly observation-only: the diagnostic baseline has no full
-setup state, structural exit plan or signed gross-edge evidence, so every entry remains rejected.
+close a position. Calibration, Shadow and live gates remain pending.
+A three-day Testnet-only experimental campaign runs as `aiq-testnet-campaign.service`; it observes
+five 1-USDT-feasible symbols and can hold up to three Testnet positions in parallel with native
+structural stop/target protection and no elapsed-time exit. It is explicitly unvalidated and does
+not change the production `RISK_LOCKED` gate.
 A separate three-symbol parallel Testnet execution stress sample
 also passed final zero-state reconciliation; it is not counted as strategy evidence. No production
 credential has been requested, copied, or injected; runtime remains `RISK_LOCKED` and is not

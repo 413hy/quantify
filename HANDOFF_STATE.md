@@ -27,12 +27,11 @@ The historical SOLUSDT protocol sample used 0.92460000 USDT margin at 10x and en
 0006 removed both elapsed-time position exits and the standalone runner that used them. This sample
 is retained only as historical lifecycle evidence.
 
-The Testnet-only `aiq-testnet-campaign.service` is enabled as an observation-only process. It
-evaluates SOLUSDT, BNBUSDT, XRPUSDT, DOGEUSDT and ADAUSDT every ten seconds using the checked-in
-unvalidated 1m/5m PA baseline and conservative OF confirmation with at most three parallel
-observation workers. It has no order-submission path: the current diagnostic
-candidate lacks a document-complete setup state, structural stop/target and signed gross-edge
-horizon, so entry is always rejected with explicit reason codes. State is
+The Testnet-only `aiq-testnet-campaign.service` is enabled as an owner-authorized experimental
+execution process. It evaluates SOLUSDT, BNBUSDT, XRPUSDT, DOGEUSDT and ADAUSDT every ten seconds,
+can hold three different symbols in parallel, uses at most 1 USDT margin per position at 10x, and
+installs native structural stop/target protection without an elapsed-time exit. Strict baseline
+production rejection remains recorded separately; experiment results are unvalidated. State is
 `/var/lib/ai-quant/evidence/testnet/campaign/current/state.json`; see `docs/testnet-campaign.md`.
 Telegram messages are structured Chinese text.
 

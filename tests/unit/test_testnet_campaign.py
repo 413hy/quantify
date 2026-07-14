@@ -78,7 +78,7 @@ def test_campaign_limits_enforce_cooldown_count_and_daily_loss() -> None:
         now=now,
         last_trade_at=None,
         daily_trade_count=1,
-        daily_net_pnl=Decimal("-0.30"),
+        daily_net_pnl=Decimal("-1.00"),
         limits=limits,
     ) == (False, "DAILY_LOSS_LIMIT_REACHED")
 
@@ -147,6 +147,68 @@ def test_testnet_baseline_accepts_only_fully_confirmed_long(
     assert _select_candidate([decision]) is decision
 
 
+def test_testnet_experiment_builds_structural_stop_without_time_exit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    server_time_ms = int(datetime(2026, 7, 14, 12, tzinfo=UTC).timestamp() * 1_000)
+    long_frame = PriceActionFrame(
+        as_of=datetime(2026, 7, 14, 12, tzinfo=UTC),
+        regime=Regime.TREND_UP,
+        structure=Structure.HH_HL,
+        direction=Direction.LONG,
+        atr=Decimal("0.2"),
+        efficiency_ratio=Decimal("0.5"),
+        reason_codes=(),
+    )
+    flow = OrderFlowFrame(
+        book_imbalance=Decimal("0.2"),
+        microprice=Decimal("76.005"),
+        microprice_mid_bps=Decimal("0.6"),
+        trade_imbalance=Decimal("0.4"),
+        aggressive_notional=Decimal("1000"),
+        cvd_notional=Decimal("400"),
+        valid=True,
+        reason_codes=(),
+    )
+    monkeypatch.setattr(baseline, "analyze_price_action", lambda *args, **kwargs: long_frame)
+    monkeypatch.setattr(baseline, "calculate_order_flow", lambda *args, **kwargs: flow)
+    one_minute = _klines(server_time_ms, interval_ms=60_000)
+    for bar in one_minute[-6:]:
+        bar[3] = "75.80"
+    decision = evaluate_testnet_baseline(
+        symbol="SOLUSDT",
+        server_time_ms=server_time_ms,
+        one_minute_klines=one_minute,
+        five_minute_klines=_klines(server_time_ms, interval_ms=300_000),
+        depth={
+            "bids": [[f"{76 - level / 100:.2f}", "100"] for level in range(20)],
+            "asks": [[f"{76.01 + level / 100:.2f}", "100"] for level in range(20)],
+        },
+        aggregate_trades=[
+            {
+                "a": 1,
+                "p": "76.01",
+                "q": "1",
+                "nq": "1",
+                "f": 1,
+                "l": 1,
+                "T": server_time_ms - 100,
+                "m": False,
+            }
+        ],
+    )
+
+    plan = decision.experimental_plan
+    assert plan is not None
+    assert plan.stop_anchor == Decimal("75.780")
+    assert Decimal("20") <= (
+        (plan.target_reference - plan.entry_reference)
+        / plan.entry_reference
+        * Decimal(10_000)
+    ) <= Decimal("35")
+    assert "maximum_holding" not in str(plan.evidence()).lower()
+
+
 def test_campaign_summary_translates_runtime_and_reason_codes_to_chinese() -> None:
     message = _summary_text(
         {
@@ -160,6 +222,7 @@ def test_campaign_summary_translates_runtime_and_reason_codes_to_chinese() -> No
     )
 
     assert "运行状态: 运行中" in message
+    assert "已完成平仓: 0 单" in message
     assert "1 分钟 PA 未形成多头趋势" in message
     assert "买卖点差过宽" in message
     assert "PA_1M_NOT_LONG" not in message

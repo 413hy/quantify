@@ -37,18 +37,17 @@ calibration, 72-hour, or live authorization evidence. No production exchange ord
 - The earlier bounded Testnet micro-position and parallel pressure runners have been removed under
   ADR 0006 because they used elapsed time as an exit. Their historical evidence remains auditable,
   but no current command can open a position through that non-strategy path.
-- A three-day Testnet campaign service applies the checked-in unvalidated PA baseline across five
-  1-USDT-feasible symbols using closed 1m/5m bars, the latest 20-level book and the 500ms
-  aggregate-trade window. It records every decision while observing up to three symbols
-  concurrently. The service is now mechanically `OBSERVATION_ONLY`: PA/OF confirmation alone does
-  not produce a full setup, structural stop/target or signed gross-edge horizon, so entry remains
-  `REJECT` with explicit incomplete-plan reason codes. This is a wider forward-sample pool, not
-  fabricated Top10 or strategy execution evidence.
+- A three-day Testnet campaign applies an explicitly unvalidated experiment across five
+  1-USDT-feasible symbols using closed 1m/5m bars, the latest 20-level book and a five-second
+  aggregate-trade window. It can hold up to three different symbols concurrently with native
+  structural stop/target protection. The strict production decision remains `REJECT`; the
+  experiment is a separate owner-authorized sample class and is not fabricated Top10 evidence.
 - A reproducible no-time-exit T1 structural research backtest now consumes current Testnet klines,
   actual per-symbol taker fees and conservative slippage. The first five-symbol review failed the
   research gate: 2 closed samples, 0 wins and -0.0389499593 USDT at 10 USDT notional. The exact
   forward baseline also had 0 eligible observations out of 679. Machine evidence is under
-  `/var/lib/ai-quant/evidence/testnet/backtest/current/`; the campaign remains observation-only.
+  `/var/lib/ai-quant/evidence/testnet/backtest/current/`. That result still blocks production but,
+  under ADR 0007, no longer blocks explicitly labelled Testnet experiment samples.
 - Testnet Order Flow collection now uses one persistent exact-host combined `aggTrade` WebSocket
   for all five symbols. It validates and retains only events with finite non-negative Binance `nq`
   normal quantity and evaluates a rolling five-second window. A live post-deployment check produced
@@ -124,10 +123,10 @@ calibration, 72-hour, or live authorization evidence. No production exchange ord
   commission. The sample is explicitly classified `EXECUTION_STRESS_NOT_STRATEGY_SIGNAL`; its
   Chinese per-trade and aggregate Telegram notifications passed. Evidence is under
   `/var/lib/ai-quant/evidence/testnet/parallel/20260714-sample-01/`.
-- `aiq-testnet-campaign.service` is enabled for a three-day Testnet observation. It is
-  observation-only and cannot submit orders until the document-required setup state, structural
-  exit plan and signed gross-edge horizon exist; the account remains at zero regular orders, zero
-  Algo orders and zero position.
+- `aiq-testnet-campaign.service` is enabled for a three-day, owner-authorized Testnet experiment.
+  It can hold up to three different symbols in parallel, each within 1 USDT margin at the project
+  10x leverage cap, with exchange-native structural stop and target and no elapsed-time exit.
+  Results remain unvalidated and do not unlock production trading.
   State and append-only observations are under
   `/var/lib/ai-quant/evidence/testnet/campaign/current/`.
 - A real external archive roundtrip to the isolated receiver passed. The sender encrypted an exact
