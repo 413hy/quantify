@@ -1,6 +1,6 @@
 # Handoff state
 
-Updated: `2026-07-14T13:15:15Z`
+Updated: `2026-07-14T13:45:21Z`
 
 Resume in `/root/quantify/ai-quant-system`. Debian 12 Bookworm/aarch64 is the sole supported host.
 Do not modify `/root/quantify/reference-materials`; the copied contract/config provenance validator
@@ -29,7 +29,7 @@ make test-migrations test-locked-runtime paper-flow
 make sbom scan
 ```
 
-Expected counts are 178 unit, 8 property, 2 contract, 16 security, 3 replay, 18 integration,
+Expected counts are 178 unit, 8 property, 2 contract, 17 security, 3 replay, 19 integration,
 6 fault and 1 resource test. The Paper result has `external_requests=0`, `order_state=FILLED`,
 `protection_healthy=true`, and `runtime_state=RISK_LOCKED`.
 
@@ -54,7 +54,16 @@ system is complete. Local changes must be reviewed and committed before any futu
   protocol fault/race cases, and independent project persistence/backup/seal before calibration.
 - Complete actual Binance destination measurements and the still-running 24-hour generic host
   baseline.
-- Provision remote archive/backup destinations and prove restore.
+- The external archive receiver is provisioned and its encrypted upload, remote decrypt, Parquet
+  inspection, signed receipt, replay/tamper rejection and isolated restore all pass. Its Debian 11
+  appliance is not an application host. About 19 GB is free, so attach and mount a dedicated data
+  volume at `/srv/aiq-archive` before claiming the 90-day capacity gate. Receiver deployment
+  artifacts are in `deploy/archive-receiver/`; sender evidence is under
+  `/var/lib/ai-quant/evidence/archive/current/`.
+- Telegram input files are
+  `/root/aiq-user-inputs/notifications/secrets/telegram_bot_token` and
+  `/root/aiq-user-inputs/notifications/telegram_chat_ids`. Both are intentionally empty until the
+  owner fills them; then run `scripts/test-telegram-notification.py` for the live outbound probe.
 - Collect three continuous qualified data days, freeze the signed candidate/C0, then run the
   72-hour dual validation.
 - Obtain owner approvals and an independent fresh-context review.

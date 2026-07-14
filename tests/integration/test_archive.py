@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import runpy
 from datetime import UTC, date, datetime, timedelta
 
 import pyarrow.parquet as pq  # type: ignore[import-untyped]
@@ -9,7 +10,12 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from ai_quant.archive.manifest import manifest_hash, write_daily_manifest
 from ai_quant.archive.parquet import RawArchiveWriter
-from ai_quant.archive.receipt import RemoteReceipt, verify_remote_receipt
+from ai_quant.archive.receipt import (
+    RemoteDecryptionReceipt,
+    RemoteReceipt,
+    verify_remote_decryption_receipt,
+    verify_remote_receipt,
+)
 from ai_quant.archive.retention import RetentionCandidate, plan_verified_deletions
 from tests.market_fixtures import BASE_TIME, update
 
@@ -70,6 +76,61 @@ def test_only_exact_signed_remote_receipt_verifies(tmp_path: object) -> None:
     assert verify_remote_receipt(signed, archived, signer.public_key())
     tampered = signed.model_copy(update={"object_sha256": "f" * 64})
     assert not verify_remote_receipt(tampered, archived, signer.public_key())
+
+
+def test_only_exact_remote_decryption_receipt_verifies(tmp_path: object) -> None:
+    from pathlib import Path
+
+    archived = RawArchiveWriter(Path(str(tmp_path))).write_depth(
+        [update(101, 101, 100)], object_id="decrypt01"
+    )
+    signer = Ed25519PrivateKey.generate()
+    unsigned = RemoteDecryptionReceipt(
+        receipt_id="a" * 32,
+        object_path=archived.relative_path,
+        remote_ciphertext_path="objects/a" + "a" * 31 + ".age",
+        plaintext_sha256=archived.sha256,
+        plaintext_size_bytes=archived.size_bytes,
+        ciphertext_sha256="b" * 64,
+        ciphertext_size_bytes=archived.size_bytes + 200,
+        remote_uri="sftp://archive.example/objects/decrypt01.age",
+        remote_etag="b" * 64,
+        uploaded_at=BASE_TIME,
+        decrypted_at=BASE_TIME + timedelta(seconds=1),
+        encryption_format="age-v1-x25519",
+        inspection_type="PARQUET",
+        inspection_status="PASS",
+        parquet_row_count=archived.row_count,
+        parquet_schema_version=archived.schema_version,
+        signer_key_id="archive-receipt-20260714",
+        signature_base64="",
+    )
+    receiver = runpy.run_path(
+        str(Path(__file__).parents[2] / "deploy" / "archive-receiver" / "receiver.py")
+    )
+    assert receiver["_json_utc"](BASE_TIME).endswith("Z")
+    signed_document = receiver["_sign_receipt"](
+        unsigned.model_dump(mode="json", exclude={"signature_base64"}), signer
+    )
+    signed = RemoteDecryptionReceipt.model_validate(signed_document)
+
+    arguments = {
+        "expected_ciphertext_sha256": "b" * 64,
+        "expected_ciphertext_size_bytes": archived.size_bytes + 200,
+        "expected_signer_key_id": "archive-receipt-20260714",
+    }
+    assert verify_remote_decryption_receipt(signed, archived, signer.public_key(), **arguments)
+    assert not verify_remote_decryption_receipt(
+        signed,
+        archived,
+        signer.public_key(),
+        seen_receipt_ids={signed.receipt_id},
+        **arguments,
+    )
+    tampered = signed.model_copy(update={"parquet_row_count": archived.row_count + 1})
+    assert not verify_remote_decryption_receipt(
+        tampered, archived, signer.public_key(), **arguments
+    )
 
 
 def test_retention_never_selects_unverified_objects() -> None:

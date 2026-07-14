@@ -1,0 +1,9 @@
+{
+  "archive_root": "/srv/aiq-archive",
+  "temporary_root": "/run/aiq-archive",
+  "age_binary": "/usr/bin/age",
+  "age_identity_file": "/etc/aiq-archive/age-identity.txt",
+  "receipt_signing_key_file": "/etc/aiq-archive/receipt-signing-key.pem",
+  "signer_key_id": "aiq-archive-receipt-20260714",
+  "remote_uri_prefix": "sftp://193.218.200.147"
+}

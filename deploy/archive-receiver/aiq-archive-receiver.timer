@@ -1,0 +1,11 @@
+[Unit]
+Description=Poll AI Quant encrypted archive inbox
+
+[Timer]
+OnBootSec=15s
+OnUnitActiveSec=5s
+AccuracySec=1s
+Unit=aiq-archive-receiver.service
+
+[Install]
+WantedBy=timers.target

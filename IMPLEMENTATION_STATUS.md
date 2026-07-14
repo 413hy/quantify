@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: `2026-07-14T13:15:15Z`
+Updated: `2026-07-14T13:45:21Z`
 
 Overall state: `TESTNET_CORE_PROTOCOL_PASS / EXTERNAL_DURATION_GATES_PENDING / RISK_LOCKED`
 
@@ -26,6 +26,12 @@ native protection. This is a development completion statement, not Testnet, Shad
 - M4 operations: bounded FastAPI control surface, session-context binding, idempotent commands,
   one-use emergency-flatten challenge, outbound-only redacted notifications, Prometheus exposition,
   alert/runbook mapping, checksummed backup manifests and append-only operational migrations.
+- External archive receiver: chrooted key-only SFTP, separate no-login processor, age/X25519
+  decryption, ciphertext/plaintext hash binding, remote Parquet inspection, Ed25519 schema `1.1.0`
+  receipts, replay rejection and sender-side pinned host/receipt keys. The legacy schema `1.0.0`
+  receipt remains compatible but cannot satisfy the stronger remote-decryption gate by itself.
+- Telegram delivery now has a concrete outbound-only HTTPS sender loaded from root-only token and
+  chat-ID files; no update polling or inbound command surface is implemented.
 - Later-stage offline orchestration: fresh-context AI/rule authority and three-dry-run recovery,
   immutable continuous validation gates, 90-day research thresholds, FIFO/single-concurrency monthly
   iteration and quota deferral.
@@ -35,9 +41,9 @@ native protection. This is a development completion statement, not Testnet, Shad
 
 ## Verified results
 
-- Full CI: 178 unit, 8 property, 2 contract and 16 security tests pass.
-- Additional suites: 3 replay, 18 integration, 6 fault-injection and 1 resource-profile test pass.
-- Ruff, strict mypy (84 source files), Bandit, secret scan, all 42 contract schemas/39 examples,
+- Full CI: 178 unit, 8 property, 2 contract and 17 security tests pass.
+- Additional suites: 3 replay, 19 integration, 6 fault-injection and 1 resource-profile test pass.
+- Ruff, strict mypy (86 source files), Bandit, secret scan, all 42 contract schemas/39 examples,
   14 config examples, provenance, Compose and Debian deployment validators pass.
 - Runtime dependency audit covers 45 packages and reports zero known vulnerabilities. A reproducible
   CycloneDX SBOM and audit JSON are under `evidence/build/current/`.
@@ -66,6 +72,12 @@ native protection. This is a development completion statement, not Testnet, Shad
   order and finished with zero regular orders, zero Algo orders and zero position. Neither flow
   contacted a production endpoint. Evidence is in
   `/var/lib/ai-quant/evidence/testnet/current/{order-lifecycle,native-protection}.json`.
+- A real external archive roundtrip to the isolated receiver passed. The sender encrypted an exact
+  L2 Parquet object with age/X25519; the remote endpoint recomputed its ciphertext hash, decrypted
+  it, matched the plaintext hash, opened 21 Parquet columns, matched one row and schema `1.0.0`, and
+  returned an Ed25519-signed receipt. Exact verification passed while replay and tamper probes were
+  rejected. A second independent decrypt/read/hash probe passed and removed its temporary
+  plaintext. Evidence is under `/var/lib/ai-quant/evidence/archive/current/`.
 
 ## Not yet claimable
 
@@ -75,14 +87,17 @@ and were deliberately not fabricated:
 1. Continuous User Data Stream event consumption/reconnect evidence and the complete pre-registered
    external fault/race matrix. Listen-key lifecycle and the private WebSocket upgrade pass, but a
    received `ORDER_TRADE_UPDATE`/`ALGO_UPDATE` event transcript has not yet been claimed.
-2. The independent Testnet project database/Compose seal, remote encrypted backup/decrypt receipt
-   and isolated restore required before discarding its facts or starting calibration.
+2. The independent Testnet project database/Compose seal required before discarding its facts or
+   starting calibration. The remote encrypted Parquet/decrypt-receipt/isolated-restore mechanism is
+   proven, but the receiver currently has only about 19 GB free and therefore fails the formal
+   90-day capacity gate until a dedicated data volume is attached.
 3. A continuous qualified three-day L2 calibration dataset, signed parameter candidate and C0
    freeze.
 4. Continuous 72-hour Shadow/Testnet validation, first-live 24-hour evidence and 87-day forward OOS
    results.
-5. Owner signatures, production/Testnet/archive/notification credentials, remote object storage,
-   off-host restore evidence and an independent fresh-context acceptance review.
+5. Owner signatures, production and notification credentials, the archive capacity expansion, and
+   an independent fresh-context acceptance review. Testnet and archive transport credentials are
+   configured outside the repository.
 6. Production activation. It remains unauthorized and locked.
 
 These are validation/deployment inputs, not hidden unfinished offline implementation. The software

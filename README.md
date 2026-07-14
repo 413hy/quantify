@@ -5,7 +5,9 @@ This is the isolated implementation repository for the AI quantitative trading s
 Current state: the offline Paper development path and core Binance Testnet protocol flow are
 implemented and verified. ADR 0005 endpoints, authenticated capability checks, actual
 place/query/cancel, native Algo protection within 1,000ms, reduce-only flatten and final zero-state
-reconciliation pass. Time-based Shadow/calibration/live gates remain pending. No production
+reconciliation pass. The external encrypted archive roundtrip, signed decryption receipt and
+isolated restore probe also pass; its formal 90-day capacity gate is pending added storage.
+Time-based Shadow/calibration/live gates remain pending. No production
 credential has been requested, copied, or injected; runtime remains `RISK_LOCKED` and is not
 authorized for live trading.
 

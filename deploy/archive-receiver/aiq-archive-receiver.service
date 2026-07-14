@@ -1,0 +1,23 @@
+[Unit]
+Description=AI Quant encrypted archive receiver
+After=local-fs.target
+
+[Service]
+Type=oneshot
+User=aiqarchiveproc
+Group=aiqarchive
+SupplementaryGroups=aiqarchiveproc
+ExecStart=/opt/aiq-archive-venv/bin/python /opt/aiq-archive/receiver.py --config /etc/aiq-archive/receiver.json
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RuntimeDirectory=aiq-archive
+RuntimeDirectoryMode=0700
+ReadWritePaths=/srv/aiq-archive /run/aiq-archive
