@@ -1,6 +1,6 @@
 # Handoff state
 
-Updated: `2026-07-14T14:31:13Z`
+Updated: `2026-07-14T14:45:35Z`
 
 Resume in `/root/quantify/ai-quant-system`. Debian 12 Bookworm/aarch64 is the sole supported host.
 Do not modify `/root/quantify/reference-materials`; the copied contract/config provenance validator
@@ -22,6 +22,12 @@ planning, the frozen hierarchical gross-edge runtime lookup, a 1 USDT margin qua
 Python-level enforcement of the immutable 10x leverage cap. The Testnet BTCUSDT risk profile is set
 to 10x; this is the maximum allowed by this project, not the exchange-reported 125x maximum.
 
+`scripts/run-testnet-micro-scalp.py` is an attended, bounded protocol runner rather than an entry
+signal. Its first SOLUSDT cycle used 0.92460000 USDT margin at 10x, timed out after 30 seconds and
+ended at -0.01099535 USDT net after commission, with zero remaining orders or position. Do not loop
+this runner without a calibrated gross-edge-qualified signal; the measured outcome demonstrates
+that unscreened repetition can accumulate fees even when the lifecycle is correct.
+
 Business migrations now end at `0004_operations` and contain append-only market-data, risk,
 execution, command, incident, notification and backup evidence. The pre-existing host-control tree
 still ends at `0010_local_measurements`.
@@ -34,7 +40,7 @@ make test-migrations test-locked-runtime paper-flow
 make sbom scan
 ```
 
-Expected counts are 199 unit, 17 property, 2 contract, 17 security, 3 replay, 19 integration,
+Expected counts are 202 unit, 17 property, 2 contract, 17 security, 3 replay, 19 integration,
 6 fault and 1 resource test. The Paper result has `external_requests=0`, `order_state=FILLED`,
 `protection_healthy=true`, and `runtime_state=RISK_LOCKED`.
 

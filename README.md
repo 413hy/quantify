@@ -9,7 +9,10 @@ TAKE_PROFIT_MARKET protection, reduce-only flatten and final zero-state reconcil
 Deterministic position-exit precedence and the frozen hierarchical gross-edge lookup are now
 implemented; missing calibration observations still reject entry. The external encrypted archive
 roundtrip, signed decryption receipt and isolated restore probe also pass, and its host now exposes
-200 GB with about 178 GB free. Time-based calibration, Shadow and live gates remain pending. No production
+200 GB with about 178 GB free. One bounded SOLUSDT Testnet micro-position also verified the 1 USDT
+margin ceiling, cost-aware 0.1 USDT target/stop planning and a 30-second forced time exit. Its
+lifecycle passed and reconciled flat, but the trade did not reach its profit target. Time-based
+calibration, Shadow and live gates remain pending. No production
 credential has been requested, copied, or injected; runtime remains `RISK_LOCKED` and is not
 authorized for live trading.
 

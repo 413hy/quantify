@@ -52,3 +52,17 @@ project's 10x limit, a 1 USDT margin budget represents at most about 10 USDT not
 net target would require roughly a 3.08% favorable move before additional slippage, so it is not a
 credible fixed ultra-short target. The implementation therefore treats 1 USDT as a maximum margin
 allocation and derives target/entry eligibility from net edge rather than forcing a fixed PnL.
+
+## Bounded Testnet micro-position result
+
+The new attended runner selected SOLUSDT because its current Testnet filters admit a market quantity
+inside the 1 USDT margin ceiling at 10x. One real cycle used 0.12 SOL at a 77.050000 USDT fill,
+0.92460000 USDT initial margin, a 76.3000 stop trigger and a 77.9700 target trigger. Native stop and
+take-profit confirmations arrived in 371ms and 609ms respectively.
+
+Price did not reach either trigger during the 30-second maximum holding interval, so the runner
+flattened reduce-only. Realized PnL was -0.00359999 USDT, commission was 0.00739536 USDT and final
+net PnL was -0.01099535 USDT. The target was not achieved. Reconciliation proved zero regular
+orders, zero Algo orders, zero position and zero production endpoint requests. This verifies the
+bounded execution lifecycle; it does not verify a profitable entry signal or justify unattended
+repetition.

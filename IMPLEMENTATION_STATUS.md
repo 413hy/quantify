@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: `2026-07-14T14:31:13Z`
+Updated: `2026-07-14T14:45:35Z`
 
 Overall state: `TESTNET_CORE_PROTOCOL_PASS / EXTERNAL_DURATION_GATES_PENDING / RISK_LOCKED`
 
@@ -34,6 +34,10 @@ native protection. This is a development completion statement, not Testnet, Shad
 - Risk hard caps are validated inside Python as well as Schema. A direct 100x/125x caller is rejected,
   and a per-order margin budget is converted to a floor-quantized quantity ceiling. The current
   requested operating ceiling is 1 USDT of margin and remains subordinate to all risk/edge gates.
+- The bounded Testnet micro-position runner selects only a symbol whose exchange filters fit the
+  margin ceiling, replans from the actual fill, places native stop/take-profit protection, enforces
+  a 30-second time exit and proves final zero orders/position. It is a protocol-validation runner,
+  not a blind repeated-entry strategy.
 - M4 operations: bounded FastAPI control surface, session-context binding, idempotent commands,
   one-use emergency-flatten challenge, outbound-only redacted notifications, Prometheus exposition,
   alert/runbook mapping, checksummed backup manifests and append-only operational migrations.
@@ -52,9 +56,9 @@ native protection. This is a development completion statement, not Testnet, Shad
 
 ## Verified results
 
-- Full CI: 199 unit, 17 property, 2 contract and 17 security tests pass.
+- Full CI: 202 unit, 17 property, 2 contract and 17 security tests pass.
 - Additional suites: 3 replay, 19 integration, 6 fault-injection and 1 resource-profile test pass.
-- Ruff, strict mypy (86 source files), Bandit, secret scan, all 42 contract schemas/39 examples,
+- Ruff, strict mypy (90 source files), Bandit, secret scan, all 42 contract schemas/39 examples,
   14 config examples, provenance, Compose and Debian deployment validators pass.
 - Runtime dependency audit covers 45 packages and reports zero known vulnerabilities. A reproducible
   CycloneDX SBOM and audit JSON are under `evidence/build/current/`.
@@ -89,6 +93,12 @@ native protection. This is a development completion statement, not Testnet, Shad
   387ms and take-profit in 626ms, then reduce-only flattened and reconciled zero ordinary orders,
   zero Algo orders and zero position. Evidence is under
   `/var/lib/ai-quant/evidence/testnet/current/{risk-profile,native-protection-pair}.json`.
+- One real bounded SOLUSDT micro-position used 0.92460000 USDT initial margin at 10x, confirmed the
+  native stop in 371ms and take-profit in 609ms, and exited at the 30-second maximum holding time.
+  The target was not reached: realized PnL was -0.00359999 USDT, commission was 0.00739536 USDT and
+  net PnL was -0.01099535 USDT. Final ordinary orders, Algo orders and position were all zero, with
+  zero production endpoint requests. Evidence is at
+  `/var/lib/ai-quant/evidence/testnet/current/sol-micro-scalp.json`.
 - A real external archive roundtrip to the isolated receiver passed. The sender encrypted an exact
   L2 Parquet object with age/X25519; the remote endpoint recomputed its ciphertext hash, decrypted
   it, matched the plaintext hash, opened 21 Parquet columns, matched one row and schema `1.0.0`, and

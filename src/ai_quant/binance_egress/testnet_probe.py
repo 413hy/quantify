@@ -272,6 +272,17 @@ class BinanceTestnetClient:
             "POSITION_RISK",
         )
 
+    def account_trades(self, symbol: str, *, start_time_ms: int) -> list[dict[str, Any]]:
+        return _json_list(
+            self._call(
+                "GET",
+                "/fapi/v1/userTrades",
+                params={"symbol": symbol, "startTime": start_time_ms, "limit": 100},
+                signed=True,
+            ),
+            "ACCOUNT_TRADES",
+        )
+
     def create_listen_key(self) -> str:
         document = _json_object(
             self._call("POST", "/fapi/v1/listenKey", api_key_required=True),
