@@ -7,7 +7,7 @@
   `fca378cf7e4f18457f46a381e29fc8599bb5baa8`,
   `d5a394e21776957f627c9c3e7da78dfd1accf53c`,
   `0b8dc507522596cc9ba8659b56cbb96744f7c375`,
-  `8516679`, `42624ef909aa25cc4aa7c46c392a7c856eaa82f3`
+  `8516679`, `42624ef909aa25cc4aa7c46c392a7c856eaa82f3`, `46865c3`
 - Implementer: `/root` engineering session
 - Independent reviewer: not assigned; a different actor with fresh context is still required
 - `CodexReviewReport`: absent by design; the implementer cannot self-sign it
@@ -49,7 +49,7 @@ metadata, and evidence.
 - The earlier image was reproduced twice. This new dependency-bearing image was built repeatedly
   from cache with the same ID but has not had a fresh no-cache reproducibility run.
 - Business migration head: `0001_business_core`.
-- Host-control migration head: `0007_header_reconciliation`.
+- Host-control migration head: `0008_decision_audit`.
 
 The local image ID is not represented as a signed registry release digest. No release, deployment,
 startup-evidence, or live authorization has been issued.
@@ -67,6 +67,7 @@ startup-evidence, or live authorization has been issued.
 | Boundary | signed bundle/capability/peer checks | valid path passes; tampering, wrong peer, expiry and non-Unix peer deny |
 | Boundary | gateway exact-wire path | peer/caller, catalog, host, request, permit and facts bind before Consume; fake transport called once only after grant |
 | Accounting | gateway journal and header reconciliation | outcome/observation idempotency, replay denial, observed max and durable 429 block pass |
+| Audit | Reserve/Consume decisions | same-transaction append-only journals pass; mutation is rejected |
 | Boundary | any changed binding hash, expiry, or replay | property tests deny without reopening permit |
 | Startup failure | non-root container, no network, no startup evidence | `RISK_LOCKED`, new egress false |
 | Database | business + host `upgrade → downgrade base → upgrade` | PASS on fresh disposable volumes |

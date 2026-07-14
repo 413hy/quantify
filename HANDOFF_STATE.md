@@ -6,13 +6,15 @@ Resume in `/root/quantify/ai-quant-system`. Read `IMPLEMENTATION_STATUS.md`, ADR
 `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`. Never modify
 `/root/quantify/reference-materials`.
 
-Current implementation head is commit `42624ef909aa25cc4aa7c46c392a7c856eaa82f3`. M0 is not complete
+Current implementation head is commit `46865c3`. M0 is not complete
 or accepted. Commit `8516679` adds the executable bounded rate service, PostgreSQL v2 Reserve and
 full-bind Consume, deterministic multi-class policy ingestion, idempotent outcome/observation
 journals and durable 429/418 reconciliation. Commit `42624ef` adds closed gateway IPC validation,
 kernel peer/caller and exact-wire binding, consume-before-single-send orchestration, SendOutcome,
 and signed startup-evidence verification. Compose intentionally still runs `locked_process`: no
 signed runtime catalog/evidence, production transport, or host network proof exists.
+Commit `46865c3` adds same-transaction append-only Reserve and Consume decision journals; an audit
+write failure rolls back the associated authority transaction.
 
 Exact verification command:
 
@@ -21,7 +23,7 @@ cd /root/quantify/ai-quant-system && make ci && make test-migrations && make tes
 ```
 
 Expected: CI passes 56 unit, 3 property, 2 contract and 2 security tests; migrations pass both
-independent round-trips through host head `0007_header_reconciliation`, multi-class Reserve,
+independent round-trips through host head `0008_decision_audit`, multi-class Reserve,
 full-bind Consume, journaling, 429 reconciliation and lease gates; the no-network runtime returns
 `RISK_LOCKED`.
 

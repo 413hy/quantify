@@ -41,6 +41,9 @@ Highest completed milestone: none
   wire/canonical/parameter/permit binding, Consume-before-one-send orchestration, SendOutcome, and
   short-lived signed startup-evidence verification. Its transport remains injection-only and is not
   enabled by Compose.
+- Commit `46865c3` adds append-only Reserve/Consume decision journals written in the same database
+  transaction as the decision; audit failure rolls back a grant. Disposable migration tests prove
+  both journals reject mutation.
 - Docker CE/Compose, Python 3.12.13 via `uv`, chrony, ripgrep and GNU time are installed for
   development. Initial chrony observations are healthy, but not a 24-hour deployment proof.
 
