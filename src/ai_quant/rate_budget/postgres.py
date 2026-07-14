@@ -171,8 +171,8 @@ class PostgresRateAuthority:
         operation_class: str,
         peer: PeerCredentials,
     ) -> Mapping[str, Any]:
-        del peer
         now = self._clock().astimezone(UTC)
+        decision_message_id = f"rate-msg-{uuid.uuid4().hex}"
         expires_at = min(capability.expires_at, now + self._permit_ttl)
         result: Mapping[str, Any] | None = None
         allocations: list[Mapping[str, Any]] = []
@@ -242,6 +242,44 @@ class PostgresRateAuthority:
                         allocations = list(cursor.fetchall())
                         if not allocations:
                             raise _DatabaseInvariantError
+                    audit_epoch = max(
+                        int(request["expected_fencing_epoch"]),
+                        int(result["fencing_epoch"]),
+                    )
+                    cursor.execute(
+                        """
+                        INSERT INTO rate_control.reservation_decisions(
+                          message_id,request_message_id,request_key,decision,reason_code,
+                          permit_id,caller_service,caller_instance_id,endpoint_authority,
+                          endpoint_id,derived_operation_class,endpoint_catalog_hash,
+                          operation_facts_hash,capability_payload_hash,fencing_epoch,
+                          peer_pid,peer_uid,peer_gid,occurred_at
+                        ) VALUES (
+                          %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s
+                        )
+                        """,
+                        (
+                            decision_message_id,
+                            request["message_id"],
+                            request["request_key"],
+                            result["decision"],
+                            result["reason_code"],
+                            result["permit_id"],
+                            request["caller_service"],
+                            request["caller_instance_id"],
+                            request["endpoint_authority"],
+                            request["endpoint_id"],
+                            result["derived_operation_class"],
+                            request["endpoint_catalog_hash"],
+                            request["operation_facts_hash"],
+                            capability.payload_hash,
+                            audit_epoch,
+                            peer.pid,
+                            peer.uid,
+                            peer.gid,
+                            now,
+                        ),
+                    )
             except (psycopg.Error, _DatabaseInvariantError):
                 result = None
         if result is None:
@@ -257,7 +295,7 @@ class PostgresRateAuthority:
         return {
             "schema_version": "1.0.0",
             "message_type": "ReserveDecision",
-            "message_id": f"rate-msg-{uuid.uuid4().hex}",
+            "message_id": decision_message_id,
             "occurred_at": _timestamp(now),
             "caller_service": "rate-budget-service",
             "caller_instance_id": self._instance_id,
@@ -414,9 +452,8 @@ class PostgresRateAuthority:
         request: Mapping[str, Any],
         peer: PeerCredentials,
     ) -> Mapping[str, Any] | None:
-        del peer
         if request["message_type"] == "PermitConsumeRequest":
-            return self._consume(request)
+            return self._consume(request, peer)
         payload_hash = canonical_digest(request).hex()
         try:
             with self._connect() as connection, connection.cursor() as cursor:
@@ -432,8 +469,13 @@ class PostgresRateAuthority:
             raise AuthorizationDenied(str(reason))
         return None
 
-    def _consume(self, request: Mapping[str, Any]) -> Mapping[str, Any]:
+    def _consume(
+        self,
+        request: Mapping[str, Any],
+        peer: PeerCredentials,
+    ) -> Mapping[str, Any]:
         now = self._clock().astimezone(UTC)
+        decision_message_id = f"rate-msg-{uuid.uuid4().hex}"
         result: Mapping[str, Any] | None = None
         try:
             with self._connect() as connection, connection.cursor() as cursor:
@@ -463,7 +505,42 @@ class PostgresRateAuthority:
                     ),
                 )
                 result = cursor.fetchone()
-        except psycopg.Error:
+                if result is None:
+                    raise _DatabaseInvariantError
+                cursor.execute(
+                    """
+                    INSERT INTO rate_control.consume_decisions(
+                      message_id,request_message_id,permit_id,decision,reason_code,
+                      gateway_instance_id,canonical_request_hash,parameter_hash,
+                      wire_bytes_hash,operation_facts_hash,capability_payload_hash,
+                      request_document_hash,fencing_epoch,send_deadline,
+                      peer_pid,peer_uid,peer_gid,occurred_at
+                    ) VALUES (
+                      %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s
+                    )
+                    """,
+                    (
+                        decision_message_id,
+                        request["message_id"],
+                        request["permit_id"],
+                        result["decision"],
+                        result["reason_code"],
+                        request["caller_instance_id"],
+                        request["canonical_request_hash"],
+                        request["gateway_derived_parameter_hash"],
+                        request["gateway_derived_wire_bytes_hash"],
+                        request["gateway_derived_operation_facts_hash"],
+                        request["causal_capability_payload_hash"],
+                        request["gateway_request_document_hash"],
+                        request["expected_fencing_epoch"],
+                        result["send_deadline"],
+                        peer.pid,
+                        peer.uid,
+                        peer.gid,
+                        now,
+                    ),
+                )
+        except (psycopg.Error, _DatabaseInvariantError):
             result = None
         if result is None:
             result = {
@@ -475,7 +552,7 @@ class PostgresRateAuthority:
         return {
             "schema_version": "1.0.0",
             "message_type": "PermitConsumeDecision",
-            "message_id": f"rate-msg-{uuid.uuid4().hex}",
+            "message_id": decision_message_id,
             "occurred_at": _timestamp(now),
             "caller_service": "rate-budget-service",
             "caller_instance_id": self._instance_id,

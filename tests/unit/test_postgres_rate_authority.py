@@ -127,6 +127,7 @@ def test_reserve_uses_v2_and_returns_contract_complete_allocations() -> None:
                     }
                 ],
             ),
+            (None, []),
         ]
     )
     request = _example("rate-reserve-request.json")
@@ -147,6 +148,7 @@ def test_reserve_uses_v2_and_returns_contract_complete_allocations() -> None:
     assert response["decision"] == "GRANTED"
     assert response["allocations"][0]["effective_used_after"] == 21
     assert "reserve_permit_v2" in cursor.executions[0][0]
+    assert "reservation_decisions" in cursor.executions[2][0]
     assert list(_validator().iter_errors(response)) == []
 
 
@@ -160,7 +162,8 @@ def test_consume_uses_complete_v2_binding_and_returns_contract_decision() -> Non
                     "send_deadline": NOW + timedelta(milliseconds=50),
                 },
                 [],
-            )
+            ),
+            (None, []),
         ]
     )
     request = _example("rate-permit-consume-request.json")
@@ -170,6 +173,7 @@ def test_consume_uses_complete_v2_binding_and_returns_contract_decision() -> Non
     assert response is not None
     assert response["decision"] == "CONSUME_GRANTED"
     assert "consume_permit_v2" in cursor.executions[0][0]
+    assert "consume_decisions" in cursor.executions[1][0]
     assert list(_validator().iter_errors(response)) == []
 
 

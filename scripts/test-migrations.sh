@@ -282,6 +282,39 @@ docker exec "${RUN_ID}-host-postgres-1" psql -U aiq_host_control_test \
 
 printf 'permit and nonce terminal states PASS\n'
 
+docker exec -i "${RUN_ID}-host-postgres-1" psql -v ON_ERROR_STOP=1 \
+  -U aiq_host_control_test -d aiq_host_rate_control_test <<SQL >/dev/null
+INSERT INTO rate_control.reservation_decisions(
+  message_id,request_message_id,request_key,decision,reason_code,permit_id,
+  caller_service,caller_instance_id,endpoint_authority,endpoint_id,
+  derived_operation_class,endpoint_catalog_hash,operation_facts_hash,
+  capability_payload_hash,fencing_epoch,peer_pid,peer_uid,peer_gid,occurred_at
+) VALUES (
+  'audit-reserve-decision-0001','audit-reserve-request-0001','request-reserve-1',
+  'GRANTED','RATE_GRANTED','permit-reserve-1','execution-service','execution-1',
+  'BINANCE_PRODUCTION_FAPI','REST_QUERY_TIME','HOST_RATE_CONTROL','$HASH_A','$HASH_D',
+  '$HASH_E',$FENCING_EPOCH,123,11002,11002,now()
+);
+INSERT INTO rate_control.consume_decisions(
+  message_id,request_message_id,permit_id,decision,reason_code,gateway_instance_id,
+  canonical_request_hash,parameter_hash,wire_bytes_hash,operation_facts_hash,
+  capability_payload_hash,request_document_hash,fencing_epoch,send_deadline,
+  peer_pid,peer_uid,peer_gid,occurred_at
+) VALUES (
+  'audit-consume-decision-0001','audit-consume-request-0001','permit-1',
+  'CONSUME_GRANTED','RATE_PERMIT_CONSUMED','gateway-1','$HASH_A','$HASH_B','$HASH_C',
+  '$HASH_D','$HASH_E','$HASH_F',$FENCING_EPOCH,now()+interval '50 milliseconds',
+  124,11005,11005,now()
+);
+SQL
+if docker exec "${RUN_ID}-host-postgres-1" psql -v ON_ERROR_STOP=1 \
+  -U aiq_host_control_test -d aiq_host_rate_control_test -c \
+  "DELETE FROM rate_control.consume_decisions" >/dev/null 2>&1; then
+  printf 'append-only consume decision deletion unexpectedly succeeded\n' >&2
+  exit 1
+fi
+printf 'append-only reserve and consume decision journals PASS\n'
+
 SEND_OUTCOME_PAYLOAD="$(jq -cn \
   --arg message_id 'gateway-outcome-0001' \
   --arg permit_id 'permit-1' \
