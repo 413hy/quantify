@@ -167,7 +167,7 @@
     "setups": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled", "arm_expiry_1m_bars", "signal_validity_ms", "maximum_holding_seconds", "maximum_scale_in_count", "minimum_range_width_to_total_cost_ratio"],
+      "required": ["enabled", "arm_expiry_1m_bars", "signal_validity_ms", "maximum_scale_in_count", "minimum_range_width_to_total_cost_ratio"],
       "properties": {
         "enabled": {
           "type": "array",
@@ -184,7 +184,6 @@
         },
         "arm_expiry_1m_bars": { "type": "integer", "minimum": 1, "maximum": 5 },
         "signal_validity_ms": { "type": "integer", "minimum": 100, "maximum": 2000 },
-        "maximum_holding_seconds": { "type": "integer", "minimum": 30, "maximum": 900 },
         "maximum_scale_in_count": { "const": 2 },
         "minimum_range_width_to_total_cost_ratio": { "$ref": "#/$defs/positiveDecimalMax10" }
       }

@@ -9,13 +9,14 @@ TAKE_PROFIT_MARKET protection, reduce-only flatten and final zero-state reconcil
 Deterministic position-exit precedence and the frozen hierarchical gross-edge lookup are now
 implemented; missing calibration observations still reject entry. The external encrypted archive
 roundtrip, signed decryption receipt and isolated restore probe also pass, and its host now exposes
-200 GB with about 178 GB free. One bounded SOLUSDT Testnet micro-position also verified the 1 USDT
-margin ceiling, cost-aware 0.1 USDT target/stop planning and a 30-second forced time exit. Its
-lifecycle passed and reconciled flat, but the trade did not reach its profit target. Time-based
-calibration, Shadow and live gates remain pending. A three-day Testnet-only PA/OF observation
-campaign is now running as `aiq-testnet-campaign.service`; it observes five 1-USDT-feasible symbols,
-records every evaluation and selects at most one trade per round when the unvalidated baseline and
-campaign risk limits all pass. A separate three-symbol parallel Testnet execution stress sample
+200 GB with about 178 GB free. Historical bounded Testnet samples verified the 1 USDT margin
+ceiling, native protection and zero-state cleanup, but did not verify a profitable strategy. Their
+fixed-duration runner has been removed under owner-approved ADR 0006; elapsed time can no longer
+close a position. Calibration, Shadow and live gates remain pending. A three-day Testnet-only PA/OF observation
+campaign runs as `aiq-testnet-campaign.service`; it observes five 1-USDT-feasible symbols and
+records every evaluation. It is explicitly observation-only: the diagnostic baseline has no full
+setup state, structural exit plan or signed gross-edge evidence, so every entry remains rejected.
+A separate three-symbol parallel Testnet execution stress sample
 also passed final zero-state reconciliation; it is not counted as strategy evidence. No production
 credential has been requested, copied, or injected; runtime remains `RISK_LOCKED` and is not
 authorized for live trading.

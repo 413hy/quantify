@@ -36,7 +36,6 @@ class PositionEpisode:
     stop_trigger: Decimal
     target_trigger: Decimal
     first_fill_at: datetime
-    maximum_holding_seconds: int
     strategy_version: str
 
     def __post_init__(self) -> None:
@@ -49,8 +48,6 @@ class PositionEpisode:
             raise ValueError("position quantity must be positive")
         if min(self.entry_price, self.stop_trigger, self.target_trigger) <= 0:
             raise ValueError("position prices must be positive")
-        if not 30 <= self.maximum_holding_seconds <= 900:
-            raise ValueError("maximum holding time must be within [30,900]")
         if self.direction is Direction.LONG:
             structure_valid = self.stop_trigger < self.entry_price < self.target_trigger
         else:
@@ -115,14 +112,10 @@ def manage_position(
     if not observation.structure_valid:
         return _exit(episode, 3, "PA_STRUCTURE_INVALIDATED")
 
-    elapsed_seconds = (observation.observed_at - episode.first_fill_at).total_seconds()
-    if elapsed_seconds >= episode.maximum_holding_seconds:
-        return _exit(episode, 4, "STRATEGY_MAX_HOLDING_TIME")
-
     if observation.order_flow_state is OrderFlowState.REVERSED:
-        return _exit(episode, 5, "OF_REVERSE_ABSORPTION")
+        return _exit(episode, 4, "OF_REVERSE_ABSORPTION")
     if observation.order_flow_state is OrderFlowState.EXHAUSTED:
-        return _exit(episode, 5, "OF_EXHAUSTED")
+        return _exit(episode, 4, "OF_EXHAUSTED")
 
     target_reached = (
         observation.mark_price >= episode.target_trigger
@@ -130,7 +123,7 @@ def manage_position(
         else observation.mark_price <= episode.target_trigger
     )
     if target_reached:
-        return _exit(episode, 6, "STRATEGY_TARGET_REACHED")
+        return _exit(episode, 5, "STRATEGY_TARGET_REACHED")
 
     hold_reason = (
         "DATA_UNHEALTHY_NATIVE_PROTECTION_HELD"

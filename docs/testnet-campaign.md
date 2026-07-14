@@ -7,8 +7,9 @@ SOLUSDT、BNBUSDT、XRPUSDT、DOGEUSDT 和 ADAUSDT 的 1 分钟/5 分钟闭合 K
 仍严格保持每轮最多一个。这五个标的是当前 Testnet 上能够在 1 USDT 保证金、10x 杠杆和交易所最小下单量
 约束内执行的初始候选池；它扩大前向样本，但不能冒充文档要求的正式 Top10 排名证据。
 
-当前参数来自仓库中标记为 `UNVALIDATED_ENGINEERING_BASELINE` 的配置，因此本服务的目标
-是采集前向观察并验证执行，不是声明策略已经盈利。只有以下条件同时成立才允许测试网下单：
+当前参数来自仓库中标记为 `UNVALIDATED_ENGINEERING_BASELINE` 的配置，因此本服务当前以
+`OBSERVATION_ONLY` 运行，只采集前向 PA/OF 观察，不会下单。下列条件只能形成行情诊断
+候选，不能形成可执行 `TradePlan`：
 
 - 1 分钟和 5 分钟 PA 均为多头趋势；
 - book imbalance、microprice、trade imbalance 和 CVD 同向确认；
@@ -17,17 +18,15 @@ SOLUSDT、BNBUSDT、XRPUSDT、DOGEUSDT 和 ADAUSDT 的 1 分钟/5 分钟闭合 K
 - 5 分钟全局冷却、每日最多 24 单以及每日净亏损 0.30 USDT 的试验上限均未触发；
 - 交易账户无遗留订单或持仓。
 
-每轮最多从全部合格候选中确定性选择一个，不允许并行堆仓。完整文档流程仍需 15 分钟
-全市场一秒槽、正式 Top10 防抖/预热、完整 setup 状态机和三日 gross-edge 校准；在这些
-证据形成前，本服务结果保持 `UNVALIDATED_TESTNET_BASELINE`，不能作为生产策略结论。
+每轮最多从全部诊断候选中确定性选择一个。完整文档流程仍需 15 分钟全市场一秒槽、正式
+Top10 防抖/预热、完整 setup 状态机和三日 gross-edge 校准；在这些证据形成前，候选固定
+记录 `PA_SETUP_STATE_INCOMPLETE`、`NET_EDGE_EVIDENCE_INCOMPLETE` 和
+`STRATEGY_EXIT_PLAN_INCOMPLETE`，入场结论固定为 `REJECT`。
 
-每次交易继续执行 1 USDT 保证金上限、10 倍杠杆上限、原生止损/止盈、900 秒保护性最长持仓和
-最终零状态对账。目标/止损是成本模型预算，不是成交或盈亏保证；跳空与滑点仍可能导致
-实际结果偏离。900 秒不是目标持仓时间：原生止盈或止损是正常退出，只有二者均未
-发生时才触发 reduce-only 最终保险退出。Testnet 净止盈目标从 0.10 调整为 0.05 USDT，
-降低约 10 USDT 名义仓位需要等待的有利价格移动；0.1 USDT 最大净损失预算对应首笔 SOLUSDT
-约 0.97% 的价格距离；该笔并未触发止损，而是在旧版 30 秒最大持仓时间退出。正式策略必须用 setup 的结构锚点生成
-止损，不能仅为增加交易次数而放宽固定亏损预算。
+根据 owner 在 2026-07-14 的明确变更，原冻结基线中的固定持仓时限已经撤销。任何经过秒数
+都不能单独触发平仓。持仓只由原生结构止损、PA 结构失效、OF 衰竭/反向、结构目标、硬风控
+或人工/对账动作退出；数据暂时不健康但原生保护健康时继续持有。旧的固定盈亏/倒计时
+Testnet runner 已删除，三日观察服务不会调用该路径。变更记录见 ADR 0006。
 
 运行状态：
 
@@ -44,8 +43,7 @@ jq . /var/lib/ai-quant/evidence/testnet/campaign/current/state.json
 止盈/止损触发价、已实现盈亏、手续费、净结果、保护确认延迟和最终零状态。标注“模拟”的
 通知只用于格式验证，不计入交易统计。
 
-停止服务不会创建新仓；如果恰逢 30 秒有界持仓，执行器会先完成原生保护、平仓和零状态
-清理：
+当前服务不创建新仓，可直接停止：
 
 ```bash
 systemctl stop aiq-testnet-campaign.service
@@ -53,12 +51,6 @@ systemctl stop aiq-testnet-campaign.service
 
 ## 并行执行压力样本
 
-`scripts/run-testnet-parallel-sample.py` 可在暂停候选服务、确认各标的零状态后，对不同标的
-并行执行有界 Testnet 仓位。它用于验证并发下单、原生保护、手续费、通知和最终清理，输出
-必须标记为 `EXECUTION_STRESS_NOT_STRATEGY_SIGNAL`，不能并入策略胜率。
-
-2026-07-14 的首个三币样本使用旧版 30 秒窗口，同时运行 SOLUSDT、BNBUSDT 和 XRPUSDT。三单均在 30 秒到期
-退出，没有触发止损或止盈；净结果分别为 `-0.00742656`、`-0.00525511` 和
-`-0.00930724 USDT`，最终订单、条件单和持仓全部为零。该结果表明当前瓶颈不是止损过紧，
-而是短持仓窗口内的毛收益没有覆盖手续费。证据位于
-`/var/lib/ai-quant/evidence/testnet/parallel/20260714-sample-01/`。
+2026-07-14 的旧三币压力样本是历史协议证据，不是策略证据。其固定倒计时 runner 已按
+ADR 0006 删除，不能再次运行。历史证据仍保留在
+`/var/lib/ai-quant/evidence/testnet/parallel/20260714-sample-01/` 供审计。

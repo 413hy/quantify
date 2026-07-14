@@ -15,7 +15,6 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any, cast
 
-from ai_quant.binance_egress.micro_scalp import run_testnet_micro_scalp
 from ai_quant.binance_egress.testnet_probe import BinanceTestnetClient, _credential
 from ai_quant.notifications import (
     Notification,
@@ -38,9 +37,6 @@ class CampaignLimits:
     maximum_trades_per_day: int = 8
     daily_net_loss_limit: Decimal = Decimal("0.30")
     margin_budget: Decimal = Decimal("1")
-    target_net_profit: Decimal = Decimal("0.05")
-    maximum_net_loss: Decimal = Decimal("0.1")
-    maximum_holding_seconds: int = 900
 
     def __post_init__(self) -> None:
         if not 60 <= self.duration_seconds <= 604_800:
@@ -53,10 +49,6 @@ class CampaignLimits:
             raise ValueError("campaign daily trade count is invalid")
         if self.daily_net_loss_limit <= 0 or self.daily_net_loss_limit > Decimal("1"):
             raise ValueError("campaign daily loss limit is invalid")
-        if self.target_net_profit <= 0 or self.maximum_net_loss <= 0:
-            raise ValueError("campaign PnL budgets must be positive")
-        if not 30 <= self.maximum_holding_seconds <= 900:
-            raise ValueError("campaign maximum holding time is invalid")
 
 
 def campaign_trade_allowed(
@@ -122,8 +114,9 @@ class TestnetCampaign:
                 f"候选池: {', '.join(self.symbols)}\n"
                 f"计划运行: {self.limits.duration_seconds // 86_400} 天\n"
                 f"评估间隔: {self.limits.evaluation_interval_seconds} 秒\n"
-                f"单次保证金上限: {self.limits.margin_budget} USDT\n"
-                "仅在 1 分钟与 5 分钟 PA 同向、OF 确认及风险门槛全部通过时下单。"
+                "运行模式: 只观察、不下单\n"
+                "当前基线仅验证 PA/OF 条件; 完整 setup、结构止损/目标和已签名成本模型"
+                "尚未形成, 因此按文档固定拒绝入场。"
             ),
             key=f"campaign-start-{state['started_at']}",
         )
@@ -204,24 +197,9 @@ class TestnetCampaign:
         self._reset_daily_state_if_needed(state, latest_observed_at)
         selected = _select_candidate(decisions)
         if selected is not None:
-            last_trade = (
-                _parse_time(str(state["last_trade_at"])) if state.get("last_trade_at") else None
-            )
-            allowed, reason = campaign_trade_allowed(
-                now=selected.observed_at,
-                last_trade_at=last_trade,
-                daily_trade_count=int(state["daily_trade_count"]),
-                daily_net_pnl=Decimal(str(state["daily_net_pnl"])),
-                limits=self.limits,
-            )
-            if allowed:
-                result = self._execute_trade(selected.symbol)
-                state = self._record_trade(state, result, selected.observed_at, selected.symbol)
-            else:
-                blocked = selected.evidence()
-                blocked["record_type"] = "SIGNAL_BLOCKED_BY_CAMPAIGN_LIMIT"
-                blocked["campaign_limit_reason"] = reason
-                self._append_event(blocked)
+            blocked = selected.evidence()
+            blocked["record_type"] = "SIGNAL_BLOCKED_INCOMPLETE_TRADE_PLAN"
+            self._append_event(blocked)
         state["updated_at"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
         _atomic_write_json(self.state_file, state)
         return state
@@ -240,66 +218,6 @@ class TestnetCampaign:
             depth=depth,
             aggregate_trades=aggregate_trades,
         )
-
-    def _execute_trade(self, symbol: str) -> dict[str, Any]:
-        result = run_testnet_micro_scalp(
-            api_key_file=self.api_key_file,
-            api_secret_file=self.api_secret_file,
-            repository_root=self.repository_root,
-            symbol=symbol,
-            margin_budget=self.limits.margin_budget,
-            target_net_profit=self.limits.target_net_profit,
-            maximum_net_loss=self.limits.maximum_net_loss,
-            maximum_holding_seconds=self.limits.maximum_holding_seconds,
-        )
-        stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
-        _atomic_write_json(self.evidence_directory / "trades" / f"{stamp}.json", result)
-        return result
-
-    def _record_trade(
-        self,
-        state: dict[str, Any],
-        result: dict[str, Any],
-        occurred_at: datetime,
-        symbol: str,
-    ) -> dict[str, Any]:
-        net = Decimal(str(result["net_pnl"]))
-        state["trade_count"] = int(state["trade_count"]) + 1
-        state["daily_trade_count"] = int(state["daily_trade_count"]) + 1
-        state["cumulative_net_pnl"] = format(Decimal(str(state["cumulative_net_pnl"])) + net, "f")
-        state["daily_net_pnl"] = format(Decimal(str(state["daily_net_pnl"])) + net, "f")
-        state["last_trade_at"] = occurred_at.isoformat().replace("+00:00", "Z")
-        if bool(result["target_achieved"]):
-            state["target_hit_count"] = int(state["target_hit_count"]) + 1
-        target_achieved = "是" if bool(result["target_achieved"]) else "否"
-        summary = (
-            f"交易对: {symbol}\n"
-            "方向: 做多\n"
-            "环境: Binance Testnet\n"
-            f"数量: {result['quantity']}\n"
-            f"退出原因: {_exit_reason_cn(str(result['exit_reason']))}\n"
-            f"入场价: {result['entry_price']}\n"
-            f"止盈触发价: {result['target_trigger']}\n"
-            f"止损触发价: {result['stop_trigger']}\n"
-            f"达到目标: {target_achieved}\n"
-            f"已实现盈亏: {result['realized_pnl']} USDT\n"
-            f"手续费: {result['commission_paid']} USDT\n"
-            f"本单净结果: {net} USDT\n"
-            f"累计净结果: {state['cumulative_net_pnl']} USDT\n"
-            f"保证金: {result['actual_initial_margin']} USDT\n"
-            f"止损确认延迟: {result['stop_confirmation_latency_ms']} ms\n"
-            f"止盈确认延迟: {result['take_profit_confirmation_latency_ms']} ms\n"
-            f"剩余订单: {result['final_open_order_count']}\n"
-            f"剩余条件单: {result['final_open_algo_order_count']}\n"
-            f"剩余持仓: {result['final_position_quantity']}"
-        )
-        self._notify(
-            severity="INFO" if net >= 0 else "WARNING",
-            event_type="测试网策略成交结果",
-            summary=summary,
-            key=f"campaign-trade-{state['trade_count']}-{occurred_at.isoformat()}",
-        )
-        return state
 
     def _reset_daily_state_if_needed(self, state: dict[str, Any], observed_at: datetime) -> None:
         day = observed_at.date().isoformat()
@@ -402,9 +320,7 @@ class TestnetCampaign:
             "maximum_trades_per_day": self.limits.maximum_trades_per_day,
             "daily_net_loss_limit": format(self.limits.daily_net_loss_limit, "f"),
             "margin_budget": format(self.limits.margin_budget, "f"),
-            "target_net_profit": format(self.limits.target_net_profit, "f"),
-            "maximum_net_loss": format(self.limits.maximum_net_loss, "f"),
-            "maximum_holding_seconds": self.limits.maximum_holding_seconds,
+            "execution_mode": "OBSERVATION_ONLY",
             "maximum_parallel_observations": min(3, len(self.symbols)),
             "maximum_candidates_per_round": 1,
         }
@@ -431,15 +347,6 @@ def _summary_text(state: dict[str, Any]) -> str:
         f"最近跳过原因: {reasons or '无'}\n"
         "环境: Binance Testnet (未请求生产接口)"
     )
-
-
-def _exit_reason_cn(reason: str) -> str:
-    return {
-        "TAKE_PROFIT": "止盈触发",
-        "STOP_LOSS": "止损触发",
-        "MAX_HOLDING_TIME": "达到最长持仓时间",
-        "NATIVE_EXIT_UNCLASSIFIED": "交易所原生保护退出",
-    }.get(reason, reason)
 
 
 def _reason_code_cn(reason: str) -> str:
@@ -524,9 +431,6 @@ def main() -> int:
     parser.add_argument("--trade-cooldown-seconds", type=int, default=300)
     parser.add_argument("--maximum-trades-per-day", type=int, default=8)
     parser.add_argument("--daily-net-loss-limit", type=Decimal, default=Decimal("0.30"))
-    parser.add_argument("--target-net-profit", type=Decimal, default=Decimal("0.05"))
-    parser.add_argument("--maximum-net-loss", type=Decimal, default=Decimal("0.10"))
-    parser.add_argument("--maximum-holding-seconds", type=int, default=900)
     arguments = parser.parse_args()
     limits = CampaignLimits(
         duration_seconds=arguments.duration_seconds,
@@ -534,9 +438,6 @@ def main() -> int:
         trade_cooldown_seconds=arguments.trade_cooldown_seconds,
         maximum_trades_per_day=arguments.maximum_trades_per_day,
         daily_net_loss_limit=arguments.daily_net_loss_limit,
-        target_net_profit=arguments.target_net_profit,
-        maximum_net_loss=arguments.maximum_net_loss,
-        maximum_holding_seconds=arguments.maximum_holding_seconds,
     )
     arguments.lock_file.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     with arguments.lock_file.open("w", encoding="ascii") as lock:

@@ -22,27 +22,23 @@ planning, the frozen hierarchical gross-edge runtime lookup, a 1 USDT margin qua
 Python-level enforcement of the immutable 10x leverage cap. The Testnet BTCUSDT risk profile is set
 to 10x; this is the maximum allowed by this project, not the exchange-reported 125x maximum.
 
-`scripts/run-testnet-micro-scalp.py` is an attended, bounded protocol runner rather than an entry
-signal. Its first SOLUSDT cycle used 0.92460000 USDT margin at 10x, timed out after 30 seconds and
-ended at -0.01099535 USDT net after commission, with zero remaining orders or position. Do not loop
-this runner without a calibrated gross-edge-qualified signal; the measured outcome demonstrates
-that unscreened repetition can accumulate fees even when the lifecycle is correct.
+The historical SOLUSDT protocol sample used 0.92460000 USDT margin at 10x and ended at
+-0.01099535 USDT net after commission, with zero remaining orders or position. Owner-approved ADR
+0006 removed both elapsed-time position exits and the standalone runner that used them. This sample
+is retained only as historical lifecycle evidence.
 
-The Testnet-only `aiq-testnet-campaign.service` is enabled and running for three days. It evaluates
-SOLUSDT, BNBUSDT, XRPUSDT, DOGEUSDT and ADAUSDT every ten seconds using the checked-in unvalidated
-1m/5m PA baseline and conservative OF confirmation with at most three parallel observation workers, but calls the bounded micro-position runner
-only when every gate passes and selects at most one candidate per round. It enforces a five-minute
-global cooldown, 24 trades per UTC day and a -0.30 USDT daily net-loss entry stop. State is
+The Testnet-only `aiq-testnet-campaign.service` is enabled as an observation-only process. It
+evaluates SOLUSDT, BNBUSDT, XRPUSDT, DOGEUSDT and ADAUSDT every ten seconds using the checked-in
+unvalidated 1m/5m PA baseline and conservative OF confirmation with at most three parallel
+observation workers. It has no order-submission path: the current diagnostic
+candidate lacks a document-complete setup state, structural stop/target and signed gross-edge
+horizon, so entry is always rejected with explicit reason codes. State is
 `/var/lib/ai-quant/evidence/testnet/campaign/current/state.json`; see `docs/testnet-campaign.md`.
-Native stop/take-profit are the normal exits. The 900-second holding limit is only a final safety
-bound; Testnet target net profit is 0.05 USDT and maximum net loss remains 0.10 USDT.
-Telegram messages are now structured Chinese text.
+Telegram messages are structured Chinese text.
 
-The owner requested additional parallel Testnet samples. `scripts/run-testnet-parallel-sample.py`
-ran SOLUSDT, BNBUSDT and XRPUSDT concurrently with one bounded position per symbol. All three timed
-out after 30 seconds rather than hitting stop/target, ended at -0.00742656/-0.00525511/-0.00930724
-USDT net and reconciled fully flat. These are execution stress samples, not strategy-qualified
-trades. Do not combine them with strategy win-rate statistics.
+The historical parallel Testnet sample ran SOLUSDT, BNBUSDT and XRPUSDT concurrently. It ended at
+-0.00742656/-0.00525511/-0.00930724 USDT net and reconciled fully flat. Its elapsed-duration runner
+has been deleted; the retained records are execution stress evidence, not strategy trades.
 
 Business migrations now end at `0004_operations` and contain append-only market-data, risk,
 execution, command, incident, notification and backup evidence. The pre-existing host-control tree

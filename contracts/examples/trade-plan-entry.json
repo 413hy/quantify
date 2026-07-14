@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "plan_hash": "5f606426e85833ed14ebb4b0e1ad00c0a37a86a1d7a814ac9d455814a2b8930f",
+  "plan_hash": "302dfbe9b2b9e1ffad875efce60f20a13d79c2a3cb3369fe80adbe8f5d540f2a",
   "content": {
     "plan_id": "018f53c0-1234-7abc-8def-123456789013",
     "analysis_cycle_id": "018f53c0-1234-7abc-8def-123456789014",
@@ -55,8 +55,7 @@
       "correlation_cluster": "BTC_BETA",
       "expected_gross_edge_bps": "8.5",
       "expected_total_cost_bps": "2.5",
-      "expected_net_edge_bps": "6",
-      "holding_horizon_seconds": 300
+      "expected_net_edge_bps": "6"
     },
     "market_revalidation": {
       "max_context_age_ms": 60000,

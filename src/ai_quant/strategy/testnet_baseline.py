@@ -31,11 +31,23 @@ class TestnetBaselineDecision:
     spread_bps: Decimal
     reason_codes: tuple[str, ...]
 
+    @property
+    def execution_ready(self) -> bool:
+        """The diagnostic baseline does not produce a document-complete TradePlan."""
+        return False
+
     def evidence(self) -> dict[str, object]:
         return {
             "schema_version": "1.0.0",
             "strategy": "TESTNET_UNVALIDATED_PA_OF_BASELINE_V1",
             "eligible": self.eligible,
+            "execution_ready": self.execution_ready,
+            "entry_verdict": "REJECT",
+            "execution_block_reason_codes": [
+                "PA_SETUP_STATE_INCOMPLETE",
+                "NET_EDGE_EVIDENCE_INCOMPLETE",
+                "STRATEGY_EXIT_PLAN_INCOMPLETE",
+            ],
             "observed_at": self.observed_at.isoformat().replace("+00:00", "Z"),
             "symbol": self.symbol,
             "direction": self.direction,

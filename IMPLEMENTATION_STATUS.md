@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: `2026-07-14T15:14:06Z`
+Updated: `2026-07-14T15:27:56Z`
 
 Overall state: `TESTNET_CORE_PROTOCOL_PASS / EXTERNAL_DURATION_GATES_PENDING / RISK_LOCKED`
 
@@ -23,9 +23,9 @@ calibration, 72-hour, or live authorization evidence. No production exchange ord
 - M3 risk/execution: multiplier-aware hard limits, floor-to-step sizing, STANDARD/ALGO namespaces,
   append-only order projection, exact Algo status mapping, response classification, 5-second UNKNOWN
   reconciliation, conservative fills, 1000ms protection monitoring and restart reconciliation.
-- Existing-position management now applies the frozen exit order exactly: kill/protection/account,
-  hard stop/risk, PA invalidation, maximum holding time, OF reversal/exhaustion and structural
-  target. Every active exit is full reduce-only taker and cannot increase absolute exposure.
+- Existing-position management applies the owner-amended exit order: kill/protection/account, hard
+  stop/risk, PA invalidation, OF reversal/exhaustion and structural target. Elapsed time is not an
+  exit condition. Every active exit is full reduce-only taker and cannot increase exposure.
 - Native protection planning now produces the opposite-side close-all Algo pair: `STOP_MARKET` plus
   `TAKE_PROFIT_MARKET`, with strict long/short stop-entry-target structure validation.
 - The runtime `SHRUNK_MARKOUT_CELL_MEAN_V1` lookup now uses the frozen parent order, signed Decimal
@@ -34,18 +34,16 @@ calibration, 72-hour, or live authorization evidence. No production exchange ord
 - Risk hard caps are validated inside Python as well as Schema. A direct 100x/125x caller is rejected,
   and a per-order margin budget is converted to a floor-quantized quantity ceiling. The current
   requested operating ceiling is 1 USDT of margin and remains subordinate to all risk/edge gates.
-- The bounded Testnet micro-position runner selects only a symbol whose exchange filters fit the
-  margin ceiling, replans from the actual fill, places native stop/take-profit protection, enforces
-  a 30-second time exit and proves final zero orders/position. It is a protocol-validation runner,
-  not a blind repeated-entry strategy.
-- A three-day Testnet campaign service now applies the checked-in unvalidated PA baseline across
-  five 1-USDT-feasible symbols using closed 1m/5m bars, the latest 20-level book and the 500ms
-  aggregate-trade window. It records every decision, selects at most one fully confirmed long per
-  round while observing up to three symbols concurrently, limits activity to 24 trades per UTC day with a five-minute global cooldown and stops new
-  entries at -0.30 USDT daily net PnL. Native stop/take-profit are the normal exits; the 900-second
-  maximum is only a final safety bound. Testnet target net profit is 0.05 USDT while maximum net
-  loss remains 0.10 USDT. This is a wider forward-sample pool, not fabricated Top10
-  evidence.
+- The earlier bounded Testnet micro-position and parallel pressure runners have been removed under
+  ADR 0006 because they used elapsed time as an exit. Their historical evidence remains auditable,
+  but no current command can open a position through that non-strategy path.
+- A three-day Testnet campaign service applies the checked-in unvalidated PA baseline across five
+  1-USDT-feasible symbols using closed 1m/5m bars, the latest 20-level book and the 500ms
+  aggregate-trade window. It records every decision while observing up to three symbols
+  concurrently. The service is now mechanically `OBSERVATION_ONLY`: PA/OF confirmation alone does
+  not produce a full setup, structural stop/target or signed gross-edge horizon, so entry remains
+  `REJECT` with explicit incomplete-plan reason codes. This is a wider forward-sample pool, not
+  fabricated Top10 or strategy execution evidence.
 - M4 operations: bounded FastAPI control surface, session-context binding, idempotent commands,
   one-use emergency-flatten challenge, outbound-only redacted notifications, Prometheus exposition,
   alert/runbook mapping, checksummed backup manifests and append-only operational migrations.
@@ -103,22 +101,23 @@ calibration, 72-hour, or live authorization evidence. No production exchange ord
   387ms and take-profit in 626ms, then reduce-only flattened and reconciled zero ordinary orders,
   zero Algo orders and zero position. Evidence is under
   `/var/lib/ai-quant/evidence/testnet/current/{risk-profile,native-protection-pair}.json`.
-- One real bounded SOLUSDT micro-position used 0.92460000 USDT initial margin at 10x, confirmed the
-  native stop in 371ms and take-profit in 609ms, and exited at the 30-second maximum holding time.
+- One historical bounded SOLUSDT sample used 0.92460000 USDT initial margin at 10x, confirmed the
+  native stop in 371ms and take-profit in 609ms, and was closed by the now-retired duration rule.
   The target was not reached: realized PnL was -0.00359999 USDT, commission was 0.00739536 USDT and
   net PnL was -0.01099535 USDT. Final ordinary orders, Algo orders and position were all zero, with
   zero production endpoint requests. Evidence is at
   `/var/lib/ai-quant/evidence/testnet/current/sol-micro-scalp.json`.
-- A separate three-symbol parallel Testnet execution sample ran SOLUSDT, BNBUSDT and XRPUSDT with
+- A historical three-symbol parallel Testnet execution sample ran SOLUSDT, BNBUSDT and XRPUSDT with
   independent 1-USDT margin ceilings. All three completed their native protection lifecycle and
-  reconciled zero orders/Algo orders/positions. None hit stop or target; all reached the 30-second
-  time exit. Net results were -0.00742656, -0.00525511 and -0.00930724 USDT respectively, mostly
+  reconciled zero orders/Algo orders/positions. None hit stop or target; the retired runner closed
+  them by elapsed duration. Net results were -0.00742656, -0.00525511 and -0.00930724 USDT respectively, mostly
   commission. The sample is explicitly classified `EXECUTION_STRESS_NOT_STRATEGY_SIGNAL`; its
   Chinese per-trade and aggregate Telegram notifications passed. Evidence is under
   `/var/lib/ai-quant/evidence/testnet/parallel/20260714-sample-01/`.
-- `aiq-testnet-campaign.service` is enabled and active for a three-day Testnet observation ending
-  `2026-07-17T15:09:21Z`. Its first multi-symbol round correctly rejected entry because PA/OF/spread gates
-  were not met; the account remained at zero regular orders, zero Algo orders and zero position.
+- `aiq-testnet-campaign.service` is enabled for a three-day Testnet observation. It is
+  observation-only and cannot submit orders until the document-required setup state, structural
+  exit plan and signed gross-edge horizon exist; the account remains at zero regular orders, zero
+  Algo orders and zero position.
   State and append-only observations are under
   `/var/lib/ai-quant/evidence/testnet/campaign/current/`.
 - A real external archive roundtrip to the isolated receiver passed. The sender encrypted an exact

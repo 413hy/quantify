@@ -29,7 +29,6 @@ def episode(direction: Direction = Direction.LONG) -> PositionEpisode:
         stop_trigger=Decimal("99") if long else Decimal("101"),
         target_trigger=Decimal("101") if long else Decimal("99"),
         first_fill_at=BASE_TIME,
-        maximum_holding_seconds=300,
         strategy_version="strategy-1",
     )
 
@@ -87,14 +86,9 @@ def test_short_protection_reverses_side_and_requires_valid_structure() -> None:
         ({"mark_price": Decimal("99")}, 2, "RISK_HARD_STOP_REACHED"),
         ({"hard_risk_limit_breached": True}, 2, "RISK_HARD_LIMIT_BREACHED"),
         ({"structure_valid": False}, 3, "PA_STRUCTURE_INVALIDATED"),
-        (
-            {"observed_at": BASE_TIME + timedelta(seconds=300)},
-            4,
-            "STRATEGY_MAX_HOLDING_TIME",
-        ),
-        ({"order_flow_state": OrderFlowState.REVERSED}, 5, "OF_REVERSE_ABSORPTION"),
-        ({"order_flow_state": OrderFlowState.EXHAUSTED}, 5, "OF_EXHAUSTED"),
-        ({"mark_price": Decimal("101")}, 6, "STRATEGY_TARGET_REACHED"),
+        ({"order_flow_state": OrderFlowState.REVERSED}, 4, "OF_REVERSE_ABSORPTION"),
+        ({"order_flow_state": OrderFlowState.EXHAUSTED}, 4, "OF_EXHAUSTED"),
+        ({"mark_price": Decimal("101")}, 5, "STRATEGY_TARGET_REACHED"),
     ],
 )
 def test_exit_conditions_are_full_reduce_only_taker_actions(
@@ -143,6 +137,16 @@ def test_unhealthy_data_holds_only_while_native_protection_is_healthy() -> None:
     )
     assert exited.action is PositionAction.EXIT_FULL
     assert exited.reason_codes == ("RISK_PROTECTION_UNAVAILABLE",)
+
+
+def test_elapsed_time_never_exits_a_healthy_protected_position() -> None:
+    held = manage_position(
+        episode(),
+        observation(observed_at=BASE_TIME + timedelta(days=7)),
+    )
+
+    assert held.action is PositionAction.HOLD
+    assert held.reason_codes == ("POSITION_MANAGEMENT_HOLD",)
 
 
 def test_short_stop_and_target_use_inverse_comparisons() -> None:

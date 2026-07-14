@@ -78,7 +78,6 @@ setups:
     - R1_RANGE_EDGE_REJECTION
   arm_expiry_1m_bars: 2
   signal_validity_ms: 1000
-  maximum_holding_seconds: 900
   maximum_scale_in_count: 2
   minimum_range_width_to_total_cost_ratio: '2.00'
 invalidation:
