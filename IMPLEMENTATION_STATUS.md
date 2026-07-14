@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: `2026-07-14T07:26:53Z`
+Updated: `2026-07-14T07:38:34Z`
 
 Overall state: `M0_IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
 
@@ -28,6 +28,10 @@ Highest completed milestone: none
   capability trust-bundle loader, config-root/capability Ed25519 verification over RFC 8785 JCS
   hashes, full causal binding checks, Linux `SO_PEERCRED` caller/protocol ACLs, and durable
   PostgreSQL epoch leases. Competing owners and expired/stale leases deny Reserve and Consume.
+- Commit `0b8dc507522596cc9ba8659b56cbb96744f7c375` adds signed endpoint-catalog
+  source/hash/identity/tier verification, bounded one-request length-prefixed Unix framing, duplicate
+  JSON-key rejection, runtime-directory/socket-mode enforcement, and a rate admission application
+  that closes endpoint, facts, capability, protocol direction and kernel peer before authority calls.
 - Docker CE/Compose, Python 3.12.13 via `uv`, chrony, ripgrep and GNU time are installed for
   development. Initial chrony observations are healthy, but not a 24-hour deployment proof.
 
@@ -35,8 +39,8 @@ Detailed evidence: `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`.
 
 ## M0 work still required
 
-1. Complete the bounded rate-budget Unix-socket service, connect peer/capability checks to atomic
-   Reserve, and ingest signed endpoint catalogs into append-only runtime policy rows.
+1. Add the PostgreSQL rate-authority adapter and normalized multi-class signed endpoint-policy
+   ingestion, then package the admission layer as the executable bounded rate-budget service.
 2. Complete the bounded gateway Unix-socket protocol, gateway recomputation from wire
    facts, send outcome/unknown accounting, and correlation audit.
 3. Signed startup evidence and attestation service.
@@ -59,7 +63,7 @@ Detailed evidence: `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`.
 
 | Milestone | Status |
 |---|---|
-| M0 repository/contracts/config/migrations/audit/host control/gateway | IN PROGRESS; signed capability/peer/fencing boundary committed, full IPC/services/review outstanding |
+| M0 repository/contracts/config/migrations/audit/host control/gateway | IN PROGRESS; bounded rate admission committed, database/service/gateway/review outstanding |
 | M1 market data/order book/quality/archive/replay | NOT STARTED; M0 acceptance required |
 | M2 PA/OF/Top10/cost/Codex orchestration/unified backtest | NOT STARTED; Codex portion blocked by model catalog |
 | M3 risk/order state/user stream/native protection/reconciliation | NOT STARTED |
@@ -85,5 +89,5 @@ Deployment authorization: `NOT_AUTHORIZED`. Runtime default: `RISK_LOCKED`.
 cd /root/quantify/ai-quant-system && make ci && make test-migrations && make test-locked-runtime
 ```
 
-After this baseline re-verifies, continue M0 with the bounded rate-budget UDS service and signed
+After this baseline re-verifies, continue M0 with the PostgreSQL rate adapter and normalized signed
 endpoint-policy ingestion. Do not start M1 or enable a transport.
