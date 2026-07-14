@@ -1,8 +1,8 @@
 # Implementation status
 
-Updated: `2026-07-14T12:31:30Z`
+Updated: `2026-07-14T12:57:45Z`
 
-Overall state: `OFFLINE_DEVELOPMENT_FLOW_PASS / EXTERNAL_VALIDATION_PENDING / RISK_LOCKED`
+Overall state: `OFFLINE_DEVELOPMENT_FLOW_PASS / TESTNET_CREDENTIAL_REJECTED / RISK_LOCKED`
 
 The trading system's offline Paper path is implemented and verified from raw market data through
 native protection. This is a development completion statement, not Testnet, Shadow, calibration,
@@ -35,7 +35,7 @@ native protection. This is a development completion statement, not Testnet, Shad
 
 ## Verified results
 
-- Full CI: 174 unit, 8 property, 2 contract and 16 security tests pass.
+- Full CI: 176 unit, 8 property, 2 contract and 16 security tests pass.
 - Additional suites: 3 replay, 18 integration, 6 fault-injection and 1 resource-profile test pass.
 - Ruff, strict mypy (84 source files), Bandit, secret scan, all 42 contract schemas/39 examples,
   14 config examples, provenance, Compose and Debian deployment validators pass.
@@ -46,15 +46,29 @@ native protection. This is a development completion statement, not Testnet, Shad
 - `make paper-flow` deterministically produces a BTCUSDT Paper signal, approves quantity `1.9`,
   fills it conservatively, confirms full native protection, performs zero external requests and
   leaves runtime state `RISK_LOCKED`.
+- ADR 0005 resolves the frozen Testnet hostname conflict using the current Binance official
+  destinations. Public Testnet `/time` and `/exchangeInfo` requests pass from the Debian host, and
+  routed `/public` and `/market` streams complete HTTP 101 upgrades. The gateway now allows only
+  the exact current Testnet authority/host pairings and continues to reject production hosts for
+  Testnet callers.
+- A bounded Testnet capability probe now validates secret-file metadata, server time,
+  `exchangeInfo`, account mode, symbol margin configuration, clean account state, a non-matching
+  engine `/order/test`, listen-key lifecycle and all four WebSocket routes without logging secrets.
+  Its first real run failed closed on the initial signed account call with Binance `-2015`; it sent
+  zero production requests and created zero matching-engine orders. Redacted evidence is at
+  `/var/lib/ai-quant/evidence/testnet/current/safe-capability-probe.json`.
 
 ## Not yet claimable
 
 The following require external facts, elapsed observation windows, credentials or human signatures
 and were deliberately not fabricated:
 
-1. Actual Binance destination/network qualification, current API capability probes and the frozen
-   Testnet hostname conflict resolution.
-2. Real Testnet order integration, live User Data Stream, account-mode and exchange reconciliation.
+1. Successful authenticated Binance capability probes. The currently supplied credential is
+   rejected by the Demo REST service with `-2015` (invalid key, IP, or permission); the observed
+   outbound IP is `140.245.75.36` and the local secret files themselves pass format/permission
+   checks.
+2. Real Testnet matching-engine order integration, live User Data Stream, account-mode confirmation
+   and exchange reconciliation. These remain blocked behind the failed credential probe.
 3. A continuous qualified three-day L2 calibration dataset, signed parameter candidate and C0
    freeze.
 4. Continuous 72-hour Shadow/Testnet validation, first-live 24-hour evidence and 87-day forward OOS

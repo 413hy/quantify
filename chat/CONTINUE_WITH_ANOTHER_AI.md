@@ -24,6 +24,7 @@ Before implementation:
    - docs/adr/0002-m0-toolchain-and-runtime-topology.md
    - docs/adr/0003-signed-capability-peer-and-fencing.md
    - docs/adr/0004-debian-12-sole-platform.md
+   - docs/adr/0005-current-binance-testnet-endpoints.md
    - docs/deployment/debian-12-platform.md
    - evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md
 3. Review the relevant existing code deeply against the frozen documentation and explicit
@@ -32,13 +33,14 @@ Before implementation:
    appropriate for the restored host. Record actual results; do not copy expected results as proof.
 
 Mandatory state and safety constraints:
-- Current state is M0_IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED.
+- Current state is OFFLINE_DEVELOPMENT_FLOW_PASS / TESTNET_CREDENTIAL_REJECTED / RISK_LOCKED.
 - Debian 12 Bookworm/aarch64 on Oracle Cloud is the sole owner-approved host platform. Do not select
   or recommend another distribution. Run `make validate-debian-platform` on deployment candidates.
 - Keep runtime default RISK_LOCKED.
-- Do not enable production transport, connect to Binance, send REST/WS/control traffic, request or
-  inject production credentials, deploy live trading, or claim deployment evidence from local tests.
-- Do not substitute the required model or silently change frozen Testnet host policy.
+- Do not enable production transport, request or inject production credentials, deploy live
+  trading, or claim deployment evidence from local tests. Testnet-only probes are owner-approved
+  under ADR 0005 and must remain exact-host, bounded and fail-closed.
+- Do not substitute the required model or silently change the ADR 0005 Testnet host policy.
 - Do not edit original reference materials. Treat repository `config/`, `contracts/`, and
   `runbooks/` as provenance-protected frozen copies unless an explicit owner-approved baseline
   amendment authorizes a change.
@@ -65,10 +67,12 @@ Current implementation facts to verify rather than assume:
   deployment facts exist.
 - The restricted database role now has five explicit table reads and six explicit function entry
   points; observations and authority blocks are measurement-reader-only.
-- Last recorded tests were 135 unit, 3 property, 2 contract and 9 security tests, but rerun them.
+- Last recorded tests were 176 unit, 8 property, 2 contract, 16 security, 3 replay, 18 integration,
+  6 fault and 1 resource tests, but rerun them.
 
 Known external blockers:
-- BLK-001 Testnet WS endpoint conflict.
+- BLK-001 endpoint conflict resolved by ADR 0005; authenticated Testnet validation is currently
+  blocked because Binance returns `-2015` for the supplied Demo credential.
 - BLK-002 exact gpt-5.6 unavailable; substitution prohibited.
 - BLK-003 resolved by owner-approved ADR 0004; Debian 12 is the sole platform.
 - BLK-004 qualified deployment/network/clock/storage/restore/heartbeat/signed evidence absent.

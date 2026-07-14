@@ -1,5 +1,24 @@
 # Sanitized session handoff — 2026-07-14
 
+## Later same-day continuation
+
+The earlier M0-only snapshot below is historical. Subsequent local commits completed and verified
+the offline Paper development path through the later-stage orchestration modules. The current
+authoritative state is `IMPLEMENTATION_STATUS.md` and `HANDOFF_STATE.md`, not the older test counts
+or blocker descriptions below.
+
+The owner explicitly approved configuring current non-secret Binance Testnet endpoints. ADR 0005
+now selects `demo-fapi.binance.com`, `demo-fstream.binance.com/{public,market,private}`, and the
+separate `testnet.binancefuture.com/ws-fapi/v1`; production endpoints remain forbidden. Public REST
+and public/market/WS-API handshakes pass from outbound IP `140.245.75.36`. The supplied credential
+is well-formed locally but Binance rejects the first signed Demo account call with `-2015`, so the
+authenticated probe, private stream and matching-engine lifecycle remain blocked pending a valid
+Demo/Testnet key with Futures permissions.
+
+Latest complete local verification: 176 unit, 8 property, 2 contract, 16 security, 3 replay,
+18 integration, 6 fault and 1 resource tests pass; both migration trees round-trip; the locked
+runtime, Paper flow, SBOM and dependency audit pass with zero known vulnerabilities.
+
 ## User intent
 
 The user asked the agent to continue the existing project, complete everything in the frozen

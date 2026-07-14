@@ -1,4 +1,4 @@
-"""Closed gateway enforcement without implementing a live transport."""
+"""Closed gateway enforcement with exact production and Testnet destinations."""
 
 from __future__ import annotations
 
@@ -23,13 +23,21 @@ from ai_quant.rate_budget.authorization import (
 )
 from ai_quant.rate_budget.policy import EndpointPolicy, RuntimeEndpointCatalog
 
-TESTNET_HOSTS_BLOCKED_PENDING_ADR = True
-_PRODUCTION_DESTINATIONS = {
+_DESTINATIONS = {
     ("BINANCE_PRODUCTION_FAPI", "REST"): ("https", "fapi.binance.com"),
     ("BINANCE_PRODUCTION_FAPI", "WS_API"): ("wss", "ws-fapi.binance.com"),
     ("BINANCE_PRODUCTION_FSTREAM", "MARKET_STREAM_CONTROL"): (
         "wss",
         "fstream.binance.com",
+    ),
+    ("BINANCE_TESTNET_FAPI", "REST"): ("https", "demo-fapi.binance.com"),
+    ("BINANCE_TESTNET_FAPI", "WS_API"): (
+        "wss",
+        "testnet.binancefuture.com",
+    ),
+    ("BINANCE_TESTNET_FSTREAM", "MARKET_STREAM_CONTROL"): (
+        "wss",
+        "demo-fstream.binance.com",
     ),
 }
 
@@ -720,13 +728,15 @@ def _timestamp(value: datetime) -> str:
 
 
 def validate_destination(request: ClosedGatewayRequest) -> None:
-    if request.environment == "testnet" and TESTNET_HOSTS_BLOCKED_PENDING_ADR:
-        raise GatewayDenied("TESTNET_ENDPOINT_BASELINE_CONFLICT")
-    expected = _PRODUCTION_DESTINATIONS.get(
-        (request.endpoint_authority, request.transport)
+    expected = _DESTINATIONS.get((request.endpoint_authority, request.transport))
+    is_testnet_authority = request.endpoint_authority.startswith("BINANCE_TESTNET_")
+    environment_matches = (
+        request.environment == "testnet"
+        if is_testnet_authority
+        else request.environment in {"shadow", "paper", "production"}
     )
     if (
-        request.environment not in {"shadow", "paper", "production"}
+        not environment_matches
         or expected is None
         or (request.scheme, request.host) != expected
     ):

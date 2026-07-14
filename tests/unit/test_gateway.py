@@ -167,11 +167,44 @@ def test_transport_scheme_mismatch_never_calls_transport() -> None:
     assert calls == 0
 
 
-def test_testnet_is_frozen_pending_endpoint_adr() -> None:
+def test_testnet_current_official_stream_destination_is_allowed() -> None:
     now = datetime(2026, 7, 14, tzinfo=UTC)
     request = make_request(now, host="demo-fstream.binance.com", environment="testnet")
+    request = request.model_copy(
+        update={
+            "endpoint_authority": "BINANCE_TESTNET_FSTREAM",
+            "transport": "MARKET_STREAM_CONTROL",
+            "scheme": "wss",
+        }
+    )
     grant = make_grant(request, now)
-    with pytest.raises(GatewayDenied, match="TESTNET_ENDPOINT_BASELINE_CONFLICT"):
+    assert (
+        send_once(
+            request,
+            grant,
+            lambda _: "sent",
+            now=now,
+            expected_permit_id="permit-1",
+            expected_fencing_epoch=1,
+            expected_operation_facts_hash=H,
+            expected_capability_payload_hash=H,
+        )
+        == "sent"
+    )
+
+
+def test_testnet_production_stream_destination_is_denied() -> None:
+    now = datetime(2026, 7, 14, tzinfo=UTC)
+    request = make_request(now, host="fstream.binance.com", environment="testnet")
+    request = request.model_copy(
+        update={
+            "endpoint_authority": "BINANCE_TESTNET_FSTREAM",
+            "transport": "MARKET_STREAM_CONTROL",
+            "scheme": "wss",
+        }
+    )
+    grant = make_grant(request, now)
+    with pytest.raises(GatewayDenied, match="DESTINATION_NOT_ALLOWLISTED"):
         send_once(
             request,
             grant,

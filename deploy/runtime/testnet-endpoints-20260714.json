@@ -1,0 +1,19 @@
+{
+  "schema_version": "1.0.0",
+  "amendment_id": "testnet-endpoints-20260714",
+  "approved_at": "2026-07-14T13:00:00Z",
+  "approved_by": "account-owner-in-session",
+  "scope": "BINANCE_USDS_M_FUTURES_TESTNET_ONLY",
+  "endpoints": {
+    "rest_base": "https://demo-fapi.binance.com",
+    "market_stream_base": "wss://demo-fstream.binance.com",
+    "public_url": "wss://demo-fstream.binance.com/public",
+    "market_url": "wss://demo-fstream.binance.com/market",
+    "private_url": "wss://demo-fstream.binance.com/private",
+    "websocket_api_base": "wss://testnet.binancefuture.com/ws-fapi/v1"
+  },
+  "production_endpoints_changed": false,
+  "production_trading_allowed": false,
+  "primary_source": "https://developers.binance.com/en/docs/products/derivatives-trading-usds-futures/general-info",
+  "websocket_api_source": "https://developers.binance.com/en/docs/products/derivatives-trading-usds-futures/websocket-api-general-info"
+}
