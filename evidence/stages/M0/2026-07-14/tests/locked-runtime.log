@@ -13,26 +13,26 @@ docker build --pull=false --provenance=false -f docker/app.Dockerfile -t aiq-app
 #3 DONE 0.0s
 
 #4 [internal] load build context
-#4 transferring context: 9.54kB done
+#4 transferring context: 9.62kB done
 #4 DONE 0.0s
 
 #5 [1/9] FROM docker.io/library/python@sha256:a5d9a95a366e9cb09c32e2623ae98320433f169b2974b451969459ca585e009a
 #5 resolve docker.io/library/python@sha256:a5d9a95a366e9cb09c32e2623ae98320433f169b2974b451969459ca585e009a 0.0s done
 #5 DONE 0.0s
 
-#6 [4/9] COPY --chown=65532:65532 pyproject.toml uv.lock README.md ./
+#6 [2/9] RUN python -m pip install --no-cache-dir "uv==0.11.28"     && groupadd --system --gid 65532 aiq     && useradd --system --uid 65532 --gid 65532 --home-dir /nonexistent --shell /usr/sbin/nologin aiq
 #6 CACHED
 
-#7 [5/9] COPY --chown=65532:65532 src ./src
+#7 [6/9] RUN uv sync --frozen --no-dev --no-editable
 #7 CACHED
 
-#8 [2/9] RUN python -m pip install --no-cache-dir "uv==0.11.28"     && groupadd --system --gid 65532 aiq     && useradd --system --uid 65532 --gid 65532 --home-dir /nonexistent --shell /usr/sbin/nologin aiq
+#8 [3/9] WORKDIR /app
 #8 CACHED
 
-#9 [3/9] WORKDIR /app
+#9 [4/9] COPY --chown=65532:65532 pyproject.toml uv.lock README.md ./
 #9 CACHED
 
-#10 [6/9] RUN uv sync --frozen --no-dev --no-editable
+#10 [5/9] COPY --chown=65532:65532 src ./src
 #10 CACHED
 
 #11 [7/9] COPY --chown=65532:65532 contracts ./contracts
@@ -46,8 +46,8 @@ docker build --pull=false --provenance=false -f docker/app.Dockerfile -t aiq-app
 
 #14 exporting to image
 #14 exporting layers done
-#14 exporting manifest sha256:06c0fb3df9d7348cee057e0aba6074826021251170d908361809eab59e9f7b73 done
-#14 exporting config sha256:4317aae3ea529d33c5589e82fa82e9f3d6b7e66a418270a407a774b461639354 done
+#14 exporting manifest sha256:52516cf6272b8663c00e8fdb5b87155aefe0d9e49365ef9831c2e1ab15a45121 done
+#14 exporting config sha256:17734c07134a9fcc0e311e3b9c90421c66779ce34ffd0ee6923bfad4ae2c115b done
 #14 naming to docker.io/library/aiq-app:m0 done
 #14 unpacking to docker.io/library/aiq-app:m0 done
 #14 DONE 0.0s

@@ -2,7 +2,8 @@
 
 - Status: accepted for M0 development; not a deployment approval
 - Date: 2026-07-14
-- Implementation commit: `3a5762e37a5311f0a7faeca2e93b6c77ab8500ff`
+- Implementation commits: `3a5762e37a5311f0a7faeca2e93b6c77ab8500ff`,
+  `fca378cf7e4f18457f46a381e29fc8599bb5baa8`
 
 ## Decision
 
@@ -45,6 +46,6 @@ Debian 12 rather than the frozen Ubuntu 24 deployment target.
 ## Consequences
 
 The local image is reproducible for the same source and builder and currently has OCI image ID
-`sha256:06c0fb3df9d7348cee057e0aba6074826021251170d908361809eab59e9f7b73`.
+`sha256:52516cf6272b8663c00e8fdb5b87155aefe0d9e49365ef9831c2e1ab15a45121`.
 That local digest is evidence for this build only; deployment still requires a controlled registry
 artifact, signed release manifest, and verification on the qualified target host.

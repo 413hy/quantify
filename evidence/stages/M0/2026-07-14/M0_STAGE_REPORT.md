@@ -2,8 +2,9 @@
 
 - Stage: M0 — repository, contracts, configuration, migrations, audit and egress skeleton
 - Status: `IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
-- Report time: `2026-07-14T06:57:33Z`
-- Implementation commit: `3a5762e37a5311f0a7faeca2e93b6c77ab8500ff`
+- Report time: `2026-07-14T07:06:58Z`
+- Implementation commits: `3a5762e37a5311f0a7faeca2e93b6c77ab8500ff`,
+  `fca378cf7e4f18457f46a381e29fc8599bb5baa8`
 - Implementer: `/root` engineering session
 - Independent reviewer: not assigned; a different actor with fresh context is still required
 - `CodexReviewReport`: absent by design; the implementer cannot self-sign it
@@ -11,7 +12,8 @@
 
 ## Delivered foundation
 
-The implementation commit changes 184 files. The exact names are in the Git commit; the grouped
+The foundation commit changes 184 files and the atomic reservation increment changes four files.
+The exact names are in Git; the foundation grouped
 counts are: 70 contract files, 35 configuration files, 14 immutable runbooks, 12 source files, 10
 tests, 8 migration files, 8 scripts, 4 Compose files, 4 diagrams, one Dockerfile, the locked project
 metadata, and evidence.
@@ -25,9 +27,9 @@ metadata, and evidence.
 | M0-R05 independent business/host migrations | PASS | `migrations.log`; heads below |
 | M0-R06 append-only audit and default lock | PASS for initial schema | migration files and integration assertions |
 | M0-R07 one gateway definition, zero business egress network membership | PASS statically | `scripts/validate/compose.py`; `ci.log` |
-| M0-R08 atomic permit/nonce consume and replay denial | PASS for implemented consume boundary | `migrations.log`; unit/property tests |
+| M0-R08 atomic reserve/permit/nonce consume and replay denial | PASS for implemented database boundary | `migrations.log`; unit/property tests |
 | M0-R09 locked non-root container startup | PASS | `locked-runtime.log` |
-| M0-R10 full Reserve→gateway→PermitConsume→send service | PARTIAL | persistent reserve allocation, peer ACL and real IPC protocol remain |
+| M0-R10 full Reserve→gateway→PermitConsume→send service | PARTIAL | durable Reserve/Consume pass; signed peer ACL and real IPC/send remain |
 | M0-R11 signed startup evidence and host destination firewall | NOT IMPLEMENTED | gateway intentionally remains locked/no-network |
 | M0-R12 independent fresh-context review | BLOCKED | reviewer and valid `CodexReviewReport` absent |
 
@@ -35,12 +37,12 @@ metadata, and evidence.
 
 - Configuration manifest hash: `7720834b5d493460b2ff4e5a45b3be18df0d434f1f8f2be206442135b85793ba`.
 - Contract manifest hash: `a5f238d75cf100493071c81a23f2260724e4bf290ea44d7980706052bd5fe9f7`.
-- Implementation manifest hash: `7d7a58ee5533503d2d21d16faaeabeaaf262656ab30d49fc3bc1aea7be7f37dc`.
-- Local application OCI image ID: `sha256:06c0fb3df9d7348cee057e0aba6074826021251170d908361809eab59e9f7b73`.
-- Image architecture/size: Linux arm64, 329,830,850 bytes.
+- Implementation manifest hash: `b13e7e76e1f6ad5e08b4d2b846f7ea15cdcefab163b25db5256541f7dd60b91a`.
+- Local application OCI image ID: `sha256:52516cf6272b8663c00e8fdb5b87155aefe0d9e49365ef9831c2e1ab15a45121`.
+- Image architecture/size: Linux arm64, 329,833,663 bytes.
 - Reproducibility: two same-source builds produced the same image ID.
 - Business migration head: `0001_business_core`.
-- Host-control migration head: `0001_host_rate_control`.
+- Host-control migration head: `0002_atomic_reservation`.
 
 The local image ID is not represented as a signed registry release digest. No release, deployment,
 startup-evidence, or live authorization has been issued.
@@ -50,7 +52,9 @@ startup-evidence, or live authorization has been issued.
 | Flow | Command/evidence | Result |
 |---|---|---|
 | Normal | first atomic permit consume | `CONSUME_GRANTED:RATE_PERMIT_CONSUMED` |
+| Normal | atomic reserve and same-key retry | same permit returned; window charged exactly once |
 | Error | same permit consumed again | `CONSUME_DENIED:PERMIT_NOT_RESERVED` |
+| Error | unauthorized caller, stale fencing, unknown catalog, blocked window | all denied before permit creation |
 | Boundary | any changed binding hash, expiry, or replay | property tests deny without reopening permit |
 | Startup failure | non-root container, no network, no startup evidence | `RISK_LOCKED`, new egress false |
 | Database | business + host `upgrade → downgrade base → upgrade` | PASS on fresh disposable volumes |
@@ -62,7 +66,7 @@ migration shape test and containerized migration round-trip also passed.
 
 ## Resource and security observations
 
-- Full offline CI: 14.85 seconds wall time, 79,892 KiB maximum resident set, exit 0.
+- Full offline CI: 14.50 seconds wall time, 79,008 KiB maximum resident set, exit 0.
 - Host at report time: 2 vCPU, 12,536,565,760 bytes RAM, 199,142,084,608-byte root filesystem,
   7% used, no swap.
 - Chrony: synchronized, leap status normal, 0.026 ms observed system offset; this is not 24-hour
@@ -89,7 +93,7 @@ only forward. The integration test downgrades disposable empty test volumes only
 All runtime and live gates remain `NOT_AUTHORIZED`; `RISK_LOCKED` is mandatory. No credentials are
 needed for the next work.
 
-M0 cannot be accepted until the durable reservation/counter path, signed capability verification,
+M0 cannot be accepted until signed runtime policy ingestion and capability verification,
 `SO_PEERCRED` ACL, complete bounded rate/gateway UDS protocol, send-outcome audit, signed startup
 evidence, destination-specific host network proof, and fresh-context independent review are
 implemented and pass. M1 has not started.

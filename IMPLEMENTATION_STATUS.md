@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: `2026-07-14T06:57:33Z`
+Updated: `2026-07-14T07:06:58Z`
 
 Overall state: `M0_IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
 
@@ -19,6 +19,11 @@ Highest completed milestone: none
   `upgrade → downgrade base → upgrade`; atomic permit consumption grants once and denies replay.
 - The non-root container starts with no network and returns only `RISK_LOCKED` when startup evidence
   is absent.
+- Commit `fca378cf7e4f18457f46a381e29fc8599bb5baa8` adds PostgreSQL-authoritative,
+  multi-window atomic Reserve. Signed-runtime endpoint policy, caller allowlist, catalog hash,
+  cost/ceiling, fencing, request idempotency and one-time capability nonce are checked under row
+  locks. Tests prove one charge on retry and fail-closed denial for replay, caller, fencing, catalog
+  and blocked-window violations.
 - Docker CE/Compose, Python 3.12.13 via `uv`, chrony, ripgrep and GNU time are installed for
   development. Initial chrony observations are healthy, but not a 24-hour deployment proof.
 
@@ -26,15 +31,15 @@ Detailed evidence: `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`.
 
 ## M0 work still required
 
-1. Durable atomic Reserve allocation across all rate windows and class ceilings.
-2. Signed causal-capability verification, nonce reservation, `SO_PEERCRED` caller ACL and fencing
+1. Signed runtime policy ingestion and causal-capability signature verification, plus
+   `SO_PEERCRED` caller ACL and fencing
    lease ownership.
-3. Complete bounded rate-budget and gateway Unix-socket protocols, gateway recomputation from wire
+2. Complete bounded rate-budget and gateway Unix-socket protocols, gateway recomputation from wire
    facts, send outcome/unknown accounting, and correlation audit.
-4. Signed startup evidence and attestation service.
-5. Destination-specific host DNS/firewall enforcement proving exactly one Binance socket owner and
+3. Signed startup evidence and attestation service.
+4. Destination-specific host DNS/firewall enforcement proving exactly one Binance socket owner and
    zero business Binance routes; current Compose validation is static only.
-6. A different actor in fresh context must independently review and issue a valid
+5. A different actor in fresh context must independently review and issue a valid
    `CodexReviewReport` with zero open P0/P1 before M0 acceptance.
 
 ## Current blockers
@@ -51,7 +56,7 @@ Detailed evidence: `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`.
 
 | Milestone | Status |
 |---|---|
-| M0 repository/contracts/config/migrations/audit/host control/gateway | IN PROGRESS; foundation committed, full services/review outstanding |
+| M0 repository/contracts/config/migrations/audit/host control/gateway | IN PROGRESS; atomic Reserve/Consume committed, full IPC/services/review outstanding |
 | M1 market data/order book/quality/archive/replay | NOT STARTED; M0 acceptance required |
 | M2 PA/OF/Top10/cost/Codex orchestration/unified backtest | NOT STARTED; Codex portion blocked by model catalog |
 | M3 risk/order state/user stream/native protection/reconciliation | NOT STARTED |
@@ -77,5 +82,5 @@ Deployment authorization: `NOT_AUTHORIZED`. Runtime default: `RISK_LOCKED`.
 cd /root/quantify/ai-quant-system && make ci && make test-migrations && make test-locked-runtime
 ```
 
-After this baseline re-verifies, continue M0 with the durable Reserve allocation and peer-identity
-boundary. Do not start M1 or enable a transport.
+After this baseline re-verifies, continue M0 with signed policy/capability verification and the
+peer-identity boundary. Do not start M1 or enable a transport.
