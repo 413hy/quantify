@@ -1,0 +1,76 @@
+schema_version: 2.0.0
+timezone: UTC
+codex_primary:
+  enabled: true
+  schedule: "0,30 * * * *"
+  model: gpt-5.6
+  reasoning_effort: medium
+  timeout_seconds: 90
+  output_ttl_seconds: 60
+  max_concurrency: 1
+  codex_home: /var/lib/ai-quant/codex-live
+  sandbox: read-only
+  structured_output_schema: /etc/ai-quant/contracts/trade-plan.schema.json
+  allowed_tools:
+    - get_market_context
+    - get_pa_features
+    - get_order_flow_features
+    - get_position_state
+    - get_risk_budget
+    - retrieve_strategy_knowledge
+    - estimate_trade_cost
+  forbidden_capabilities:
+    - BINANCE_SECRET
+    - BINANCE_NETWORK
+    - EXECUTION_UDS
+    - DATABASE_WRITE
+    - ARBITRARY_SHELL
+    - BROWSER
+    - ARBITRARY_NETWORK
+    - CONTAINER_CONTROL
+    - SECRET_ENV_READ
+session_isolation:
+  mode: FRESH_EPHEMERAL
+  ephemeral: true
+  new_process_per_run: true
+  new_thread_per_run: true
+  new_workspace_per_run: true
+  resume_allowed: false
+  thread_reuse_allowed: false
+  conversation_history_allowed: false
+  prior_transcript_allowed: false
+  memory_allowed: false
+  reasoning_reuse_allowed: false
+  prior_context_policy: STRUCTURED_SCHEMA_FACTS_ONLY
+  workspace_root: /var/lib/ai-quant/codex-runs/live
+  cleanup_after_run: true
+  retain_audit_manifest: true
+rule_fallback:
+  enabled: true
+  schedule: "0,20,40 * * * *"
+  immediate_on_codex_failure: true
+  shadow_when_codex_authority: true
+authority:
+  single_holder_per_epoch: true
+  persistent_fencing: true
+  failure_mode: RULE_FALLBACK
+  recovery_cooldown_seconds: 300
+  recovery_dry_run_successes: 3
+validation:
+  require_context_hash: true
+  require_knowledge_refs: true
+  require_schema: true
+  require_cost_pass: true
+  require_exchange_filters: true
+  require_risk_pass: true
+  require_pre_submit_revalidation: true
+knowledge:
+  mode: READ_ONLY_CARDS
+  sources: [PYTA_ORDER_FLOW, LOUIE_PRICE_ACTION]
+  require_signed_index: true
+  allow_runtime_write: false
+notifications:
+  telegram_outbound_only: true
+  feishu_outbound_only: true
+  inbound_handlers_enabled: false
+  trade_confirmation_required: false

@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant.local/contracts/research-review.schema.json",
+  "title": "Append-only Human Research Review",
+  "description": "研究提案的人工追加式结论。payload_hash=SHA-256(RFC 8785 JCS(signed_payload))，与 Codex 生成的不可变 proposal 分离。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "payload_hash", "signed_payload", "signature"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "payload_hash": { "$ref": "#/$defs/sha256" },
+    "signed_payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["review_id", "proposal_id", "proposal_hash", "decision", "evidence_hashes", "reviewer_id", "reviewed_at", "expires_at", "nonce"],
+      "properties": {
+        "review_id": { "$ref": "#/$defs/id" },
+        "proposal_id": { "$ref": "#/$defs/id" },
+        "proposal_hash": { "$ref": "#/$defs/sha256" },
+        "decision": { "enum": ["APPROVED_FOR_VALIDATION", "REJECTED", "SUPERSEDED"] },
+        "evidence_hashes": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/sha256" } },
+        "reviewer_id": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "reviewed_at": { "type": "string", "format": "date-time" },
+        "expires_at": { "type": "string", "format": "date-time" },
+        "nonce": { "type": "string", "minLength": 16, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$" }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "key_id", "signature_ref"],
+      "properties": {
+        "algorithm": { "const": "Ed25519" },
+        "key_id": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "signature_ref": { "type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*\\.sig$" }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|[0-9A-HJKMNP-TV-Z]{26})$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

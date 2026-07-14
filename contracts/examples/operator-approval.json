@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0.0",
+  "payload_hash": "d47d4f17d91c355a09bae3045ce62130ba9c6b5138c74af68938119fcdd8ad89",
+  "signed_payload": {
+    "approval_id": "66666666-6666-4666-8666-666666666661",
+    "action": "LIVE_ARM",
+    "target_environment": "production",
+    "release_id": "release-20260716-c0",
+    "precondition_state_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+    "strategy_package_hash": "194bcbe9d523428845f5b9db421fb818bed699b7faa59f89fb387f65fffd8fcf",
+    "config_hash": "3333333333333333333333333333333333333333333333333333333333333333",
+    "image_manifest_hash": "4444444444444444444444444444444444444444444444444444444444444444",
+    "risk_multiplier": "0.10",
+    "credential_fingerprint": "sha256:prod-key-fingerprint-20260720",
+    "evidence_hashes": [
+      "5555555555555555555555555555555555555555555555555555555555555555",
+      "6666666666666666666666666666666666666666666666666666666666666666"
+    ],
+    "operator_id": "account-owner",
+    "issued_at": "2026-07-20T00:00:00Z",
+    "effective_at": "2026-07-20T00:03:00Z",
+    "expires_at": "2026-07-20T00:05:00Z",
+    "nonce": "live-arm-20260720-0001"
+  },
+  "signature": {
+    "algorithm": "Ed25519",
+    "key_id": "owner-signing-key-2026q3",
+    "signature_ref": "signatures/live-arm-20260720.sig"
+  }
+}

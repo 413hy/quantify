@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0.0",
+  "message_type": "PermitConsumeRequest",
+  "message_id": "rate-msg-000000025",
+  "occurred_at": "2026-07-13T00:00:00.003Z",
+  "caller_service": "binance-egress-gateway",
+  "caller_instance_id": "egress-gateway-01",
+  "correlation_id": "rate-correlation-0001",
+  "permit_id": "rate-permit-00000001",
+  "subject_caller_service": "execution-service",
+  "subject_caller_instance_id": "execution-instance-01",
+  "environment": "production",
+  "endpoint_authority": "BINANCE_PRODUCTION_FAPI",
+  "endpoint_id": "REST_NEW_ALGO_ORDER",
+  "gateway_connection_id": null,
+  "endpoint_catalog_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "canonical_request_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+  "gateway_derived_parameter_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+  "gateway_derived_wire_bytes_hash": "3333333333333333333333333333333333333333333333333333333333333333",
+  "gateway_request_document_hash": "4444444444444444444444444444444444444444444444444444444444444444",
+  "gateway_derived_operation_facts": {
+    "semantic_action": "PROTECTION_CREATE_REPLACE",
+    "transport": "REST",
+    "order_role": "STOP_LOSS",
+    "reduce_only": true,
+    "close_position": false
+  },
+  "gateway_derived_operation_facts_hash": "5ad4286fdedc1974e53d8d2a583b588fd912203297ec8ab8284ccc894e731cc6",
+  "causal_capability_payload_hash": "72863e57ba905a86f8b099dbd05fdb1665f2b0fee0a03e97e38148f7f4c6462b",
+  "expected_fencing_epoch": 7
+}

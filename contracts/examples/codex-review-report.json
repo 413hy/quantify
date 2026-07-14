@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0.0",
+  "report_hash": "5f3b29dde609e399b207618510ec6a6276588567f3f66f6eb5d227cb6ebb2903",
+  "content": {
+    "review_id": "review-release-c0-20260716-001",
+    "created_at": "2026-07-16T02:00:00Z",
+    "release_id": "release-c0-20260716",
+    "patch_id": "patch-m3-execution-0042",
+    "change_class": "C3",
+    "implementer_actor_id": "codex-implementation-pass-01",
+    "reviewer_actor_id": "codex-independent-review-pass-02",
+    "same_actor": false,
+    "reviewer_role": "CODEX_INDEPENDENT_REVIEW",
+    "requirement_refs": ["EXEC-001", "RISK-001", "TEST-001"],
+    "changed_file_manifest_hash": "4c0102f6e5a092a77789b87af919d16ca67e4c96f10599651958f8b099f3ec3b",
+    "checks": [
+      { "name": "requirements_traceability", "status": "PASS", "evidence_hashes": ["800d2f575455d0e693631504e7aa67a4049960eac3857e6ace74458da5014278"], "notes": "Every changed behavior maps to frozen requirement identifiers." },
+      { "name": "strategy_semantics", "status": "PASS", "evidence_hashes": ["800d2f575455d0e693631504e7aa67a4049960eac3857e6ace74458da5014278"], "notes": "PA and OF conflict veto and event-time rules are unchanged." },
+      { "name": "cost_and_edge", "status": "PASS", "evidence_hashes": ["e0f7004137c548a8cb9cf489e7edc5d39177e98f61cefd6936b93db1b4b807a6"], "notes": "All entry paths recompute complete cost components." },
+      { "name": "deterministic_replay", "status": "PASS", "evidence_hashes": ["50da55ed98449ad7322c77a93bbb5c1896b312d008f5d9c2d346f94b8fd9e4b1"], "notes": "Decision roots match for the fixed replay." },
+      { "name": "order_idempotency", "status": "PASS", "evidence_hashes": ["800d2f575455d0e693631504e7aa67a4049960eac3857e6ace74458da5014278"], "notes": "Duplicate and unknown-state cases do not create a second order." },
+      { "name": "security_and_secrets", "status": "PASS", "evidence_hashes": ["9aa83289f1a403a3fc7442e137da7ab0dbb993370c18239e3eef4c31c753b188"], "notes": "Only the environment-specific signer sees the matching API secret." },
+      { "name": "resource_budget", "status": "PASS", "evidence_hashes": ["800d2f575455d0e693631504e7aa67a4049960eac3857e6ace74458da5014278"], "notes": "The 2 vCPU and 12 GiB limits are preserved." },
+      { "name": "failure_and_rollback", "status": "PASS", "evidence_hashes": ["4dee587fe18bdaeeb7de0ab1229c5bf05a3f59f8625776ce2445e0bb42d2013d"], "notes": "Fail-closed behavior and rollback drill passed." }
+    ],
+    "tests": [
+      { "name": "replay_fault_resource_gate", "status": "PASS", "evidence_hashes": ["c83cb43fd1eea4890b70829155dd7912ed47e1b15fb93af43a58071152c66b82"], "notes": "Contract, replay, integration, fault and resource suites passed." }
+    ],
+    "defects": [],
+    "open_p0_count": 0,
+    "open_p1_count": 0,
+    "oos_access": {
+      "champion_oos_metrics_read": false,
+      "champion_oos_rows_read": false,
+      "access_log_hash": "e4bead019906e90f47accdcab08fb3fcaad37da4a88040926f2d3311389c5d54",
+      "contamination_detected": false
+    },
+    "reset_decision": "NEW_CHAMPION_REQUIRED",
+    "rollback_evidence_hash": "4dee587fe18bdaeeb7de0ab1229c5bf05a3f59f8625776ce2445e0bb42d2013d",
+    "verdict": "PASS",
+    "human_approval_required": true,
+    "approval_ref": null
+  }
+}

@@ -13,10 +13,10 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote
-from xml.etree import ElementTree
 
 import rfc8785
 import yaml
+from defusedxml import ElementTree
 from jsonschema import Draft202012Validator, FormatChecker
 from openapi_spec_validator import validate_spec
 from referencing import Registry, Resource
@@ -39,7 +39,9 @@ class UniqueKeyLoader(yaml.SafeLoader):
     pass
 
 
-def construct_mapping(loader: UniqueKeyLoader, node: yaml.MappingNode, deep: bool = False) -> dict[Any, Any]:
+def construct_mapping(
+    loader: UniqueKeyLoader, node: yaml.MappingNode, deep: bool = False
+) -> dict[Any, Any]:
     result: dict[Any, Any] = {}
     for key_node, value_node in node.value:
         key = loader.construct_object(key_node, deep=deep)
@@ -49,9 +51,7 @@ def construct_mapping(loader: UniqueKeyLoader, node: yaml.MappingNode, deep: boo
     return result
 
 
-UniqueKeyLoader.add_constructor(
-    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, construct_mapping
-)
+UniqueKeyLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, construct_mapping)
 
 
 def load_json(path: Path) -> Any:
@@ -59,7 +59,11 @@ def load_json(path: Path) -> Any:
 
 
 def load_yaml(path: Path) -> Any:
-    return yaml.load(path.read_text(encoding="utf-8"), Loader=UniqueKeyLoader)
+    # UniqueKeyLoader derives from SafeLoader; this call preserves duplicate-key checks.
+    return yaml.load(  # nosec B506
+        path.read_text(encoding="utf-8"),
+        Loader=UniqueKeyLoader,  # noqa: S506
+    )
 
 
 def sha256(path: Path) -> str:
@@ -167,7 +171,9 @@ def validate_schemas_and_examples(root: Path) -> dict[str, Any]:
             errors = sorted(validator.iter_errors(instance), key=lambda error: list(error.path))
             for error in errors:
                 pointer = "/" + "/".join(str(item) for item in error.path)
-                failures.append(f"instance {instance_path.relative_to(root)}{pointer}: {error.message}")
+                failures.append(
+                    f"instance {instance_path.relative_to(root)}{pointer}: {error.message}"
+                )
         except Exception as exc:
             failures.append(f"instance {instance_path.relative_to(root)}: {exc}")
 
@@ -181,14 +187,20 @@ def validate_schemas_and_examples(root: Path) -> dict[str, Any]:
             base = "verification-keyring"
         schema_path = root / "config" / f"{base}.schema.json"
         try:
-            instance = load_json(instance_path) if instance_path.suffix == ".json" else load_yaml(instance_path)
+            instance = (
+                load_json(instance_path)
+                if instance_path.suffix == ".json"
+                else load_yaml(instance_path)
+            )
             validator = Draft202012Validator(
                 schemas[schema_path], format_checker=format_checker, registry=registry
             )
             errors = sorted(validator.iter_errors(instance), key=lambda error: list(error.path))
             for error in errors:
                 pointer = "/" + "/".join(str(item) for item in error.path)
-                failures.append(f"config {instance_path.relative_to(root)}{pointer}: {error.message}")
+                failures.append(
+                    f"config {instance_path.relative_to(root)}{pointer}: {error.message}"
+                )
         except Exception as exc:
             failures.append(f"config {instance_path.relative_to(root)}: {exc}")
 
@@ -204,7 +216,10 @@ HASH_RULES: dict[str, list[tuple[str, str]]] = {
     "auto-iteration-report-deferred-quota.json": [("content", "report_hash")],
     "auto-iteration-report-observe-only.json": [("content", "report_hash")],
     "calibration-dataset-manifest.json": [("signed_payload", "manifest_hash")],
-    "calibration-dataset-plan.json": [("content", "plan_hash"), ("registration.signed_payload", "registration.payload_hash")],
+    "calibration-dataset-plan.json": [
+        ("content", "plan_hash"),
+        ("registration.signed_payload", "registration.payload_hash"),
+    ],
     "codex-review-report.json": [("content", "report_hash")],
     "cost-model.json": [("content", "model_hash")],
     "edge-decision.json": [("content", "edge_evaluation_hash")],
@@ -214,7 +229,10 @@ HASH_RULES: dict[str, list[tuple[str, str]]] = {
     "market-decision-context.json": [("content", "context_hash")],
     "model-selection-decision.json": [("content", "decision_hash")],
     "of-calibration-search-plan.json": [("content", "plan_hash")],
-    "of-parameter-candidate.json": [("content", "candidate_hash"), ("content.parameters", "content.parameter_manifest_hash")],
+    "of-parameter-candidate.json": [
+        ("content", "candidate_hash"),
+        ("content.parameters", "content.parameter_manifest_hash"),
+    ],
     "operator-approval.json": [("signed_payload", "payload_hash")],
     "research-proposal.json": [("content", "proposal_hash")],
     "research-review.json": [("signed_payload", "payload_hash")],
@@ -285,7 +303,9 @@ def validate_markdown_links(root: Path) -> dict[str, Any]:
                 continue
             count += 1
             path_text, separator, fragment = target.partition("#")
-            target_path = source if not path_text else (source.parent / unquote(path_text)).resolve()
+            target_path = (
+                source if not path_text else (source.parent / unquote(path_text)).resolve()
+            )
             try:
                 target_path.relative_to(root.resolve())
             except ValueError:
@@ -434,7 +454,9 @@ def main() -> int:
         "checks": checks,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    args.output.write_text(
+        json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0 if failure_count == 0 else 1
 

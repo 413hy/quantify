@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0.0",
+  "decision_hash": "0933fcb8dc199311b78477e37566200bf04e2b69dc84f31da5adb83ceb6bd808",
+  "content": {
+    "selection_id": "018f53c0-1234-7abc-8def-123456789031",
+    "iteration_cycle_id": "2026-08",
+    "attempt_id": "018f53c0-1234-7abc-8def-123456789030",
+    "created_at": "2026-08-01T03:10:25Z",
+    "provider": "OPENAI_CODEX",
+    "selector_model": "gpt-5.6-sol",
+    "selector_reasoning_effort": "medium",
+    "selected_model": "gpt-5.6-sol",
+    "selected_reasoning_effort": "high",
+    "catalog_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "catalog_checked_at": "2026-08-01T03:10:01Z",
+    "catalog_valid_until": "2026-08-01T04:10:01Z",
+    "task_manifest_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "task_complexity": "VERY_HIGH",
+    "estimated_input_tokens": 180000,
+    "estimated_output_tokens": 24000,
+    "selection_reason_codes": ["MULTI_STAGE_RESEARCH", "HIGH_VALUE_DECISION", "TOOL_AND_EVIDENCE_SYNTHESIS"],
+    "ranked_candidates": [
+      {
+        "rank": 1,
+        "model": "gpt-5.6-sol",
+        "reasoning_effort": "high",
+        "suitability_score": "96.5",
+        "reason_codes": ["BEST_COMPLEX_REASONING_FIT"]
+      },
+      {
+        "rank": 2,
+        "model": "gpt-5.6-terra",
+        "reasoning_effort": "high",
+        "suitability_score": "88",
+        "reason_codes": ["STRONG_GENERAL_REASONING"]
+      }
+    ],
+    "quota_visibility": "UNKNOWN",
+    "selected_quota_status": "UNKNOWN",
+    "selected_model_available": true,
+    "session_isolation": {
+      "analysis_run_id": "018f53c0-1234-7abc-8def-123456789032",
+      "thread_id": "018f53c0-1234-7abc-8def-123456789033",
+      "workspace_manifest_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "prompt_input_manifest_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "ephemeral": true,
+      "resume_used": false,
+      "history_or_transcript_input": false,
+      "memory_input": false
+    }
+  }
+}

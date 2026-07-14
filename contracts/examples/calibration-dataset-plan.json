@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0.0",
+  "plan_hash": "59002c5b6c7bcbedcae0daf758ec65addc9f37ceebf27c8a3c17b5ea3bb80e85",
+  "content": {
+    "plan_id": "8a8a8a8a-8a8a-4a8a-8a8a-8a8a8a8a8a81",
+    "dataset_id": "calibration-20260713-001",
+    "created_at": "2026-07-12T23:10:00Z",
+    "purpose": "CALIBRATION_3D",
+    "market_source": "BINANCE_PRODUCTION_PUBLIC",
+    "earliest_t0": "2026-07-13T00:00:00Z",
+    "t0_resolution": "FIRST_CONTINUOUS_QUALIFIED_INSTANT_AT_OR_AFTER_EARLIEST_T0",
+    "duration_hours": 72,
+    "collector_release_manifest_hash": "1010101010101010101010101010101010101010101010101010101010101010",
+    "quality_profile_hash": "48034cde52174a109868e05a87922e6614b3f63ec699697e399949a6c0314c35",
+    "of_search_plan_hash": "99937c29ae83d6548c732c5890d240e3e12aaa02b45b9555d746421a754d2b24",
+    "price_action_schema_hash": "d2305132fb4bfc4752bc1f5b889ee5ecb4344e0dbdafb1b744a5612e3577df63",
+    "price_action_config_hash": "69f9f2c78c7079b1eefa5a20b88aafdf9d7bda2b50ff4b800d4e4629dceaa9d5",
+    "universe_config_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+    "selection_controls": {
+      "performance_based_selection": false,
+      "manual_t0_override": false,
+      "post_t0_rule_relaxation": false,
+      "future_data_access": false,
+      "retain_all_attempted_windows": true
+    },
+    "failure_policy": {
+      "failed_window_disposition": "RETAIN_WITH_FAILURE_EVIDENCE",
+      "next_attempt": "NEW_PLAN_AND_NEW_DATASET_ID",
+      "dataset_id_reuse": false,
+      "partial_window_reuse": false
+    }
+  },
+  "plan_signature": {
+    "algorithm": "Ed25519",
+    "key_id": "calibration-plan-owner-2026q3",
+    "signed_at": "2026-07-12T23:15:00Z",
+    "signature_ref": "signatures/calibration-dataset-plan.sig"
+  },
+  "registration": {
+    "payload_hash": "71f8a7253a37bf8a49db549bf3c789b91d92c4d95029733a717358b87c3b1cfe",
+    "signed_payload": {
+      "receipt_id": "8a8a8a8a-8a8a-4a8a-8a8a-8a8a8a8a8a82",
+      "plan_hash": "59002c5b6c7bcbedcae0daf758ec65addc9f37ceebf27c8a3c17b5ea3bb80e85",
+      "registered_at": "2026-07-12T23:30:00Z",
+      "registrar_id": "independent-audit-registry",
+      "nonce": "cal-plan-reg-20260712-0001"
+    },
+    "signature": {
+      "algorithm": "Ed25519",
+      "key_id": "calibration-registry-2026q3",
+      "signed_at": "2026-07-12T23:30:05Z",
+      "signature_ref": "signatures/calibration-dataset-registration.sig"
+    }
+  }
+}

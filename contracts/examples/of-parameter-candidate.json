@@ -1,0 +1,107 @@
+{
+  "schema_version": "1.0.0",
+  "candidate_hash": "f376b08f4d895a75cea62794d9993064a564e4c70c4a19e117658585759d85e0",
+  "content": {
+    "candidate_id": "89898989-8989-4989-8989-898989898981",
+    "created_at": "2026-07-16T00:30:00Z",
+    "output_label": "UNVALIDATED_HIGH_OVERFIT_RISK",
+    "parameter_set_version": "of-alpha-v1",
+    "dataset_manifest_hash": "368a6f31629a389ee0a72dd6d746708d3a2383ffb76a574f69315297c2502784",
+    "dataset_plan_hash": "59002c5b6c7bcbedcae0daf758ec65addc9f37ceebf27c8a3c17b5ea3bb80e85",
+    "of_search_plan_hash": "99937c29ae83d6548c732c5890d240e3e12aaa02b45b9555d746421a754d2b24",
+    "price_action_schema_hash": "d2305132fb4bfc4752bc1f5b889ee5ecb4344e0dbdafb1b744a5612e3577df63",
+    "price_action_config_hash": "69f9f2c78c7079b1eefa5a20b88aafdf9d7bda2b50ff4b800d4e4629dceaa9d5",
+    "optimizer_run_id": "89898989-8989-4989-8989-898989898982",
+    "optimizer_run_manifest_hash": "1616161616161616161616161616161616161616161616161616161616161616",
+    "research_evidence_hash": "1717171717171717171717171717171717171717171717171717171717171717",
+    "liquidity_bucket_model_hash": "1818181818181818181818181818181818181818181818181818181818181818",
+    "parameter_manifest_hash": "ffd0157eec843c1e6736f15fe1183c00f41d496ff337410c1e455dca19b031b5",
+    "parameters": {
+      "global": {
+        "of_window_short_ms": 500,
+        "of_window_medium_ms": 3000,
+        "of_window_long_ms": 15000,
+        "book_depth_levels": 20,
+        "continuation_hold_ms": 1200,
+        "refill_window_ms": 1000,
+        "minimum_confirmation_components": 4,
+        "signal_cooldown_ms": 2000
+      },
+      "by_liquidity_bucket": {
+        "LOW": {
+          "book_imbalance_threshold": "0.15",
+          "microprice_confirmation_bps": "0.50",
+          "trade_imbalance_threshold": "0.20",
+          "cvd_slope_threshold": "0.30",
+          "aggressive_notional_quantile": "0.70",
+          "sweep_intensity_threshold": "0.50",
+          "swept_levels_min": 2,
+          "maximum_sweep_retrace_ratio": "0.70",
+          "absorption_score_threshold": "1.50",
+          "absorption_max_move_bps": "3.00",
+          "refill_ratio_threshold": "0.50",
+          "reversal_trade_imbalance_threshold": "0.20"
+        },
+        "MEDIUM": {
+          "book_imbalance_threshold": "0.20",
+          "microprice_confirmation_bps": "0.70",
+          "trade_imbalance_threshold": "0.25",
+          "cvd_slope_threshold": "0.40",
+          "aggressive_notional_quantile": "0.75",
+          "sweep_intensity_threshold": "0.70",
+          "swept_levels_min": 3,
+          "maximum_sweep_retrace_ratio": "0.60",
+          "absorption_score_threshold": "2.00",
+          "absorption_max_move_bps": "2.50",
+          "refill_ratio_threshold": "0.70",
+          "reversal_trade_imbalance_threshold": "0.25"
+        },
+        "HIGH": {
+          "book_imbalance_threshold": "0.25",
+          "microprice_confirmation_bps": "1.00",
+          "trade_imbalance_threshold": "0.30",
+          "cvd_slope_threshold": "0.50",
+          "aggressive_notional_quantile": "0.80",
+          "sweep_intensity_threshold": "0.90",
+          "swept_levels_min": 4,
+          "maximum_sweep_retrace_ratio": "0.50",
+          "absorption_score_threshold": "2.50",
+          "absorption_max_move_bps": "2.00",
+          "refill_ratio_threshold": "0.90",
+          "reversal_trade_imbalance_threshold": "0.30"
+        }
+      }
+    },
+    "trial_summary": {
+      "planned": 2000,
+      "executed": 2000,
+      "completed": 1960,
+      "failed": 40,
+      "pruned": 0,
+      "all_trials_retained": true,
+      "trial_ledger_hash": "1919191919191919191919191919191919191919191919191919191919191919"
+    },
+    "selection": {
+      "selected_trial_id": "89898989-8989-4989-8989-898989898983",
+      "primary_objective": "NET_EXPECTANCY_AFTER_ALL_COSTS",
+      "primary_value": "0.0012",
+      "selected_rank": 1,
+      "candidate_evaluator_version": "candidate-evaluator-v1",
+      "candidate_evaluator_hash": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef",
+      "selection_rule": "DOCS03_SECTION_11_2_V1_DECIMAL_LEXICOGRAPHIC",
+      "selection_evidence_hash": "2020202020202020202020202020202020202020202020202020202020202020"
+    },
+    "limitations": [
+      "THREE_DAY_ALL_OF_ALPHA_OPTIMIZATION",
+      "NOT_STATISTICALLY_ROBUST",
+      "NO_PROFIT_CLAIM",
+      "EXPERIMENTAL_LIVE_UNTIL_DAY90_GATE"
+    ]
+  },
+  "signature": {
+    "algorithm": "Ed25519",
+    "key_id": "research-pipeline-2026q3",
+    "signed_at": "2026-07-16T00:35:00Z",
+    "signature_ref": "signatures/of-parameter-candidate.sig"
+  }
+}

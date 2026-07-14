@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "calibration-dataset-manifest.schema.json",
+  "title": "Calibration Dataset Manifest",
+  "description": "aiq-calibration 三日公开行情采集窗口的不可变、可签名数据集清单。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "manifest_hash", "signed_payload", "signature"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "manifest_hash": { "$ref": "#/$defs/sha256" },
+    "signed_payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dataset_id",
+        "purpose",
+        "source_project",
+        "source_environment",
+        "runtime_state",
+        "market_source",
+        "preregistration",
+        "t0_inclusive",
+        "t1_exclusive",
+        "collector",
+        "data_roots",
+        "data_quality",
+        "remote_verification",
+        "project_seal_hash",
+        "created_at"
+      ],
+      "properties": {
+        "dataset_id": { "$ref": "#/$defs/id" },
+        "purpose": { "const": "CALIBRATION_3D" },
+        "source_project": { "const": "aiq-calibration" },
+        "source_environment": { "const": "shadow" },
+        "runtime_state": { "const": "SHADOW" },
+        "market_source": { "const": "BINANCE_PRODUCTION_PUBLIC" },
+        "preregistration": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "dataset_plan_hash", "dataset_plan_signature_hash", "registration_payload_hash",
+            "registration_signature_hash", "registered_at", "of_search_plan_hash",
+            "of_search_plan_signed_at", "of_search_plan_signature_hash", "price_action_schema_hash",
+            "price_action_config_hash", "price_action_signed_at", "price_action_signature_hash",
+            "quality_profile_hash", "collector_release_manifest_hash", "universe_config_hash"
+          ],
+          "properties": {
+            "dataset_plan_hash": { "$ref": "#/$defs/sha256" },
+            "dataset_plan_signature_hash": { "$ref": "#/$defs/sha256" },
+            "registration_payload_hash": { "$ref": "#/$defs/sha256" },
+            "registration_signature_hash": { "$ref": "#/$defs/sha256" },
+            "registered_at": { "type": "string", "format": "date-time" },
+            "of_search_plan_hash": { "$ref": "#/$defs/sha256" },
+            "of_search_plan_signed_at": { "type": "string", "format": "date-time" },
+            "of_search_plan_signature_hash": { "$ref": "#/$defs/sha256" },
+            "price_action_schema_hash": { "$ref": "#/$defs/sha256" },
+            "price_action_config_hash": { "$ref": "#/$defs/sha256" },
+            "price_action_signed_at": { "type": "string", "format": "date-time" },
+            "price_action_signature_hash": { "$ref": "#/$defs/sha256" },
+            "quality_profile_hash": { "$ref": "#/$defs/sha256" },
+            "collector_release_manifest_hash": { "$ref": "#/$defs/sha256" },
+            "universe_config_hash": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "t0_inclusive": { "type": "string", "format": "date-time" },
+        "t1_exclusive": { "type": "string", "format": "date-time" },
+        "collector": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["release_id", "collector_release_manifest_hash", "universe_config_hash", "git_commit", "image_manifest_hash", "config_manifest_hash", "schema_bundle_hash"],
+          "properties": {
+            "release_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+            "collector_release_manifest_hash": { "$ref": "#/$defs/sha256" },
+            "universe_config_hash": { "$ref": "#/$defs/sha256" },
+            "git_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+            "image_manifest_hash": { "$ref": "#/$defs/sha256" },
+            "config_manifest_hash": { "$ref": "#/$defs/sha256" },
+            "schema_bundle_hash": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "data_roots": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["full_market_lightweight_root", "universe_snapshot_root", "l2_root", "daily_manifest_root"],
+          "properties": {
+            "full_market_lightweight_root": { "$ref": "#/$defs/sha256" },
+            "universe_snapshot_root": { "$ref": "#/$defs/sha256" },
+            "l2_root": { "$ref": "#/$defs/sha256" },
+            "daily_manifest_root": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "data_quality": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "rules_hash", "report_hash", "failed_reason_codes"],
+          "properties": {
+            "status": { "enum": ["QUALIFIED", "FAILED"] },
+            "rules_hash": { "$ref": "#/$defs/sha256" },
+            "report_hash": { "$ref": "#/$defs/sha256" },
+            "failed_reason_codes": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{2,79}$" }
+            }
+          }
+        },
+        "remote_verification": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["all_objects_remote_verified", "receipt_root_hash"],
+          "properties": {
+            "all_objects_remote_verified": { "type": "boolean" },
+            "receipt_root_hash": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "project_seal_hash": { "$ref": "#/$defs/sha256" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "data_quality": { "properties": { "status": { "const": "QUALIFIED" } }, "required": ["status"] } }, "required": ["data_quality"] },
+          "then": {
+            "properties": {
+              "data_quality": { "properties": { "failed_reason_codes": { "maxItems": 0 } } },
+              "remote_verification": { "properties": { "all_objects_remote_verified": { "const": true } } }
+            }
+          },
+          "else": { "properties": { "data_quality": { "properties": { "failed_reason_codes": { "minItems": 1 } } } } }
+        }
+      ]
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "key_id", "value_base64", "signed_at"],
+      "properties": {
+        "algorithm": { "const": "Ed25519" },
+        "key_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "value_base64": { "type": "string", "pattern": "^[A-Za-z0-9+/]{86}==$" },
+        "signed_at": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{8,128}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

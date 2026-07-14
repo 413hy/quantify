@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant.local/config/risk.schema.json",
+  "title": "Risk Configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "config_status", "currency", "risk_multiplier", "hard_caps", "configured_limits", "loss_streak", "initial_live", "position_sizing", "native_protection", "kill_switch"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "config_status": { "enum": ["APPROVED_BASELINE", "SIGNED_OVERRIDE"] },
+    "currency": { "const": "USDT" },
+    "risk_multiplier": { "enum": ["0.10", "0.50", "1.00"] },
+    "hard_caps": { "$ref": "#/$defs/hardCaps" },
+    "configured_limits": { "$ref": "#/$defs/configuredLimits" },
+    "loss_streak": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pause_after_net_losses", "pause_seconds", "manual_review_after_utc_day_losses"],
+      "properties": {
+        "pause_after_net_losses": { "const": 5 },
+        "pause_seconds": { "const": 3600 },
+        "manual_review_after_utc_day_losses": { "const": 8 }
+      }
+    },
+    "initial_live": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["duration_hours", "multiplier", "post_window_multiplier", "automatic_promotion", "local_cli_signature_required"],
+      "properties": {
+        "duration_hours": { "const": 24 },
+        "multiplier": { "const": "0.10" },
+        "post_window_multiplier": { "const": "1.00" },
+        "automatic_promotion": { "const": false },
+        "local_cli_signature_required": { "const": true }
+      }
+    },
+    "position_sizing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["numeric_type", "round_quantity_down", "use_current_exchange_filters", "include_fees_slippage_funding"],
+      "properties": {
+        "numeric_type": { "const": "DECIMAL" },
+        "round_quantity_down": { "const": true },
+        "use_current_exchange_filters": { "const": true },
+        "include_fees_slippage_funding": { "const": true }
+      }
+    },
+    "native_protection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["transport", "rest_endpoint", "algo_type", "stop_order_type", "working_type", "price_protect", "coverage_mode", "algo_status_mapping_version", "exchange_rules_binding", "confirmation_timeout_ms"],
+      "properties": {
+        "transport": { "const": "ALGO" },
+        "rest_endpoint": { "const": "/fapi/v1/algoOrder" },
+        "algo_type": { "const": "CONDITIONAL" },
+        "stop_order_type": { "const": "STOP_MARKET" },
+        "working_type": { "enum": ["MARK_PRICE", "CONTRACT_PRICE"] },
+        "price_protect": { "type": "boolean" },
+        "coverage_mode": { "enum": ["CLOSE_POSITION", "REDUCE_ONLY_QUANTITY"] },
+        "algo_status_mapping_version": { "const": "binance-um-algo-v1" },
+        "exchange_rules_binding": { "const": "EXCHANGE_INFO_VERSION_AT_SUBMISSION" },
+        "confirmation_timeout_ms": { "const": 1000 }
+      }
+    },
+    "kill_switch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fail_closed", "unknown_order_state", "account_mismatch", "protection_missing", "transient_data_fault", "data_fault_and_protection_unhealthy"],
+      "properties": {
+        "fail_closed": { "const": true },
+        "unknown_order_state": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["reconcile_timeout_seconds", "during_timeout", "after_timeout", "systemic_scope"],
+          "properties": {
+            "reconcile_timeout_seconds": { "const": 5 },
+            "during_timeout": { "const": "FREEZE_SYMBOL_AND_RECONCILE" },
+            "after_timeout": { "const": "REDUCE_ONLY_FLATTEN_SYMBOL" },
+            "systemic_scope": { "const": "GLOBAL_RISK_LOCK" }
+          }
+        },
+        "account_mismatch": { "const": "CANCEL_AND_REDUCE_ONLY_FLATTEN" },
+        "protection_missing": { "const": "CANCEL_AND_REDUCE_ONLY_FLATTEN" },
+        "transient_data_fault": { "const": "PAUSE_NEW_ENTRIES_KEEP_NATIVE_PROTECTION" },
+        "data_fault_and_protection_unhealthy": { "const": "REDUCE_ONLY_FLATTEN" }
+      }
+    }
+  },
+  "$defs": {
+    "decimalPct": { "type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]{1,4})?$" },
+    "hardCaps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["per_trade_initial_stop_pct", "total_open_risk_pct", "correlation_cluster_risk_pct", "utc_daily_net_loss_pct", "intraday_equity_drawdown_pct", "effective_leverage", "concurrent_positions"],
+      "properties": {
+        "per_trade_initial_stop_pct": { "const": "0.50" },
+        "total_open_risk_pct": { "const": "2.00" },
+        "correlation_cluster_risk_pct": { "const": "1.00" },
+        "utc_daily_net_loss_pct": { "const": "4.00" },
+        "intraday_equity_drawdown_pct": { "const": "5.00" },
+        "effective_leverage": { "const": "10.00" },
+        "concurrent_positions": { "const": 10 }
+      }
+    },
+    "configuredLimits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["per_trade_initial_stop_pct", "total_open_risk_pct", "correlation_cluster_risk_pct", "utc_daily_net_loss_pct", "intraday_equity_drawdown_pct", "effective_leverage", "concurrent_positions"],
+      "properties": {
+        "per_trade_initial_stop_pct": { "type": "string", "pattern": "^(0|0\\.[0-4][0-9]{0,3}|0\\.5(?:0{0,3})?)$", "x-quant-decimalMaximum": "0.50" },
+        "total_open_risk_pct": { "type": "string", "pattern": "^(0|[01](?:\\.[0-9]{1,4})?|2(?:\\.0{1,4})?)$", "x-quant-decimalMaximum": "2.00" },
+        "correlation_cluster_risk_pct": { "type": "string", "pattern": "^(0|0\\.[0-9]{1,4}|1(?:\\.0{1,4})?)$", "x-quant-decimalMaximum": "1.00" },
+        "utc_daily_net_loss_pct": { "type": "string", "pattern": "^(0|[0-3](?:\\.[0-9]{1,4})?|4(?:\\.0{1,4})?)$", "x-quant-decimalMaximum": "4.00" },
+        "intraday_equity_drawdown_pct": { "type": "string", "pattern": "^(0|[0-4](?:\\.[0-9]{1,4})?|5(?:\\.0{1,4})?)$", "x-quant-decimalMaximum": "5.00" },
+        "effective_leverage": { "type": "string", "pattern": "^(0|[0-9](?:\\.[0-9]{1,4})?|10(?:\\.0{1,4})?)$", "x-quant-decimalMaximum": "10.00" },
+        "concurrent_positions": { "type": "integer", "minimum": 0, "maximum": 10 }
+      }
+    }
+  }
+}

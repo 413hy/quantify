@@ -1,0 +1,110 @@
+schema_version: 1.0.0
+parameter_set_version: pa-v1
+baseline_origin: UNVALIDATED_ENGINEERING_BASELINE
+reference_policy:
+  binance_normalized_units_only: true
+  copied_reference_market_parameters: false
+  optimized_in_calibration_3d: false
+  mutable_after_oos_start: false
+evaluation:
+  context_timeframe: 5m
+  structure_timeframe: 1m
+  closed_bars_only: true
+  regime_precedence: [INVALID, TREND, RANGE, TRANSITION]
+  conflict_result: NO_TRADE
+atr:
+  period_1m_bars: 14
+  period_5m_bars: 14
+  smoothing: SMA_TRUE_RANGE
+swings:
+  left_1m_bars: 2
+  right_1m_bars: 2
+  left_5m_bars: 2
+  right_5m_bars: 2
+  minimum_confirmed_swings_for_structure: 4
+  equal_price_tolerance_atr: '0.10'
+trend:
+  efficiency_lookback_1m_bars: 20
+  efficiency_lookback_5m_bars: 12
+  minimum_efficiency_ratio_1m: '0.30'
+  minimum_efficiency_ratio_5m: '0.35'
+  slope_lookback_1m_bars: 10
+  slope_lookback_5m_bars: 6
+  minimum_abs_slope_atr_per_bar_1m: '0.05'
+  minimum_abs_slope_atr_per_bar_5m: '0.05'
+  required_confirmed_swing_pairs: 2
+range:
+  lookback_1m_bars: 60
+  lookback_5m_bars: 48
+  minimum_touches_per_side: 2
+  boundary_tolerance_atr: '0.20'
+  boundary_tolerance_bps_cap: '8.00'
+  minimum_width_atr: '1.50'
+  maximum_efficiency_ratio: '0.25'
+  middle_band_fraction: '0.50'
+compression:
+  short_atr_period_bars: 6
+  long_atr_period_bars: 24
+  maximum_short_to_long_atr_ratio: '0.65'
+  width_lookback_bars: 20
+  maximum_width_atr: '2.00'
+vwap:
+  anchor: UTC_SESSION
+  price_source: HLC3
+  reset_timezone: UTC
+breakout:
+  minimum_close_distance_atr: '0.20'
+  minimum_close_distance_bps: '2.00'
+  confirmation_closed_bars: 1
+  maximum_close_back_inside_atr: '0.10'
+  maximum_confirmation_bars: 2
+pullback:
+  minimum_impulse_retrace_ratio: '0.20'
+  maximum_impulse_retrace_ratio: '0.70'
+  value_zone_tolerance_atr: '0.30'
+  maximum_structure_anchor_distance_atr: '0.50'
+  minimum_rejection_wick_to_body_ratio: '0.50'
+  confirmation_closed_bars: 1
+retest:
+  boundary_tolerance_atr: '0.25'
+  maximum_age_1m_bars: 5
+  rejection_closed_bars: 1
+  minimum_close_reclaim_atr: '0.05'
+setups:
+  enabled:
+    - T1_TREND_PULLBACK_CONTINUATION
+    - B1_BREAKOUT_FOLLOW_THROUGH
+    - B2_BREAK_RETEST
+    - R1_RANGE_EDGE_REJECTION
+  arm_expiry_1m_bars: 2
+  signal_validity_ms: 1000
+  maximum_holding_seconds: 900
+  maximum_scale_in_count: 2
+  minimum_range_width_to_total_cost_ratio: '2.00'
+invalidation:
+  closed_bar_structure_break: true
+  context_bias_reversal: true
+  arm_expiry: true
+  data_unhealthy: true
+  pa_of_direction_conflict: true
+algorithm_semantics:
+  swing_tie_break: STRICT_LEFT_NONSTRICT_RIGHT_LEFTMOST
+  dual_swing_resolution: LARGER_ATR_NORMALIZED_PROMINENCE_ELSE_NONE
+  structure_pairing: CHRONOLOGICAL_ALTERNATION_KEEP_MORE_EXTREME
+  range_clustering: CHRONOLOGICAL_FIRST_ANCHOR_GREEDY_THEN_MEDIAN
+  compression_timeframe: 1m
+  breakout_count_origin: INCLUDE_FIRST_BREAK_BAR
+  value_zone_match: OR_NEAREST_SWING_THEN_VWAP
+  setup_conflict: NO_TRADE
+  fusion_table_version: PA_FUSION_TABLE_V1
+numeric_semantics:
+  numeric_type: DECIMAL
+  decimal_context_precision: 34
+  rounding: ROUND_HALF_EVEN
+  intermediate_quantization: NONE
+  output_decimal_places: 18
+  comparison_uses_unrounded: true
+  comparison_boundary: INCLUSIVE
+  invalid_feature_result: NO_TRADE
+  division_by_zero_result: INVALID
+  tie_break: NO_TRADE

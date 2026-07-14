@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0.0",
+  "message_type": "ExchangeRateLimitObservation",
+  "message_id": "rate-limit-observation-0001",
+  "occurred_at": "2026-07-13T00:00:00.050Z",
+  "caller_service": "binance-egress-gateway",
+  "caller_instance_id": "egress-gateway-01",
+  "correlation_id": "host-bootstrap-correlation-0001",
+  "permit_id": "rate-permit-exchange-info-0001",
+  "endpoint_authority": "BINANCE_PRODUCTION_FAPI",
+  "endpoint_id": "REST_UM_EXCHANGE_INFO",
+  "raw_response_hash": "8383838383838383838383838383838383838383838383838383838383838383",
+  "tls_peer_certificate_hash": "8282828282828282828282828282828282828282828282828282828282828282",
+  "exchange_info_server_time_observation_id": "rate-time-observation-0001",
+  "normalized_rate_limits": [
+    { "rate_limit_type": "REQUEST_WEIGHT", "interval": "MINUTE", "interval_num": 1, "interval_seconds": 60, "limit": 2400 },
+    { "rate_limit_type": "ORDERS", "interval": "SECOND", "interval_num": 10, "interval_seconds": 10, "limit": 300 }
+  ],
+  "gateway_boot_id": "gateway-boot-20260713-0001",
+  "gateway_monotonic_ns": 123486789000,
+  "fencing_epoch": 7
+}

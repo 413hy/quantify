@@ -1,0 +1,127 @@
+{
+  "schema_version": "1.0.0",
+  "bundle_hash": "71559bda19e764e114d3d60a8c806255be786aa00426af1a5a99c5d2ebd33e87",
+  "content": {
+    "bundle_id": "rate-capability-trust-2026q3",
+    "bundle_status": "UNVALIDATED_ENGINEERING_BASELINE",
+    "issued_at": "2026-07-13T00:00:00Z",
+    "valid_until": "2026-10-01T00:00:00Z",
+    "issuers": [
+      {
+        "issuer": "MARKET_DATA_AUTHORITY",
+        "key_id": "market-data-capability-2026q3",
+        "public_key_base64": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+        "private_key_holder_service": "realtime-engine",
+        "allowed_operation_classes": ["MARKET_DATA_SNAPSHOT"],
+        "allowed_subject_services": ["realtime-engine"],
+        "allowed_endpoint_authorities": ["BINANCE_PRODUCTION_FAPI", "BINANCE_PRODUCTION_FSTREAM"],
+        "allowed_environments": ["shadow", "paper", "production"],
+        "not_before": "2026-07-13T00:00:00Z",
+        "not_after": "2026-10-01T00:00:00Z"
+      },
+      {
+        "issuer": "RISK_AUTHORITY",
+        "key_id": "risk-capability-2026q3",
+        "public_key_base64": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=",
+        "private_key_holder_service": "realtime-engine",
+        "allowed_operation_classes": ["NORMAL_ENTRY", "NORMAL_EXIT", "PROTECTION_CREATE_REPLACE", "CANCEL", "EMERGENCY_REDUCE_ONLY"],
+        "allowed_subject_services": ["execution-service"],
+        "allowed_endpoint_authorities": ["BINANCE_PRODUCTION_FAPI"],
+        "allowed_environments": ["production"],
+        "not_before": "2026-07-13T00:00:00Z",
+        "not_after": "2026-10-01T00:00:00Z"
+      },
+      {
+        "issuer": "CONTROL_AUTHORITY",
+        "key_id": "control-capability-2026q3",
+        "public_key_base64": "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE=",
+        "private_key_holder_service": "control-service",
+        "allowed_operation_classes": ["CANCEL", "EMERGENCY_REDUCE_ONLY"],
+        "allowed_subject_services": ["execution-service"],
+        "allowed_endpoint_authorities": ["BINANCE_PRODUCTION_FAPI"],
+        "allowed_environments": ["production"],
+        "not_before": "2026-07-13T00:00:00Z",
+        "not_after": "2026-10-01T00:00:00Z"
+      },
+      {
+        "issuer": "RECONCILIATION_AUTHORITY",
+        "key_id": "reconciliation-capability-2026q3",
+        "public_key_base64": "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF=",
+        "private_key_holder_service": "control-service",
+        "allowed_operation_classes": ["RECONCILIATION"],
+        "allowed_subject_services": ["execution-service"],
+        "allowed_endpoint_authorities": ["BINANCE_PRODUCTION_FAPI"],
+        "allowed_environments": ["production"],
+        "not_before": "2026-07-13T00:00:00Z",
+        "not_after": "2026-10-01T00:00:00Z"
+      },
+      {
+        "issuer": "USER_STREAM_AUTHORITY",
+        "key_id": "user-stream-capability-2026q3",
+        "public_key_base64": "GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG=",
+        "private_key_holder_service": "control-service",
+        "allowed_operation_classes": ["USER_STREAM_MAINTENANCE"],
+        "allowed_subject_services": ["execution-service"],
+        "allowed_endpoint_authorities": ["BINANCE_PRODUCTION_FAPI", "BINANCE_PRODUCTION_FSTREAM"],
+        "allowed_environments": ["production"],
+        "not_before": "2026-07-13T00:00:00Z",
+        "not_after": "2026-10-01T00:00:00Z"
+      },
+      {
+        "issuer": "HOST_BOOTSTRAP_AUTHORITY",
+        "key_id": "host-bootstrap-capability-2026q3",
+        "public_key_base64": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC=",
+        "private_key_holder_service": "host-bootstrap-runner",
+        "allowed_operation_classes": ["HOST_RATE_CONTROL"],
+        "allowed_subject_services": ["host-bootstrap-runner"],
+        "allowed_endpoint_authorities": ["BINANCE_PRODUCTION_FAPI"],
+        "allowed_environments": ["shadow", "paper", "production"],
+        "not_before": "2026-07-13T00:00:00Z",
+        "not_after": "2026-10-01T00:00:00Z"
+      },
+      {
+        "issuer": "TESTNET_PROBE_AUTHORITY",
+        "key_id": "testnet-probe-capability-2026q3",
+        "public_key_base64": "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD=",
+        "private_key_holder_service": "testnet-probe-runner",
+        "allowed_operation_classes": ["HOST_RATE_CONTROL", "MARKET_DATA_SNAPSHOT", "USER_STREAM_MAINTENANCE", "NORMAL_ENTRY", "NORMAL_EXIT", "PROTECTION_CREATE_REPLACE", "CANCEL", "RECONCILIATION"],
+        "allowed_subject_services": ["testnet-probe-runner"],
+        "allowed_endpoint_authorities": ["BINANCE_TESTNET_FAPI", "BINANCE_TESTNET_FSTREAM"],
+        "allowed_environments": ["testnet"],
+        "not_before": "2026-07-13T00:00:00Z",
+        "not_after": "2026-10-01T00:00:00Z"
+      }
+    ],
+    "attestation_signers": [
+      {
+        "purpose": "HOST_RATE_STARTUP_EVIDENCE",
+        "key_id": "host-attestation-2026q3",
+        "public_key_base64": "HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH=",
+        "private_key_holder_service": "host-attestation-signer",
+        "holder_uid": 11007,
+        "holder_gid": 11007,
+        "payload": "RFC8785_JCS_UTF8_OF_CONTENT_THEN_SHA256_DIGEST_SIGNED_BY_ED25519",
+        "max_evidence_ttl_seconds": 300,
+        "refresh_before_expiry_seconds": 60,
+        "not_before": "2026-07-13T00:00:00Z",
+        "not_after": "2026-10-01T00:00:00Z",
+        "rotation_overlap_seconds": 3600,
+        "revoked": false
+      }
+    ],
+    "caller_acl": [
+      { "service": "realtime-engine", "allowed_peer_uids": [11001], "allowed_peer_gids": [11001], "allowed_issuers": ["MARKET_DATA_AUTHORITY"], "allowed_endpoint_authorities": ["BINANCE_PRODUCTION_FAPI", "BINANCE_PRODUCTION_FSTREAM"], "allowed_environments": ["shadow", "paper", "production"] },
+      { "service": "execution-service", "allowed_peer_uids": [11002], "allowed_peer_gids": [11002], "allowed_issuers": ["RISK_AUTHORITY", "CONTROL_AUTHORITY", "RECONCILIATION_AUTHORITY", "USER_STREAM_AUTHORITY"], "allowed_endpoint_authorities": ["BINANCE_PRODUCTION_FAPI", "BINANCE_PRODUCTION_FSTREAM"], "allowed_environments": ["production"] },
+      { "service": "host-bootstrap-runner", "allowed_peer_uids": [11003], "allowed_peer_gids": [11003], "allowed_issuers": ["HOST_BOOTSTRAP_AUTHORITY"], "allowed_endpoint_authorities": ["BINANCE_PRODUCTION_FAPI"], "allowed_environments": ["shadow", "paper", "production"] },
+      { "service": "testnet-probe-runner", "allowed_peer_uids": [11004], "allowed_peer_gids": [11004], "allowed_issuers": ["TESTNET_PROBE_AUTHORITY"], "allowed_endpoint_authorities": ["BINANCE_TESTNET_FAPI", "BINANCE_TESTNET_FSTREAM"], "allowed_environments": ["testnet"] }
+    ],
+    "protocol_acl": [
+      { "service": "binance-egress-gateway", "allowed_peer_uids": [11005], "allowed_peer_gids": [11005], "allowed_message_types": ["PermitConsumeRequest", "SendOutcome", "HeaderObservation", "ConnectionStateObservation", "ServerTimeObservation", "ExchangeRateLimitObservation"], "may_reserve": false, "may_sign_capability": false },
+      { "service": "rate-budget-service", "allowed_peer_uids": [11006], "allowed_peer_gids": [11006], "allowed_message_types": ["ReserveDecision", "PermitConsumeDecision"], "may_reserve": false, "may_sign_capability": false }
+    ],
+    "revoked_key_ids": [],
+    "gateway_holds_signing_key": false,
+    "unknown_identity_action": "DENY_AND_AUDIT"
+  },
+  "signature": null
+}

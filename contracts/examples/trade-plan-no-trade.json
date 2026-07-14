@@ -1,0 +1,33 @@
+{
+  "schema_version": "1.0.0",
+  "plan_hash": "e74a85887fd29a0ed8a70c18775db63d4cecb1699644aaeeebd9cd5e1219a99d",
+  "content": {
+    "plan_id": "018f53c0-1234-7abc-8def-123456789010",
+    "analysis_cycle_id": "018f53c0-1234-7abc-8def-123456789011",
+    "analysis_epoch": "2026-07-14T12:30:00Z",
+    "engine": "CODEX_PRIMARY",
+    "model": "gpt-5.6",
+    "reasoning_effort": "medium",
+    "created_at": "2026-07-14T12:30:40Z",
+    "expires_at": "2026-07-14T12:31:40Z",
+    "context_id": "018f53c0-1234-7abc-8def-123456789001",
+    "context_hash": "18fec2259d7de458ca74ca11168d29f1f5c1b2a91c2aa59458b3f81d2750421b",
+    "strategy_version": "champion-20260714-v1",
+    "strategy_package_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+    "knowledge_refs": ["kb:pyta/order-flow/imbalance-v1#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
+    "tool_evidence": [
+      {
+        "tool_name": "get_market_context",
+        "request_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "response_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "completed_at": "2026-07-14T12:30:05Z"
+      }
+    ],
+    "decision": "NO_TRADE",
+    "symbol": null,
+    "binance_parameters": null,
+    "risk_request": null,
+    "market_revalidation": null,
+    "reason_codes": ["PA_OF_CONFLICT"]
+  }
+}

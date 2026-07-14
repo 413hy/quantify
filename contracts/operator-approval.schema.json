@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant.local/contracts/operator-approval.schema.json",
+  "title": "Privileged Operator Approval",
+  "description": "本机高权限动作的一次性签名工件。payload_hash=SHA-256(RFC 8785 JCS(signed_payload))；detached signature 签署相同 JCS 字节。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "payload_hash", "signed_payload", "signature"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "payload_hash": { "$ref": "#/$defs/sha256" },
+    "signed_payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["approval_id", "action", "target_environment", "release_id", "precondition_state_hash", "strategy_package_hash", "config_hash", "image_manifest_hash", "risk_multiplier", "credential_fingerprint", "evidence_hashes", "operator_id", "issued_at", "effective_at", "expires_at", "nonce"],
+      "properties": {
+        "approval_id": { "$ref": "#/$defs/id" },
+        "action": { "enum": ["LIVE_ARM", "SET_RISK_MULTIPLIER", "RESUME_NEW_ENTRIES", "RISK_UNLOCK", "APPLY_RISK_CONFIG", "APPLY_STRATEGY_PACKAGE", "ROTATE_SECRET"] },
+        "target_environment": { "enum": ["shadow", "paper", "testnet", "production"] },
+        "release_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "precondition_state_hash": {
+          "$ref": "#/$defs/sha256",
+          "description": "挑战生成时账户、订单、持仓、保护、事故、release 与配置摘要的 JCS SHA-256"
+        },
+        "strategy_package_hash": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+        "config_hash": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+        "image_manifest_hash": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+        "risk_multiplier": { "type": ["string", "null"], "enum": ["0.10", "1.00", null] },
+        "credential_fingerprint": { "type": ["string", "null"], "minLength": 16, "maxLength": 256 },
+        "evidence_hashes": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/sha256" } },
+        "operator_id": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "issued_at": { "type": "string", "format": "date-time" },
+        "effective_at": { "type": "string", "format": "date-time", "description": "动作允许被原子消费的 UTC 时刻；语义校验 issued_at <= effective_at < expires_at。" },
+        "expires_at": { "type": "string", "format": "date-time" },
+        "nonce": { "type": "string", "minLength": 16, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "action": { "const": "LIVE_ARM" } }, "required": ["action"] },
+          "then": { "properties": { "target_environment": { "const": "production" }, "strategy_package_hash": { "$ref": "#/$defs/sha256" }, "config_hash": { "$ref": "#/$defs/sha256" }, "image_manifest_hash": { "$ref": "#/$defs/sha256" }, "risk_multiplier": { "const": "0.10" }, "credential_fingerprint": { "type": "string", "minLength": 16 } } }
+        },
+        {
+          "if": { "properties": { "action": { "const": "SET_RISK_MULTIPLIER" } }, "required": ["action"] },
+          "then": { "properties": { "target_environment": { "const": "production" }, "strategy_package_hash": { "$ref": "#/$defs/sha256" }, "config_hash": { "$ref": "#/$defs/sha256" }, "image_manifest_hash": { "$ref": "#/$defs/sha256" }, "risk_multiplier": { "const": "1.00" }, "credential_fingerprint": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "action": { "enum": ["RESUME_NEW_ENTRIES", "RISK_UNLOCK"] } }, "required": ["action"] },
+          "then": { "properties": { "strategy_package_hash": { "type": "null" }, "config_hash": { "type": "null" }, "image_manifest_hash": { "type": "null" }, "risk_multiplier": { "type": "null" }, "credential_fingerprint": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "action": { "const": "APPLY_RISK_CONFIG" } }, "required": ["action"] },
+          "then": { "properties": { "strategy_package_hash": { "type": "null" }, "config_hash": { "$ref": "#/$defs/sha256" }, "image_manifest_hash": { "type": "null" }, "risk_multiplier": { "type": "null" }, "credential_fingerprint": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "action": { "const": "APPLY_STRATEGY_PACKAGE" } }, "required": ["action"] },
+          "then": { "properties": { "strategy_package_hash": { "$ref": "#/$defs/sha256" }, "config_hash": { "$ref": "#/$defs/sha256" }, "image_manifest_hash": { "$ref": "#/$defs/sha256" }, "risk_multiplier": { "type": "null" }, "credential_fingerprint": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "action": { "const": "ROTATE_SECRET" } }, "required": ["action"] },
+          "then": { "properties": { "strategy_package_hash": { "type": "null" }, "config_hash": { "type": "null" }, "image_manifest_hash": { "type": "null" }, "risk_multiplier": { "type": "null" }, "credential_fingerprint": { "type": "string", "minLength": 16 } } }
+        }
+      ]
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "key_id", "signature_ref"],
+      "properties": {
+        "algorithm": { "const": "Ed25519" },
+        "key_id": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "signature_ref": { "$ref": "#/$defs/safeRelativeSigPath" }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|[0-9A-HJKMNP-TV-Z]{26})$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "safeRelativeSigPath": { "type": "string", "maxLength": 300, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*\\.sig$" }
+  }
+}

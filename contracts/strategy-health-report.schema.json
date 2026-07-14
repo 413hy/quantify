@@ -1,0 +1,200 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "strategy-health-report.schema.json",
+  "title": "Short-Horizon Strategy Health Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "report_hash", "content"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "report_hash": { "$ref": "#/$defs/sha256" },
+    "content": { "$ref": "#/$defs/content" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "dateTime": { "type": "string", "format": "date-time" },
+    "decimal": { "type": "string", "pattern": "^(?:0|-?(?:0\\.[0-9]{0,17}[1-9]|[1-9][0-9]{0,19}(?:\\.[0-9]{0,17}[1-9])?))$" },
+    "nonNegativeDecimal": { "type": "string", "pattern": "^(?:0|0\\.[0-9]{0,17}[1-9]|[1-9][0-9]{0,19}(?:\\.[0-9]{0,17}[1-9])?)$" },
+    "funnel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["feature_ready", "pa_armed", "of_confirmed", "risk_approved", "order_accepted", "filled", "protected", "closed"],
+      "properties": {
+        "feature_ready": { "type": "integer", "minimum": 0 },
+        "pa_armed": { "type": "integer", "minimum": 0 },
+        "of_confirmed": { "type": "integer", "minimum": 0 },
+        "risk_approved": { "type": "integer", "minimum": 0 },
+        "order_accepted": { "type": "integer", "minimum": 0 },
+        "filled": { "type": "integer", "minimum": 0 },
+        "protected": { "type": "integer", "minimum": 0 },
+        "closed": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "breakdown": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["setup_type", "pa_regime", "side", "symbol", "liquidity_bucket", "entry_path", "utc_hour", "funnel"],
+      "properties": {
+        "setup_type": { "enum": ["T1_TREND_PULLBACK_CONTINUATION", "B1_BREAKOUT_FOLLOW_THROUGH", "B2_BREAK_RETEST", "R1_RANGE_EDGE_REJECTION", "ALL"] },
+        "pa_regime": { "enum": ["TREND", "RANGE", "TRANSITION", "ALL"] },
+        "side": { "enum": ["LONG", "SHORT", "ALL"] },
+        "symbol": { "type": "string", "pattern": "^(ALL|[A-Z0-9_]{2,30})$" },
+        "liquidity_bucket": { "enum": ["LOW", "MEDIUM", "HIGH", "ALL"] },
+        "entry_path": { "enum": ["MAKER_ONLY", "MAKER_THEN_TAKER", "ALL"] },
+        "utc_hour": { "type": ["integer", "null"], "minimum": 0, "maximum": 23 },
+        "funnel": { "$ref": "#/$defs/funnel" }
+      }
+    },
+    "setupCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["setup_type", "synthetic_positive_cases", "synthetic_negative_cases", "synthetic_all_passed", "natural_pa_armed", "natural_of_confirmed", "coverage_status", "full_window_replay_hash"],
+      "properties": {
+        "setup_type": { "enum": ["T1_TREND_PULLBACK_CONTINUATION", "B1_BREAKOUT_FOLLOW_THROUGH", "B2_BREAK_RETEST", "R1_RANGE_EDGE_REJECTION"] },
+        "synthetic_positive_cases": { "type": "integer", "minimum": 50 },
+        "synthetic_negative_cases": { "type": "integer", "minimum": 50 },
+        "synthetic_all_passed": { "const": true },
+        "natural_pa_armed": { "type": "integer", "minimum": 0 },
+        "natural_of_confirmed": { "type": "integer", "minimum": 0 },
+        "coverage_status": { "enum": ["OBSERVED", "NO_NATURAL_OPPORTUNITY_VERIFIED", "FAILED"] },
+        "full_window_replay_hash": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "content": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["report_id", "generated_at", "environment", "release_id", "strategy_package_hash", "window_start", "window_end", "source_manifest_hash", "event_schema_hash", "cost_model_hash", "execution_model_hash", "total_funnel", "breakdowns", "setup_coverage", "reason_code_distribution_hash", "signal_expiry_due_local_latency", "execution_quality", "cost_quality", "live_replay_parity", "drift", "gate_thresholds", "gate_decision", "blocking_reasons"],
+      "properties": {
+        "report_id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{8,128}$" },
+        "generated_at": { "$ref": "#/$defs/dateTime" },
+        "environment": { "enum": ["shadow", "paper", "testnet", "production"] },
+        "release_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "strategy_package_hash": { "$ref": "#/$defs/sha256" },
+        "window_start": { "$ref": "#/$defs/dateTime" },
+        "window_end": { "$ref": "#/$defs/dateTime" },
+        "source_manifest_hash": { "$ref": "#/$defs/sha256" },
+        "event_schema_hash": { "$ref": "#/$defs/sha256" },
+        "cost_model_hash": { "$ref": "#/$defs/sha256" },
+        "execution_model_hash": { "$ref": "#/$defs/sha256" },
+        "total_funnel": { "$ref": "#/$defs/funnel" },
+        "breakdowns": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/breakdown" } },
+        "setup_coverage": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "$ref": "#/$defs/setupCoverage" } },
+        "reason_code_distribution_hash": { "$ref": "#/$defs/sha256" },
+        "signal_expiry_due_local_latency": { "type": "integer", "minimum": 0 },
+        "execution_quality": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["maker_attempts", "maker_fills", "maker_to_taker", "partial_fills", "duplicate_orders", "unresolved_order_differences", "unprotected_positions", "ack_rtt_p95_ms", "ack_rtt_p99_ms", "slippage_p50_bps", "slippage_p95_bps", "post_fill_adverse_markout_1s_p75_bps", "post_fill_adverse_markout_5s_p75_bps"],
+          "properties": {
+            "maker_attempts": { "type": "integer", "minimum": 0 },
+            "maker_fills": { "type": "integer", "minimum": 0 },
+            "maker_to_taker": { "type": "integer", "minimum": 0 },
+            "partial_fills": { "type": "integer", "minimum": 0 },
+            "duplicate_orders": { "const": 0 },
+            "unresolved_order_differences": { "const": 0 },
+            "unprotected_positions": { "const": 0 },
+            "ack_rtt_p95_ms": { "type": "integer", "minimum": 0 },
+            "ack_rtt_p99_ms": { "type": "integer", "minimum": 0 },
+            "slippage_p50_bps": { "$ref": "#/$defs/decimal" },
+            "slippage_p95_bps": { "$ref": "#/$defs/decimal" },
+            "post_fill_adverse_markout_1s_p75_bps": { "$ref": "#/$defs/decimal" },
+            "post_fill_adverse_markout_5s_p75_bps": { "$ref": "#/$defs/decimal" }
+          }
+        },
+        "cost_quality": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["evaluations", "stale_rejections", "missing_component_rejections", "arithmetic_mismatches", "evidence_hash"],
+          "properties": {
+            "evaluations": { "type": "integer", "minimum": 0 },
+            "stale_rejections": { "type": "integer", "minimum": 0 },
+            "missing_component_rejections": { "type": "integer", "minimum": 0 },
+            "arithmetic_mismatches": { "const": 0 },
+            "evidence_hash": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "live_replay_parity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sample_count", "sampling_rule", "semantic_mismatches", "live_decision_root_hash", "replay_decision_root_hash"],
+          "properties": {
+            "sample_count": { "type": "integer", "minimum": 1 },
+            "sampling_rule": { "const": "ALL_IF_LE_1000_ELSE_DETERMINISTIC_1000_BY_EVENT_ID_HASH" },
+            "semantic_mismatches": { "const": 0 },
+            "live_decision_root_hash": { "$ref": "#/$defs/sha256" },
+            "replay_decision_root_hash": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "drift": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["baseline_hash", "maximum_reason_code_psi", "maximum_feature_psi", "warning_threshold", "blocking_threshold", "blocking_dimension_count"],
+          "properties": {
+            "baseline_hash": { "$ref": "#/$defs/sha256" },
+            "maximum_reason_code_psi": { "$ref": "#/$defs/nonNegativeDecimal" },
+            "maximum_feature_psi": { "$ref": "#/$defs/nonNegativeDecimal" },
+            "warning_threshold": { "const": "0.2" },
+            "blocking_threshold": { "const": "0.4" },
+            "blocking_dimension_count": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "gate_thresholds": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["minimum_feature_ready", "minimum_pa_armed", "minimum_of_confirmed", "minimum_risk_approved", "minimum_order_accepted", "minimum_naturally_observed_setups"],
+          "properties": {
+            "minimum_feature_ready": { "const": 20000 },
+            "minimum_pa_armed": { "const": 100 },
+            "minimum_of_confirmed": { "const": 30 },
+            "minimum_risk_approved": { "const": 20 },
+            "minimum_order_accepted": { "const": 10 },
+            "minimum_naturally_observed_setups": { "const": 2 }
+          }
+        },
+        "gate_decision": { "enum": ["PASS", "FAIL", "INSUFFICIENT_OBSERVATION"] },
+        "blocking_reasons": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 128 } }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "gate_decision": { "const": "PASS" } }, "required": ["gate_decision"] },
+          "then": {
+            "properties": {
+              "total_funnel": {
+                "properties": {
+                  "feature_ready": { "minimum": 20000 },
+                  "pa_armed": { "minimum": 100 },
+                  "of_confirmed": { "minimum": 30 },
+                  "risk_approved": { "minimum": 20 },
+                  "order_accepted": { "minimum": 10 }
+                }
+              },
+              "setup_coverage": {
+                "items": { "properties": { "coverage_status": { "enum": ["OBSERVED", "NO_NATURAL_OPPORTUNITY_VERIFIED"] } } },
+                "contains": { "properties": { "coverage_status": { "const": "OBSERVED" } }, "required": ["coverage_status"] },
+                "minContains": 2
+              },
+              "drift": { "properties": { "blocking_dimension_count": { "const": 0 } } },
+              "blocking_reasons": { "maxItems": 0 }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "gate_decision": { "enum": ["FAIL", "INSUFFICIENT_OBSERVATION"] } }, "required": ["gate_decision"] },
+          "then": { "properties": { "blocking_reasons": { "minItems": 1 } } }
+        },
+        {
+          "properties": {
+            "setup_coverage": {
+              "allOf": [
+                { "contains": { "properties": { "setup_type": { "const": "T1_TREND_PULLBACK_CONTINUATION" } }, "required": ["setup_type"] }, "minContains": 1, "maxContains": 1 },
+                { "contains": { "properties": { "setup_type": { "const": "B1_BREAKOUT_FOLLOW_THROUGH" } }, "required": ["setup_type"] }, "minContains": 1, "maxContains": 1 },
+                { "contains": { "properties": { "setup_type": { "const": "B2_BREAK_RETEST" } }, "required": ["setup_type"] }, "minContains": 1, "maxContains": 1 },
+                { "contains": { "properties": { "setup_type": { "const": "R1_RANGE_EDGE_REJECTION" } }, "required": ["setup_type"] }, "minContains": 1, "maxContains": 1 }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

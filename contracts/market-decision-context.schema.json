@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "market-decision-context.schema.json",
+  "title": "MarketDecisionContext",
+  "description": "交给策略分析器的脱敏、内容寻址、只读决策上下文。context_hash=SHA-256(RFC8785 JCS(content))。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "context_hash", "content"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "context_hash": { "$ref": "#/$defs/sha256" },
+    "content": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["context_id", "analysis_epoch", "generated_at", "valid_until", "strategy_version", "strategy_package_hash", "universe_snapshot_id", "universe_hash", "exchange_rules_hash", "cost_model_hash", "feature_schema_hash", "knowledge_index_hash", "data_health", "risk_state", "account_state", "symbols", "positions"],
+      "properties": {
+        "context_id": { "$ref": "#/$defs/id" },
+        "analysis_epoch": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:(00|30):00Z$" },
+        "generated_at": { "type": "string", "format": "date-time" },
+        "valid_until": { "type": "string", "format": "date-time" },
+        "strategy_version": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "strategy_package_hash": { "$ref": "#/$defs/sha256" },
+        "universe_snapshot_id": { "$ref": "#/$defs/id" },
+        "universe_hash": { "$ref": "#/$defs/sha256" },
+        "exchange_rules_hash": { "$ref": "#/$defs/sha256" },
+        "cost_model_hash": { "$ref": "#/$defs/sha256" },
+        "feature_schema_hash": { "$ref": "#/$defs/sha256" },
+        "knowledge_index_hash": { "$ref": "#/$defs/sha256" },
+        "data_health": { "enum": ["HEALTHY", "DEGRADED", "UNSAFE"] },
+        "risk_state": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["runtime_state", "new_entries_allowed", "risk_multiplier", "remaining_total_risk_pct", "remaining_daily_loss_pct", "open_position_count"],
+          "properties": {
+            "runtime_state": { "enum": ["SHADOW", "PAPER", "TESTNET", "EXPERIMENTAL_LIVE", "PAUSED_NEW_ENTRIES", "RISK_LOCKED"] },
+            "new_entries_allowed": { "type": "boolean" },
+            "risk_multiplier": { "enum": ["0.10", "0.50", "1.00"] },
+            "remaining_total_risk_pct": { "$ref": "#/$defs/nonNegativeDecimal" },
+            "remaining_daily_loss_pct": { "$ref": "#/$defs/nonNegativeDecimal" },
+            "open_position_count": { "type": "integer", "minimum": 0, "maximum": 10 }
+          }
+        },
+        "account_state": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["equity_bucket", "effective_leverage", "one_way_mode", "cross_margin_verified", "account_snapshot_hash"],
+          "properties": {
+            "equity_bucket": { "enum": ["MICRO", "SMALL", "MEDIUM", "LARGE"] },
+            "effective_leverage": { "$ref": "#/$defs/nonNegativeDecimal" },
+            "one_way_mode": { "const": true },
+            "cross_margin_verified": { "const": true },
+            "account_snapshot_hash": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "symbols": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 15,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["symbol", "membership", "feature_snapshot_id", "feature_hash", "market_snapshot_at", "mark_price", "spread_bps", "data_health", "pa_summary", "order_flow_summary", "cost_summary"],
+            "properties": {
+              "symbol": { "type": "string", "pattern": "^[A-Z0-9_]{2,30}$" },
+              "membership": { "enum": ["TOP10", "MANAGED_POSITION"] },
+              "feature_snapshot_id": { "$ref": "#/$defs/id" },
+              "feature_hash": { "$ref": "#/$defs/sha256" },
+              "market_snapshot_at": { "type": "string", "format": "date-time" },
+              "mark_price": { "$ref": "#/$defs/positiveDecimal" },
+              "spread_bps": { "$ref": "#/$defs/nonNegativeDecimal" },
+              "data_health": { "enum": ["HEALTHY", "WARMING_UP", "STALE", "GAP_DETECTED", "INVALID"] },
+              "pa_summary": { "type": "object", "additionalProperties": true, "maxProperties": 32 },
+              "order_flow_summary": { "type": "object", "additionalProperties": true, "maxProperties": 32 },
+              "cost_summary": { "type": "object", "additionalProperties": true, "maxProperties": 16 }
+            }
+          }
+        },
+        "positions": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["position_id", "symbol", "side", "quantity_bucket", "entry_price", "mark_price", "protection_status", "owner_strategy_version", "snapshot_hash"],
+            "properties": {
+              "position_id": { "$ref": "#/$defs/id" },
+              "symbol": { "type": "string", "pattern": "^[A-Z0-9_]{2,30}$" },
+              "side": { "enum": ["LONG", "SHORT"] },
+              "quantity_bucket": { "enum": ["TINY", "SMALL", "MEDIUM", "LARGE"] },
+              "entry_price": { "$ref": "#/$defs/positiveDecimal" },
+              "mark_price": { "$ref": "#/$defs/positiveDecimal" },
+              "protection_status": { "enum": ["VERIFIED", "MISSING", "UNKNOWN"] },
+              "owner_strategy_version": { "type": "string", "minLength": 1, "maxLength": 128 },
+              "snapshot_hash": { "$ref": "#/$defs/sha256" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|[0-9A-HJKMNP-TV-Z]{26})$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "nonNegativeDecimal": { "type": "string", "pattern": "^(?:0|0\\.[0-9]{0,17}[1-9]|[1-9][0-9]{0,19}(?:\\.[0-9]{0,17}[1-9])?)$" },
+    "positiveDecimal": { "type": "string", "pattern": "^(?:0\\.[0-9]{0,17}[1-9]|[1-9][0-9]{0,19}(?:\\.[0-9]{0,17}[1-9])?)$" }
+  }
+}

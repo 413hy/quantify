@@ -1,0 +1,56 @@
+{
+  "schema_version": "1.0.0",
+  "message_type": "ReserveRequest",
+  "message_id": "rate-msg-00000001",
+  "occurred_at": "2026-07-13T00:00:00Z",
+  "caller_service": "execution-service",
+  "caller_instance_id": "execution-instance-01",
+  "correlation_id": "rate-correlation-0001",
+  "request_key": "rate-request-00000001",
+  "environment": "production",
+  "endpoint_authority": "BINANCE_PRODUCTION_FAPI",
+  "endpoint_id": "REST_NEW_ALGO_ORDER",
+  "gateway_connection_id": null,
+  "endpoint_catalog_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "canonical_request_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+  "parameter_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+  "wire_bytes_hash": "3333333333333333333333333333333333333333333333333333333333333333",
+  "gateway_request_document_hash": "4444444444444444444444444444444444444444444444444444444444444444",
+  "operation_facts": {
+    "semantic_action": "PROTECTION_CREATE_REPLACE",
+    "transport": "REST",
+    "order_role": "STOP_LOSS",
+    "reduce_only": true,
+    "close_position": false
+  },
+  "operation_facts_hash": "5ad4286fdedc1974e53d8d2a583b588fd912203297ec8ab8284ccc894e731cc6",
+  "causal_ref_type": "ORDER_INTENT",
+  "causal_ref_id": "intent-000000000001",
+  "causal_capability": {
+    "capability_id": "rate-capability-000001",
+    "payload_hash": "72863e57ba905a86f8b099dbd05fdb1665f2b0fee0a03e97e38148f7f4c6462b",
+    "signed_payload": {
+      "capability_id": "rate-capability-000001",
+      "issuer": "RISK_AUTHORITY",
+      "subject_caller_service": "execution-service",
+      "environment": "production",
+      "allowed_operation_class": "PROTECTION_CREATE_REPLACE",
+      "endpoint_authority": "BINANCE_PRODUCTION_FAPI",
+      "endpoint_id": "REST_NEW_ALGO_ORDER",
+      "gateway_connection_id": null,
+      "canonical_request_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "operation_facts_hash": "5ad4286fdedc1974e53d8d2a583b588fd912203297ec8ab8284ccc894e731cc6",
+      "causal_ref_type": "ORDER_INTENT",
+      "causal_ref_id": "intent-000000000001",
+      "issued_at": "2026-07-12T23:59:59.900Z",
+      "expires_at": "2026-07-13T00:00:01Z",
+      "nonce": "rate-capability-nonce-000001"
+    },
+    "signature": {
+      "algorithm": "Ed25519",
+      "key_id": "risk-authority-key-2026q3",
+      "signature_base64": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+    }
+  },
+  "expected_fencing_epoch": 7
+}

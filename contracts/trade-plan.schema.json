@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "trade-plan.schema.json",
+  "title": "TradePlan",
+  "description": "策略分析器输出。plan_hash=SHA-256(RFC8785 JCS(content))；只能由独立风控和执行服务消费。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "plan_hash", "content"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "plan_hash": { "$ref": "#/$defs/sha256" },
+    "content": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plan_id", "analysis_cycle_id", "analysis_epoch", "engine", "model", "reasoning_effort", "created_at", "expires_at", "context_id", "context_hash", "strategy_version", "strategy_package_hash", "knowledge_refs", "tool_evidence", "decision", "symbol", "binance_parameters", "risk_request", "market_revalidation", "reason_codes"],
+      "properties": {
+        "plan_id": { "$ref": "#/$defs/id" },
+        "analysis_cycle_id": { "$ref": "#/$defs/id" },
+        "analysis_epoch": { "type": "string", "format": "date-time" },
+        "engine": { "enum": ["CODEX_PRIMARY", "RULE_FALLBACK"] },
+        "model": { "type": ["string", "null"], "maxLength": 64 },
+        "reasoning_effort": { "enum": ["medium", "none"] },
+        "created_at": { "type": "string", "format": "date-time" },
+        "expires_at": { "type": "string", "format": "date-time" },
+        "context_id": { "$ref": "#/$defs/id" },
+        "context_hash": { "$ref": "#/$defs/sha256" },
+        "strategy_version": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "strategy_package_hash": { "$ref": "#/$defs/sha256" },
+        "knowledge_refs": {
+          "type": "array", "maxItems": 16, "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^kb:[A-Za-z0-9._/-]{3,180}#[0-9a-f]{64}$" }
+        },
+        "tool_evidence": {
+          "type": "array", "maxItems": 32,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["tool_name", "request_hash", "response_hash", "completed_at"],
+            "properties": {
+              "tool_name": { "enum": ["get_market_context", "get_pa_features", "get_order_flow_features", "get_position_state", "get_risk_budget", "retrieve_strategy_knowledge", "estimate_trade_cost"] },
+              "request_hash": { "$ref": "#/$defs/sha256" },
+              "response_hash": { "$ref": "#/$defs/sha256" },
+              "completed_at": { "type": "string", "format": "date-time" }
+            }
+          }
+        },
+        "decision": { "enum": ["TRADE", "NO_TRADE"] },
+        "symbol": { "oneOf": [{ "type": "string", "pattern": "^[A-Z0-9_]{2,30}$" }, { "type": "null" }] },
+        "binance_parameters": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object", "additionalProperties": false,
+              "required": ["side", "positionSide", "entry_type", "timeInForce", "entry_price", "stopPrice", "take_profit_price", "maker_ttl_ms", "max_slippage_bps", "reduceOnly", "workingType", "priceProtect", "urgency"],
+              "properties": {
+                "side": { "enum": ["BUY", "SELL"] },
+                "positionSide": { "const": "BOTH" },
+                "entry_type": { "enum": ["LIMIT_MAKER", "MARKET_IF_URGENT"] },
+                "timeInForce": { "enum": ["GTX", "IOC"] },
+                "entry_price": { "$ref": "#/$defs/positiveDecimal" },
+                "stopPrice": { "$ref": "#/$defs/positiveDecimal" },
+                "take_profit_price": { "$ref": "#/$defs/positiveDecimal" },
+                "maker_ttl_ms": { "type": "integer", "minimum": 100, "maximum": 10000 },
+                "max_slippage_bps": { "$ref": "#/$defs/nonNegativeDecimal" },
+                "reduceOnly": { "const": false },
+                "workingType": { "enum": ["MARK_PRICE", "CONTRACT_PRICE"] },
+                "priceProtect": { "const": true },
+                "urgency": { "enum": ["NORMAL", "ELEVATED"] }
+              }
+            }
+          ]
+        },
+        "risk_request": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object", "additionalProperties": false,
+              "required": ["requested_initial_risk_pct", "leverage_cap", "correlation_cluster", "expected_gross_edge_bps", "expected_total_cost_bps", "expected_net_edge_bps", "holding_horizon_seconds"],
+              "properties": {
+                "requested_initial_risk_pct": { "$ref": "#/$defs/maxRisk" },
+                "leverage_cap": { "type": "integer", "minimum": 1, "maximum": 10 },
+                "correlation_cluster": { "type": "string", "pattern": "^[A-Z0-9_:-]{2,64}$" },
+                "expected_gross_edge_bps": { "$ref": "#/$defs/decimal" },
+                "expected_total_cost_bps": { "$ref": "#/$defs/nonNegativeDecimal" },
+                "expected_net_edge_bps": { "$ref": "#/$defs/decimal" },
+                "holding_horizon_seconds": { "type": "integer", "minimum": 30, "maximum": 900 }
+              }
+            }
+          ]
+        },
+        "market_revalidation": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object", "additionalProperties": false,
+              "required": ["max_context_age_ms", "max_price_drift_bps", "require_book_healthy", "require_symbol_active", "require_positive_net_edge"],
+              "properties": {
+                "max_context_age_ms": { "type": "integer", "minimum": 1, "maximum": 60000 },
+                "max_price_drift_bps": { "$ref": "#/$defs/nonNegativeDecimal" },
+                "require_book_healthy": { "const": true },
+                "require_symbol_active": { "const": true },
+                "require_positive_net_edge": { "const": true }
+              }
+            }
+          ]
+        },
+        "reason_codes": { "type": "array", "minItems": 1, "maxItems": 32, "uniqueItems": true, "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{2,79}$" } }
+      },
+      "allOf": [
+        { "if": { "properties": { "decision": { "const": "TRADE" } }, "required": ["decision"] }, "then": { "properties": { "symbol": { "type": "string" }, "binance_parameters": { "type": "object" }, "risk_request": { "type": "object" }, "market_revalidation": { "type": "object" } } }, "else": { "properties": { "symbol": { "type": "null" }, "binance_parameters": { "type": "null" }, "risk_request": { "type": "null" }, "market_revalidation": { "type": "null" } } } },
+        { "if": { "properties": { "engine": { "const": "CODEX_PRIMARY" } }, "required": ["engine"] }, "then": { "properties": { "model": { "const": "gpt-5.6" }, "reasoning_effort": { "const": "medium" }, "knowledge_refs": { "minItems": 1 } } }, "else": { "properties": { "model": { "type": "null" }, "reasoning_effort": { "const": "none" } } } }
+      ]
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|[0-9A-HJKMNP-TV-Z]{26})$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "decimal": { "type": "string", "pattern": "^-?(?:0|[1-9][0-9]{0,19})(?:\\.[0-9]{1,18})?$" },
+    "nonNegativeDecimal": { "type": "string", "pattern": "^(?:0|[1-9][0-9]{0,19})(?:\\.[0-9]{1,18})?$" },
+    "positiveDecimal": { "type": "string", "pattern": "^(?:0\\.[0-9]{0,17}[1-9]|[1-9][0-9]{0,19}(?:\\.[0-9]{0,17}[1-9])?)$" },
+    "maxRisk": { "type": "string", "enum": ["0.05", "0.1", "0.15", "0.2", "0.25", "0.3", "0.35", "0.4", "0.45", "0.5"] }
+  }
+}

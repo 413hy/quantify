@@ -1,0 +1,78 @@
+{
+  "schema_version": "1.0.0",
+  "package_hash": "194bcbe9d523428845f5b9db421fb818bed699b7faa59f89fb387f65fffd8fcf",
+  "content": {
+    "package_id": "33333333-3333-4333-8333-333333333331",
+    "package_role": "CHAMPION",
+    "parent_package_hash": null,
+    "rollback_package_hash": null,
+    "source_proposal_id": null,
+    "strategy_name": "pa-of-top10",
+    "strategy_version": "1.0.0-experimental",
+    "created_at": "2026-07-16T01:20:00Z",
+    "created_by": "offline-research-pipeline",
+    "code_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "image_digests": {
+      "replay": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "parameter_files": [
+      "config/strategy/order-flow.yaml",
+      "config/strategy/price-action.yaml"
+    ],
+    "parameter_manifest_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "parameter_schema_hash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "price_action_schema_hash": "d2305132fb4bfc4752bc1f5b889ee5ecb4344e0dbdafb1b744a5612e3577df63",
+    "price_action_config_hash": "69f9f2c78c7079b1eefa5a20b88aafdf9d7bda2b50ff4b800d4e4629dceaa9d5",
+    "of_search_plan_hash": "99937c29ae83d6548c732c5890d240e3e12aaa02b45b9555d746421a754d2b24",
+    "of_parameter_candidate_hash": "f376b08f4d895a75cea62794d9993064a564e4c70c4a19e117658585759d85e0",
+    "universe_config_hash": "ff486eee9745c24344fecfa19f434784b42c47f3be7b6feb800bef3f199eb477",
+    "cost_model_file": "contracts/examples/cost-model.json",
+    "cost_model_schema_hash": "c66bdb51c464e36e00cde41abb8800aecf767f54402061703859adc735d2c950",
+    "cost_model_hash": "8dcf8b3152925b6b96e79771b92f7687219010ae4c8d6533ce76c497ba33a864",
+    "execution_model_file": "contracts/examples/execution-model.json",
+    "execution_model_schema_hash": "9b6d489003e57322133fdaec57486d5973aae4b4021f2d1db8ee739a398fedba",
+    "execution_model_hash": "d581fe402814d4ec34fc992e5a7628681081a64484924b83c73664ab09815451",
+    "edge_decision_schema_hash": "2a4695bb93cc8ab1e0182b07072185a845421f523d7efab1f95675c7a7185230",
+    "dependency_lock_hash": "4444444444444444444444444444444444444444444444444444444444444444",
+    "replay_engine_version": "event-replay-1.0.0",
+    "feature_schema_version": "1.0.0",
+    "event_schema_version": "1.0.0",
+    "training_window": {
+      "start": "2026-07-13T00:00:00Z",
+      "end": "2026-07-16T00:00:00Z",
+      "purpose": "CALIBRATION_3D"
+    },
+    "oos_window": {
+      "start": "2026-07-16T01:30:00Z",
+      "end": "2026-10-11T01:30:00Z",
+      "purpose": "OOS_FORWARD_87D"
+    },
+    "data_manifest_hashes": [
+      "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "368a6f31629a389ee0a72dd6d746708d3a2383ffb76a574f69315297c2502784"
+    ],
+    "calibration_run_ids": [
+      "33333333-3333-4333-8333-333333333332"
+    ],
+    "research_run_ids": [
+      "33333333-3333-4333-8333-333333333332"
+    ],
+    "research_evidence_hash": "9999999999999999999999999999999999999999999999999999999999999999",
+    "quality_report_hashes": {
+      "baseline_metrics": "5555555555555555555555555555555555555555555555555555555555555555",
+      "cost_stress_1_5x": "6666666666666666666666666666666666666666666666666666666666666666",
+      "parameter_stability_20pct": "7777777777777777777777777777777777777777777777777777777777777777",
+      "symbol_contribution": "8888888888888888888888888888888888888888888888888888888888888888"
+    },
+    "risk_config_hash": "450be30cffa3b82494d07b0e23be4a355c3f55162bcd296b41a4feaf9b5cb4d3",
+    "compatibility": {
+      "min_database_revision": "0001",
+      "supported_event_major": 1,
+      "position_mode": "ONE_WAY",
+      "margin_type": "CROSSED"
+    },
+    "limitations": [
+      "前三日全部 Order Flow alpha 参数优化是用户明确接受的高过拟合例外；PA、风控和安全参数不参与；90天门槛通过前不得宣称稳健。"
+    ]
+  }
+}

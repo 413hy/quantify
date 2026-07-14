@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cost-model.schema.json",
+  "title": "Deterministic Short-Horizon Cost Model",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "model_hash", "content"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "model_hash": { "$ref": "#/$defs/sha256" },
+    "content": { "$ref": "#/$defs/content" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "dateTime": { "type": "string", "format": "date-time" },
+    "decimal": { "type": "string", "pattern": "^(?:0|-?(?:0\\.[0-9]{0,17}[1-9]|[1-9][0-9]{0,19}(?:\\.[0-9]{0,17}[1-9])?))$" },
+    "positiveDecimal": { "type": "string", "pattern": "^(?:0\\.[0-9]{0,17}[1-9]|[1-9][0-9]{0,19}(?:\\.[0-9]{0,17}[1-9])?)$" },
+    "content": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model_id", "created_at", "status", "currency", "training_manifest_hash", "training_window", "gross_edge_estimator", "fees", "slippage", "adverse_selection", "funding", "failure_and_cancel", "total_cost_formula", "staleness_policy", "fallback_policy", "automatic_update_forbidden"],
+      "properties": {
+        "model_id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{8,128}$" },
+        "created_at": { "$ref": "#/$defs/dateTime" },
+        "status": { "enum": ["EXPERIMENTAL_LIVE", "VALIDATED_90D"] },
+        "currency": { "const": "USDT" },
+        "training_manifest_hash": { "$ref": "#/$defs/sha256" },
+        "training_window": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["start", "end", "purpose"],
+          "properties": {
+            "start": { "$ref": "#/$defs/dateTime" },
+            "end": { "$ref": "#/$defs/dateTime" },
+            "purpose": { "enum": ["CALIBRATION_3D", "APPROVED_RETRAIN_WINDOW"] }
+          }
+        },
+        "gross_edge_estimator": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["method", "dimensions", "horizon_seconds_by_setup", "label", "path_rule", "winsorize_lower_quantile", "winsorize_upper_quantile", "shrinkage_parent_order", "shrinkage_strength_observations", "minimum_cell_observations", "minimum_parent_observations", "lookup_table_hash", "insufficient_observations_action"],
+          "properties": {
+            "method": { "const": "SHRUNK_MARKOUT_CELL_MEAN_V1" },
+            "dimensions": { "const": ["setup_type", "pa_regime", "liquidity_bucket", "side", "entry_path"] },
+            "horizon_seconds_by_setup": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["T1_TREND_PULLBACK_CONTINUATION", "B1_BREAKOUT_FOLLOW_THROUGH", "B2_BREAK_RETEST", "R1_RANGE_EDGE_REJECTION"],
+              "properties": {
+                "T1_TREND_PULLBACK_CONTINUATION": { "type": "integer", "minimum": 30, "maximum": 900 },
+                "B1_BREAKOUT_FOLLOW_THROUGH": { "type": "integer", "minimum": 30, "maximum": 900 },
+                "B2_BREAK_RETEST": { "type": "integer", "minimum": 30, "maximum": 900 },
+                "R1_RANGE_EDGE_REJECTION": { "type": "integer", "minimum": 30, "maximum": 900 }
+              }
+            },
+            "label": { "const": "DIRECTIONAL_MID_MARKOUT_GROSS_BPS" },
+            "path_rule": { "const": "FIRST_TOUCH_TARGET_OR_STOP_ELSE_HORIZON_MARK" },
+            "winsorize_lower_quantile": { "const": "0.05" },
+            "winsorize_upper_quantile": { "const": "0.95" },
+            "shrinkage_parent_order": { "const": ["drop_entry_path", "drop_side", "drop_liquidity_bucket", "setup_only", "global"] },
+            "shrinkage_strength_observations": { "type": "integer", "minimum": 1, "maximum": 10000 },
+            "minimum_cell_observations": { "type": "integer", "minimum": 1, "maximum": 10000 },
+            "minimum_parent_observations": { "type": "integer", "minimum": 1, "maximum": 100000 },
+            "lookup_table_hash": { "$ref": "#/$defs/sha256" },
+            "insufficient_observations_action": { "const": "REJECT_ENTRY" }
+          }
+        },
+        "fees": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source", "maker_and_taker_required", "maximum_snapshot_age_seconds", "missing_or_stale_action", "formula"],
+          "properties": {
+            "source": { "const": "BINANCE_ACCOUNT_COMMISSION_SNAPSHOT" },
+            "maker_and_taker_required": { "const": true },
+            "maximum_snapshot_age_seconds": { "type": "integer", "minimum": 60, "maximum": 86400 },
+            "missing_or_stale_action": { "const": "REJECT_ENTRY" },
+            "formula": { "const": "entry_expected_fee_bps=p_maker*maker_fee_bps+(1-p_maker)*taker_fee_bps;expected_fee_bps=entry_expected_fee_bps+expected_exit_fee_bps" }
+          }
+        },
+        "slippage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["method", "quantile", "dimensions", "minimum_observations", "snapshot_hash", "fallback"],
+          "properties": {
+            "method": { "const": "L2_REPLAY_ADVERSE_SLIPPAGE_QUANTILE_V1" },
+            "quantile": { "type": "string", "enum": ["0.75", "0.8", "0.85", "0.9", "0.95", "0.99"] },
+            "dimensions": { "const": ["entry_path", "liquidity_bucket", "notional_bucket", "side"] },
+            "minimum_observations": { "type": "integer", "minimum": 1, "maximum": 100000 },
+            "snapshot_hash": { "$ref": "#/$defs/sha256" },
+            "fallback": { "const": "MAX_PARENT_QUANTILE_OR_REJECT" }
+          }
+        },
+        "adverse_selection": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["method", "markout_horizons_ms", "quantile", "dimensions", "minimum_observations", "snapshot_hash", "fallback"],
+          "properties": {
+            "method": { "const": "POST_FILL_NEGATIVE_MARKOUT_QUANTILE_V1" },
+            "markout_horizons_ms": { "const": [1000, 5000] },
+            "quantile": { "type": "string", "enum": ["0.75", "0.8", "0.85", "0.9", "0.95", "0.99"] },
+            "dimensions": { "const": ["setup_type", "entry_path", "liquidity_bucket", "side"] },
+            "minimum_observations": { "type": "integer", "minimum": 1, "maximum": 100000 },
+            "snapshot_hash": { "$ref": "#/$defs/sha256" },
+            "fallback": { "const": "MAX_PARENT_QUANTILE_OR_REJECT" }
+          }
+        },
+        "funding": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source", "apply_rule", "missing_or_stale_action"],
+          "properties": {
+            "source": { "const": "CURRENT_MARK_PRICE_FUNDING_SNAPSHOT" },
+            "apply_rule": { "const": "APPLY_ONLY_IF_POSITION_INTERVAL_CAN_CROSS_FUNDING_TIMESTAMP" },
+            "missing_or_stale_action": { "const": "REJECT_ENTRY_IF_CROSSING_POSSIBLE" }
+          }
+        },
+        "failure_and_cancel": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["include_maker_nonfill", "include_cancel_race", "include_maker_to_taker", "method", "snapshot_hash"],
+          "properties": {
+            "include_maker_nonfill": { "const": true },
+            "include_cancel_race": { "const": true },
+            "include_maker_to_taker": { "const": true },
+            "method": { "const": "EMPIRICAL_EXPECTED_OPPORTUNITY_COST_V1" },
+            "snapshot_hash": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "total_cost_formula": { "const": "total_cost_bps=expected_fee_bps+slippage_bps+adverse_selection_bps+funding_bps+failure_cancel_bps" },
+        "staleness_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["decision_max_age_ms", "market_snapshot_max_age_ms", "exchange_filter_snapshot_max_age_seconds", "funding_snapshot_max_age_seconds", "clock_source", "stale_action", "frozen_artifact_policy"],
+          "properties": {
+            "decision_max_age_ms": { "type": "integer", "minimum": 50, "maximum": 10000 },
+            "market_snapshot_max_age_ms": { "type": "integer", "minimum": 50, "maximum": 10000 },
+            "exchange_filter_snapshot_max_age_seconds": { "type": "integer", "minimum": 60, "maximum": 86400 },
+            "funding_snapshot_max_age_seconds": { "type": "integer", "minimum": 1, "maximum": 3600 },
+            "clock_source": { "const": "UTC_SYNCHRONIZED_EVENT_TIME" },
+            "stale_action": { "const": "REJECT_ENTRY" },
+            "frozen_artifact_policy": { "const": "MODEL_AND_EMPIRICAL_TABLES_CHANGE_ONLY_BY_SIGNED_STRATEGY_RELEASE" }
+          }
+        },
+        "fallback_policy": { "const": "NO_ZERO_COST_OR_MISSING_COMPONENT_FALLBACK" },
+        "automatic_update_forbidden": { "const": true }
+      }
+    }
+  }
+}

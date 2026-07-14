@@ -1,0 +1,51 @@
+name: aiq-m0-test
+
+services:
+  business-postgres:
+    image: docker.io/timescale/timescaledb@sha256:ba149561ad4ddff5940d6eb0a0df60aefd1355cee1a450928f271267038fc888
+    environment:
+      POSTGRES_DB: aiq_business_test
+      POSTGRES_USER: aiq_business_test
+      POSTGRES_PASSWORD_FILE: /run/secrets/business_db_password
+    secrets:
+      - business_db_password
+    networks: [test_db_net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U aiq_business_test -d aiq_business_test"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    tmpfs:
+      - /var/run/postgresql
+
+  host-postgres:
+    image: docker.io/library/postgres@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+    environment:
+      POSTGRES_DB: aiq_host_rate_control_test
+      POSTGRES_USER: aiq_host_control_test
+      POSTGRES_PASSWORD_FILE: /run/secrets/host_db_password
+    secrets:
+      - host_db_password
+    networks: [test_db_net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U aiq_host_control_test -d aiq_host_rate_control_test"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    tmpfs:
+      - /var/run/postgresql
+
+  redis:
+    image: docker.io/library/redis@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    networks: [test_db_net]
+
+networks:
+  test_db_net:
+    internal: true
+
+secrets:
+  business_db_password:
+    file: ${TEST_BUSINESS_DB_PASSWORD_FILE:?set TEST_BUSINESS_DB_PASSWORD_FILE}
+  host_db_password:
+    file: ${TEST_HOST_DB_PASSWORD_FILE:?set TEST_HOST_DB_PASSWORD_FILE}

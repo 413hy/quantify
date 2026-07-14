@@ -1,0 +1,289 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant.local/contracts/testnet-protocol-probe-plan.schema.json",
+  "title": "Binance Futures Testnet Protocol Probe Plan",
+  "description": "Testnet 自有行情/规则驱动的预登记协议探针计划。plan_hash=SHA-256(RFC 8785 JCS(content))；不允许引用生产价格、凭据或订单。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "plan_hash", "content", "signature"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "plan_hash": { "$ref": "#/$defs/sha256" },
+    "content": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plan_id", "created_at", "environment", "market_source", "rule_source", "input_synthesis", "credential_scope", "websocket_routing", "merged_universe_semantics", "universe_l1_collection", "order_flow_trade_semantics", "user_data_stream", "startup_capability_probes", "account_mode_verification", "execution_protocol_semantics", "cases", "safeguards", "cleanup", "required_evidence"],
+      "properties": {
+        "plan_id": { "$ref": "#/$defs/id" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "environment": { "const": "testnet" },
+        "market_source": { "const": "BINANCE_TESTNET" },
+        "rule_source": { "const": "TESTNET_EXCHANGE_INFO_AT_CASE_START" },
+        "input_synthesis": { "const": "TESTNET_OWN_BOOK_MARK_PRICE_AND_FILTERS_ONLY" },
+        "credential_scope": { "const": "TESTNET_TRADE_NO_WITHDRAWAL" },
+        "websocket_routing": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["signed_system_config_hash", "signed_connection_contract_hash", "signed_connection_contract_schema_hash", "signed_capability_trust_bundle_hash", "signed_capability_trust_bundle_schema_hash", "connection_values_must_equal_signed_contract", "rest_base", "public_url", "public_role", "market_url", "market_role", "private_url", "private_role", "websocket_api_enabled", "websocket_api_base", "websocket_api_independent_connection", "production_hosts_allowed", "unrouted_paths_allowed", "independent_health_and_reconnect", "connection_lifetime_seconds", "rotate_no_later_than_seconds", "minimum_overlap_seconds", "ping_interval_seconds", "pong_deadline_seconds", "control_messages_per_second", "max_streams_per_connection"],
+          "properties": {
+            "signed_system_config_hash": { "$ref": "#/$defs/sha256" },
+            "signed_connection_contract_hash": { "$ref": "#/$defs/sha256" },
+            "signed_connection_contract_schema_hash": { "$ref": "#/$defs/sha256" },
+            "signed_capability_trust_bundle_hash": { "$ref": "#/$defs/sha256" },
+            "signed_capability_trust_bundle_schema_hash": { "$ref": "#/$defs/sha256" },
+            "connection_values_must_equal_signed_contract": { "const": true },
+            "rest_base": { "const": "https://demo-fapi.binance.com" },
+            "public_url": { "const": "wss://fstream.binancefuture.com/public" },
+            "public_role": { "const": "PUBLIC_HIGH_FREQUENCY_DEPTH_BOOK_TICKER" },
+            "market_url": { "const": "wss://fstream.binancefuture.com/market" },
+            "market_role": { "const": "MARKET_AGG_TRADE_MARK_PRICE_KLINE" },
+            "private_url": { "const": "wss://fstream.binancefuture.com/private" },
+            "private_role": { "const": "PRIVATE_USER_DATA" },
+            "websocket_api_enabled": { "type": "boolean" },
+            "websocket_api_base": { "const": "wss://testnet.binancefuture.com/ws-fapi/v1" },
+            "websocket_api_independent_connection": { "const": true },
+            "production_hosts_allowed": { "const": false },
+            "unrouted_paths_allowed": { "const": false },
+            "independent_health_and_reconnect": { "const": true },
+            "connection_lifetime_seconds": { "type": "integer", "minimum": 300, "maximum": 172800 },
+            "rotate_no_later_than_seconds": { "type": "integer", "minimum": 60, "maximum": 172799 },
+            "minimum_overlap_seconds": { "type": "integer", "minimum": 1, "maximum": 3600 },
+            "ping_interval_seconds": { "type": "integer", "minimum": 1, "maximum": 3600 },
+            "pong_deadline_seconds": { "type": "integer", "minimum": 1, "maximum": 3600 },
+            "control_messages_per_second": { "type": "integer", "minimum": 1, "maximum": 1000 },
+            "max_streams_per_connection": { "type": "integer", "minimum": 1, "maximum": 100000 }
+          }
+        },
+        "merged_universe_semantics": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["required_fields", "archive_raw_fields", "um_st_value", "whitelist_source", "selection_rule", "missing_or_unknown_st_action", "missing_or_invalid_ps_action"],
+          "properties": {
+            "required_fields": { "const": ["st", "ps"] },
+            "archive_raw_fields": { "const": ["st", "ps"] },
+            "um_st_value": { "const": 1 },
+            "whitelist_source": { "const": "TESTNET_UM_EXCHANGE_INFO_AT_CASE_START" },
+            "selection_rule": { "const": "ST_EQUALS_1_INTERSECT_CURRENT_UM_EXCHANGE_INFO" },
+            "missing_or_unknown_st_action": { "const": "FAIL_CLOSED" },
+            "missing_or_invalid_ps_action": { "const": "FAIL_CLOSED" }
+          }
+        },
+        "universe_l1_collection": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["eligible_scope", "turnover_activity_source", "turnover_activity_route", "kline_interval", "quote_notional_field", "trade_count_field", "closed_bars_required", "allow_24h_rolling_ticker_delta", "spread_source", "spread_route", "depth_primary_source", "depth_primary_levels", "depth_route", "depth_update_interval_ms", "deep_fallback_source", "snapshot_endpoint", "snapshot_limit", "deep_fallback_max_symbols", "deep_fallback_priority", "depth_band_bps", "sample_interval_seconds", "window_slots", "required_complete_slots", "partial_band_failure_action", "insufficient_band_action", "valid_snapshot_insufficient_candidates_action", "globally_invalid_snapshot_action", "public_stream_shard_max", "signed_universe_config_hash", "signed_rate_budget_config_hash", "endpoint_cost_catalog_hash", "endpoint_cost_catalog_schema_hash", "rate_budget_authority", "request_priority", "reserve_borrow_forbidden", "hardcoded_absolute_weight_limits", "archive_rank_samples", "archive_all_universe_raw_depth_diffs", "capacity_limit_disclosure"],
+          "properties": {
+            "eligible_scope": { "const": "CURRENT_TESTNET_UM_USDT_PERPETUAL_WHITELIST" },
+            "turnover_activity_source": { "const": "SYMBOL_KLINE_1M_CLOSED" },
+            "turnover_activity_route": { "const": "/market" },
+            "kline_interval": { "const": "1m" },
+            "quote_notional_field": { "const": "k.q" },
+            "trade_count_field": { "const": "k.n" },
+            "closed_bars_required": { "const": 15 },
+            "allow_24h_rolling_ticker_delta": { "const": false },
+            "spread_source": { "const": "ALL_MARKET_BOOK_TICKER" },
+            "spread_route": { "const": "/public" },
+            "depth_primary_source": { "const": "SYMBOL_PARTIAL_DEPTH20" },
+            "depth_primary_levels": { "const": 20 },
+            "depth_route": { "const": "/public" },
+            "depth_update_interval_ms": { "const": 500 },
+            "deep_fallback_source": { "const": "SYMBOL_DIFF_DEPTH" },
+            "snapshot_endpoint": { "const": "/fapi/v1/depth" },
+            "snapshot_limit": { "const": 1000 },
+            "deep_fallback_max_symbols": { "const": 40 },
+            "deep_fallback_priority": { "const": ["MANAGED_POSITION_SET", "CURRENT_TOP10", "CURRENT_RANK_11_15", "CHEAP_PREFILTER_SCORE_DESC_SYMBOL_ASC"] },
+            "depth_band_bps": { "const": 10 },
+            "sample_interval_seconds": { "const": 1 },
+            "window_slots": { "const": 900 },
+            "required_complete_slots": { "const": 896 },
+            "partial_band_failure_action": { "const": "ENTER_H40_DEEP_FALLBACK_OR_INVALID" },
+            "insufficient_band_action": { "const": "SYMBOL_WINDOW_INVALID_NO_ZERO_NO_EXTRAPOLATION" },
+            "valid_snapshot_insufficient_candidates_action": { "const": "PUBLISH_REDUCED_POOL_AND_ALERT" },
+            "globally_invalid_snapshot_action": { "const": "FREEZE_LAST_GOOD_MEMBERSHIP_MANAGEMENT_ONLY_BLOCK_NEW_ENTRIES_AND_ALERT" },
+            "public_stream_shard_max": { "const": 250 },
+            "signed_universe_config_hash": { "$ref": "#/$defs/sha256" },
+            "signed_rate_budget_config_hash": { "$ref": "#/$defs/sha256" },
+            "endpoint_cost_catalog_hash": { "$ref": "#/$defs/sha256" },
+            "endpoint_cost_catalog_schema_hash": { "$ref": "#/$defs/sha256" },
+            "rate_budget_authority": { "const": "SIGNED_RATE_BUDGET_CONFIG_AND_ENDPOINT_COST_CATALOG" },
+            "request_priority": { "const": "MARKET_DATA_SNAPSHOT" },
+            "reserve_borrow_forbidden": { "const": true },
+            "hardcoded_absolute_weight_limits": { "const": false },
+            "archive_rank_samples": { "const": true },
+            "archive_all_universe_raw_depth_diffs": { "const": false },
+            "capacity_limit_disclosure": { "const": "H40_IS_RESOURCE_CAP_NOT_PROOF_OF_ALL_ELIGIBLE_EXACT_DEPTH_SEPARATE_COLLECTOR_REQUIRED_FOR_FULL_EXACTNESS" }
+          }
+        },
+        "order_flow_trade_semantics": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["standard_depth_includes_rpi", "subscribe_rpi_depth", "archive_raw_fields", "feature_quantity_field", "q_includes_rpi", "nq_normal_only", "allow_q_fallback", "missing_or_invalid_nq_action", "absent_ps_archival"],
+          "properties": {
+            "standard_depth_includes_rpi": { "const": false },
+            "subscribe_rpi_depth": { "const": false },
+            "archive_raw_fields": { "const": ["q", "nq", "st", "ps"] },
+            "feature_quantity_field": { "const": "nq" },
+            "q_includes_rpi": { "const": true },
+            "nq_normal_only": { "const": true },
+            "allow_q_fallback": { "const": false },
+            "missing_or_invalid_nq_action": { "const": "FRAME_INVALID" },
+            "absent_ps_archival": { "const": "EXPLICIT_NULL_DO_NOT_SYNTHESIZE" }
+          }
+        },
+        "user_data_stream": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "rest_endpoint", "create_method", "keepalive_method", "close_method", "validity_seconds", "keepalive_interval_seconds", "values_must_equal_signed_contract", "invalid_listen_key_error", "expired_event", "websocket_route", "connection_url_template", "subscribed_events", "events_query_value", "event_separator", "replacement_requires_new_listen_key", "connection_lifetime_seconds", "rotate_no_later_than_seconds", "minimum_overlap_seconds", "cross_type_ordering_primary_field", "dedup_identity_fields", "delivery_audit_field", "rotation_watermark_required"],
+          "properties": {
+            "mode": { "const": "REST_LISTEN_KEY" },
+            "rest_endpoint": { "const": "/fapi/v1/listenKey" },
+            "create_method": { "const": "POST" },
+            "keepalive_method": { "const": "PUT" },
+            "close_method": { "const": "DELETE" },
+            "validity_seconds": { "type": "integer", "minimum": 60, "maximum": 86400 },
+            "keepalive_interval_seconds": { "type": "integer", "minimum": 30, "maximum": 86399 },
+            "values_must_equal_signed_contract": { "const": true },
+            "invalid_listen_key_error": { "const": -1125 },
+            "expired_event": { "const": "listenKeyExpired" },
+            "websocket_route": { "const": "/private" },
+            "connection_url_template": { "const": "{private_base}/ws?listenKey={listenKey}&events={events}" },
+            "subscribed_events": { "const": ["ORDER_TRADE_UPDATE", "ACCOUNT_UPDATE", "ALGO_UPDATE"] },
+            "events_query_value": { "const": "ORDER_TRADE_UPDATE/ACCOUNT_UPDATE/ALGO_UPDATE" },
+            "event_separator": { "const": "/" },
+            "replacement_requires_new_listen_key": { "const": true },
+            "connection_lifetime_seconds": { "type": "integer", "minimum": 300, "maximum": 172800 },
+            "rotate_no_later_than_seconds": { "type": "integer", "minimum": 60, "maximum": 172799 },
+            "minimum_overlap_seconds": { "type": "integer", "minimum": 1, "maximum": 3600 },
+            "cross_type_ordering_primary_field": { "const": "E" },
+            "dedup_identity_fields": { "const": ["raw_event_type", "stable_event_id"] },
+            "delivery_audit_field": { "const": "received_at" },
+            "rotation_watermark_required": { "const": true }
+          }
+        },
+        "startup_capability_probes": {
+          "const": ["REST_SERVER_TIME", "UM_EXCHANGE_INFO", "REST_LISTEN_KEY_USER_DATA_STREAM", "ALGO_ORDER_ENDPOINT_CAPABILITY"]
+        },
+        "account_mode_verification": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["position_mode_source", "expected_dual_side_position", "position_mode_scope", "margin_mode_source", "expected_margin_type", "symbol_scope", "read_only", "retain_raw_evidence"],
+          "properties": {
+            "position_mode_source": { "const": "GET_/fapi/v1/positionSide/dual" },
+            "expected_dual_side_position": { "const": false },
+            "position_mode_scope": { "const": "SHARED_BY_UM_AND_CM" },
+            "margin_mode_source": { "const": "GET_/fapi/v3/positionRisk" },
+            "expected_margin_type": { "const": "CROSSED" },
+            "symbol_scope": { "const": "TOP10_PLUS_CANDIDATES_11_15_PLUS_MANAGED" },
+            "read_only": { "const": true },
+            "retain_raw_evidence": { "const": true }
+          }
+        },
+        "execution_protocol_semantics": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["algo_create_endpoint", "algo_query_endpoint", "algo_cancel_endpoint", "algo_open_endpoint", "algo_user_event", "actual_order_id_field", "restart_recovers_algo_actual_order_link", "stop_type_regular_order_endpoint", "stop_type_regular_order_expected_error", "adapter_routes_stop_to_algo_endpoint", "http_503_exact_message_classes", "minus_1008_reduce_only_priority"],
+          "properties": {
+            "algo_create_endpoint": { "const": "POST_/fapi/v1/algoOrder" },
+            "algo_query_endpoint": { "const": "GET_/fapi/v1/algoOrder" },
+            "algo_cancel_endpoint": { "const": "DELETE_/fapi/v1/algoOrder" },
+            "algo_open_endpoint": { "const": "GET_/fapi/v1/openAlgoOrders" },
+            "algo_user_event": { "const": "ALGO_UPDATE" },
+            "actual_order_id_field": { "const": "actualOrderId" },
+            "restart_recovers_algo_actual_order_link": { "const": true },
+            "stop_type_regular_order_endpoint": { "const": "POST_/fapi/v1/order" },
+            "stop_type_regular_order_expected_error": { "const": -4120 },
+            "adapter_routes_stop_to_algo_endpoint": { "const": true },
+            "http_503_exact_message_classes": {
+              "const": {
+                "Unknown error, please check your request or try again later.": "UNKNOWN_EXECUTION_STATUS_RECONCILE_NO_BLIND_RETRY",
+                "Service Unavailable.": "DEFINITE_FAILURE_RETRYABLE_WITH_BOUNDED_BACKOFF",
+                "Internal error; unable to process your request. Please try again.": "DEFINITE_FAILURE_RETRYABLE_WITH_BOUNDED_BACKOFF",
+                "Request throttled by system-level protection. Reduce-only/close-position orders are exempt. Please try again.": "OVERLOAD_MINUS_1008_REDUCE_ONLY_EXEMPT"
+              }
+            },
+            "minus_1008_reduce_only_priority": { "const": true }
+          }
+        },
+        "cases": {
+          "const": [
+            "T01_EXCHANGE_INFO_FILTER_REFRESH",
+            "T02_POST_ONLY_PLACE_ACK_CANCEL",
+            "T03_PARTIAL_FILL_OR_TTL_CANCEL",
+            "T04_USER_STREAM_RECONNECT_AND_DEDUP",
+            "T05_UNKNOWN_RESULT_RECONCILIATION_FAULT_INJECTION",
+            "T06_NATIVE_REDUCE_ONLY_PROTECTION",
+            "T07_429_BACKOFF_AND_WEIGHT_HEADERS",
+            "T08_RESTART_WITH_OPEN_ORDER_OR_POSITION",
+            "T09_WS_ROUTE_ENFORCEMENT",
+            "T10_ROUTE_INDEPENDENT_HEALTH_RECONNECT_ROTATION",
+            "T11_MERGED_UM_CM_ST_PS_FILTER",
+            "T12_NQ_RPI_ORDER_FLOW_SEMANTICS",
+            "T13_LISTENKEY_KEEPALIVE_MINUS_1125",
+            "T14_LISTENKEY_EXPIRED_EVENT",
+            "T15_PRIVATE_OVERLAP_WATERMARK_DEDUP",
+            "T16_STARTUP_CAPABILITY_AND_HOST_ISOLATION",
+            "T17_UM_CM_ONE_WAY_CROSSED_MARGIN_SCOPE",
+            "T18_ALGO_ORDER_LIFECYCLE_ROUTING_AND_RESTART_RECOVERY",
+            "T19_503_EXACT_MESSAGE_AND_MINUS_1008_REDUCE_ONLY_PRIORITY",
+            "T20_ALL_UM_UNIVERSE_L1_15M_AGGREGATION",
+            "T21_SHARED_RATE_GATEWAY_PERMIT_CONSUME",
+            "T22_MARKET_STREAM_CONTROL_AND_CONNECTION_BUDGET",
+            "T23_CAPABILITY_REPLAY_AND_ENVIRONMENT_ISOLATION",
+            "T24_GATEWAY_SINGLE_EGRESS_AND_SENSITIVE_REDACTION"
+          ]
+        },
+        "safeguards": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["production_endpoint_allowed", "production_secret_allowed", "production_price_allowed", "gateway_only_binance_egress", "business_direct_binance_egress_allowed", "quantity_from_current_testnet_filters", "price_from_current_testnet_book", "maximum_open_orders", "single_symbol_at_a_time", "reduce_only_cleanup", "operator_attended", "rate_limit_fault_injection_only", "induce_real_429_418", "rate_limit_fault_injection_transport"],
+          "properties": {
+            "production_endpoint_allowed": { "const": false },
+            "production_secret_allowed": { "const": false },
+            "production_price_allowed": { "const": false },
+            "gateway_only_binance_egress": { "const": true },
+            "business_direct_binance_egress_allowed": { "const": false },
+            "quantity_from_current_testnet_filters": { "const": true },
+            "price_from_current_testnet_book": { "const": true },
+            "maximum_open_orders": { "const": 1 },
+            "single_symbol_at_a_time": { "const": true },
+            "reduce_only_cleanup": { "const": true },
+            "operator_attended": { "const": true },
+            "rate_limit_fault_injection_only": { "const": true },
+            "induce_real_429_418": { "const": false },
+            "rate_limit_fault_injection_transport": { "const": "LOCAL_ADAPTER_STUB_OR_SIGNED_RECORDED_RESPONSE" }
+          }
+        },
+        "cleanup": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cancel_all_probe_orders", "zero_positions", "reconcile_zero_difference", "revoke_ephemeral_credentials", "retain_ledger"],
+          "properties": {
+            "cancel_all_probe_orders": { "const": true },
+            "zero_positions": { "const": true },
+            "reconcile_zero_difference": { "const": true },
+            "revoke_ephemeral_credentials": { "const": true },
+            "retain_ledger": { "const": true }
+          }
+        },
+        "required_evidence": {
+          "const": ["CASE_TIMELINE", "TESTNET_EXCHANGE_INFO_HASH", "TESTNET_BOOK_INPUT_HASH", "REQUEST_RESPONSE_HASHES", "USER_STREAM_HASH", "ORDER_LEDGER_HASH", "RECONCILIATION_HASH", "CLEANUP_HASH", "ROUTED_CONNECTION_CONFIG_HASH", "ROUTE_HEALTH_ROTATION_HASH", "MERGED_UNIVERSE_FILTER_HASH", "UNIVERSE_L1_15M_AGGREGATION_HASH", "AGG_TRADE_NQ_RPI_HASH", "LISTEN_KEY_LIFECYCLE_HASH", "PRIVATE_ROTATION_WATERMARK_HASH", "CAPABILITY_PROBE_HASH", "ACCOUNT_MODE_MARGIN_SCOPE_HASH", "ALGO_ORDER_LIFECYCLE_HASH", "ERROR_CLASSIFICATION_REDUCE_ONLY_PRIORITY_HASH", "RATE_RESERVE_CONSUME_OUTCOME_HASH", "MARKET_STREAM_BUDGET_CONNECTION_HANDLE_HASH", "CAPABILITY_REPLAY_ENVIRONMENT_ISOLATION_HASH", "GATEWAY_ROUTE_AND_SENSITIVE_REDACTION_HASH"]
+        }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "key_id", "signed_at", "signature_ref"],
+      "properties": {
+        "algorithm": { "const": "Ed25519" },
+        "key_id": { "type": "string", "minLength": 3, "maxLength": 128 },
+        "signed_at": { "type": "string", "format": "date-time" },
+        "signature_ref": { "type": "string", "maxLength": 300, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*\\.sig$" }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|[0-9A-HJKMNP-TV-Z]{26})$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant.local/config/universe.schema.json",
+  "title": "Dynamic Universe Configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "baseline_origin", "market", "active_size", "standby_size", "refresh_seconds", "ranking_window_seconds", "score_weights", "l1_sampler", "hysteresis", "full_stream", "eligibility", "fallback", "backtest"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "baseline_origin": {
+      "const": "UNVALIDATED_ENGINEERING_BASELINE",
+      "description": "不可变来源标签，不表示运行时验证或批准状态；验证证据与 StrategyApproval 链必须在该 YAML 外部绑定其规范 hash。"
+    },
+    "market": { "const": "USD_M_USDT_PERPETUAL" },
+    "active_size": { "const": 10 },
+    "standby_size": { "const": 5 },
+    "refresh_seconds": { "const": 900 },
+    "ranking_window_seconds": { "type": "integer", "minimum": 900, "maximum": 604800 },
+    "score_weights": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["trading_liquidity", "book_depth", "inverse_spread", "activity", "data_health"],
+      "properties": {
+        "trading_liquidity": { "const": "0.30" },
+        "book_depth": { "const": "0.30" },
+        "inverse_spread": { "const": "0.20" },
+        "activity": { "const": "0.10" },
+        "data_health": { "const": "0.10" }
+      }
+    },
+    "l1_sampler": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["um_filter", "merged_fields_required", "kline_source", "kline_route", "kline_interval", "closed_kline_count", "quote_notional_field", "trade_count_field", "forbid_24h_ticker_delta", "book_ticker_source", "book_ticker_route", "sample_interval_seconds", "window_slots", "required_complete_slots", "partial_depth_source", "partial_depth_levels", "depth_route", "depth_update_interval_ms", "deep_fallback_source", "deep_snapshot_endpoint", "deep_snapshot_limit", "deep_max_symbols", "deep_priority", "depth_band_bps", "both_sides_must_reach_band", "missing_band_value", "allow_depth_extrapolation", "public_stream_shard_max", "budget_policy_ref", "config_alignment_required", "all_eligible_exact_depth_requires_independent_collector"],
+      "properties": {
+        "um_filter": { "const": "ST_EQUALS_1_INTERSECT_CURRENT_UM_EXCHANGE_INFO" },
+        "merged_fields_required": { "const": ["st", "ps"] },
+        "kline_source": { "const": "SYMBOL_KLINE" },
+        "kline_route": { "const": "/market" },
+        "kline_interval": { "const": "1m" },
+        "closed_kline_count": { "const": 15 },
+        "quote_notional_field": { "const": "k.q" },
+        "trade_count_field": { "const": "k.n" },
+        "forbid_24h_ticker_delta": { "const": true },
+        "book_ticker_source": { "const": "ALL_MARKET_BOOK_TICKER" },
+        "book_ticker_route": { "const": "/public" },
+        "sample_interval_seconds": { "const": 1 },
+        "window_slots": { "const": 900 },
+        "required_complete_slots": { "const": 896 },
+        "partial_depth_source": { "const": "SYMBOL_PARTIAL_DEPTH" },
+        "partial_depth_levels": { "const": 20 },
+        "depth_route": { "const": "/public" },
+        "depth_update_interval_ms": { "const": 500 },
+        "deep_fallback_source": { "const": "SYMBOL_DIFF_DEPTH" },
+        "deep_snapshot_endpoint": { "const": "/fapi/v1/depth" },
+        "deep_snapshot_limit": { "const": 1000 },
+        "deep_max_symbols": { "const": 40 },
+        "deep_priority": { "const": ["MANAGED_POSITION_SET", "CURRENT_TOP10", "CURRENT_RANK_11_15", "CHEAP_PREFILTER_SCORE_DESC_SYMBOL_ASC"] },
+        "depth_band_bps": { "const": "10.00" },
+        "both_sides_must_reach_band": { "const": true },
+        "missing_band_value": { "const": "INVALID" },
+        "allow_depth_extrapolation": { "const": false },
+        "public_stream_shard_max": { "const": 250 },
+        "budget_policy_ref": { "const": "SYSTEM_MARKET_DATA_PLUS_SIGNED_RATE_BUDGET_CONFIG" },
+        "config_alignment_required": { "const": true },
+        "all_eligible_exact_depth_requires_independent_collector": { "const": true }
+      }
+    },
+    "hysteresis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minimum_residence_seconds", "confirmation_cycles", "replacement_score_delta"],
+      "properties": {
+        "minimum_residence_seconds": { "type": "integer", "minimum": 900, "maximum": 86400 },
+        "confirmation_cycles": { "const": 2 },
+        "replacement_score_delta": { "type": "string", "pattern": "^([1-9](?:\\.[0-9]{1,2})?|[1-9][0-9](?:\\.[0-9]{1,2})?|100(?:\\.0{1,2})?)$", "x-quant-decimalMaximum": "100.00" }
+      }
+    },
+    "full_stream": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["include_active", "include_standby", "include_managed_positions", "snapshot_rebuild_required", "warmup_seconds", "minimum_trade_events"],
+      "properties": {
+        "include_active": { "const": true },
+        "include_standby": { "const": true },
+        "include_managed_positions": { "const": true },
+        "snapshot_rebuild_required": { "const": true },
+        "warmup_seconds": { "type": "integer", "minimum": 30, "maximum": 900 },
+        "minimum_trade_events": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "eligibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["exchange_status", "quote_asset", "contract_type", "require_current_exchange_filters", "require_healthy_lightweight_data", "minimum_15m_trade_notional_usdt", "maximum_median_spread_bps", "depth_band_bps", "minimum_two_sided_depth_usdt", "minimum_input_completeness_pct"],
+      "properties": {
+        "exchange_status": { "const": "TRADING" },
+        "quote_asset": { "const": "USDT" },
+        "contract_type": { "const": "PERPETUAL" },
+        "require_current_exchange_filters": { "const": true },
+        "require_healthy_lightweight_data": { "const": true },
+        "minimum_15m_trade_notional_usdt": { "type": "string", "pattern": "^(0|[1-9][0-9]{0,15})(?:\\.[0-9]{1,2})?$", "x-quant-decimalMinimum": "0.00", "x-quant-unit": "USDT" },
+        "maximum_median_spread_bps": { "type": "string", "pattern": "^(0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,2})?$", "x-quant-decimalMinimum": "0.00", "x-quant-decimalMaximum": "1000.00", "x-quant-unit": "bps" },
+        "depth_band_bps": { "const": "10.00" },
+        "minimum_two_sided_depth_usdt": { "type": "string", "pattern": "^(0|[1-9][0-9]{0,15})(?:\\.[0-9]{1,2})?$", "x-quant-decimalMinimum": "0.00", "x-quant-unit": "USDT", "description": "mid ± depth_band_bps 内 bid/ask 两侧名义深度较小值的下限" },
+        "minimum_input_completeness_pct": { "type": "string", "pattern": "^(?:[0-9]|[1-9][0-9]|100)(?:\\.[0-9]{1,2})?$", "x-quant-decimalMinimum": "0.00", "x-quant-decimalMaximum": "100.00", "x-quant-unit": "percent" }
+      }
+    },
+    "fallback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allow_fewer_than_ten", "emit_alert", "never_fill_with_ineligible_symbol"],
+      "properties": {
+        "allow_fewer_than_ten": { "const": true },
+        "emit_alert": { "const": true },
+        "never_fill_with_ineligible_symbol": { "const": true }
+      }
+    },
+    "backtest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["archive_all_market_lightweight_inputs", "archive_universe_snapshots", "forbid_current_constituent_backfill"],
+      "properties": {
+        "archive_all_market_lightweight_inputs": { "const": true },
+        "archive_universe_snapshots": { "const": true },
+        "forbid_current_constituent_backfill": { "const": true }
+      }
+    }
+  }
+}

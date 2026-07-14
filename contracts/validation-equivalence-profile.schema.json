@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant.local/contracts/validation-equivalence-profile.schema.json",
+  "title": "Signed Validation Runner Equivalence Profile",
+  "description": "C2/C3 外部 validation runner 与目标生产发布的签名等效性契约。profile_hash=SHA-256(RFC 8785 JCS(signed_payload))；allowlist 外任何差异均失败。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "profile_hash", "signed_payload", "signature"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "profile_hash": { "$ref": "#/$defs/sha256" },
+    "signed_payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile_id", "validation_class", "target_release_id", "target_release_manifest_hash",
+        "exact_match", "allowed_differences", "runner_attestation", "validation_evidence",
+        "isolation_attestation", "cleanup_attestation", "issued_at", "expires_at", "nonce"
+      ],
+      "properties": {
+        "profile_id": { "$ref": "#/$defs/id" },
+        "validation_class": { "enum": ["C2", "C3"] },
+        "target_release_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "target_release_manifest_hash": { "$ref": "#/$defs/sha256" },
+        "exact_match": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "code_commit", "architecture", "image_manifest_hash", "dependency_lock_hash", "sbom_hash",
+            "openapi_hash", "domain_events_hash", "migration_head", "strategy_package_hash",
+            "system_config_hash", "risk_config_hash", "universe_config_hash", "price_action_schema_hash", "price_action_config_hash",
+            "rate_budget_config_hash", "rate_budget_schema_hash", "endpoint_cost_catalog_hash", "endpoint_cost_catalog_schema_hash", "network_egress_policy_hash", "testnet_protocol_probe_plan_hash",
+            "of_search_plan_hash", "of_parameter_candidate_hash", "of_parameter_manifest_hash",
+            "cost_model_schema_hash", "execution_model_schema_hash", "edge_decision_schema_hash", "strategy_health_schema_hash", "codex_review_schema_hash",
+            "execution_semantics_manifest", "execution_semantics_hash", "normalized_compose_hash",
+            "cgroup_cpu_cores", "cgroup_memory_bytes"
+          ],
+          "properties": {
+            "code_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+            "architecture": { "enum": ["amd64", "arm64"] },
+            "image_manifest_hash": { "$ref": "#/$defs/sha256" },
+            "dependency_lock_hash": { "$ref": "#/$defs/sha256" },
+            "sbom_hash": { "$ref": "#/$defs/sha256" },
+            "openapi_hash": { "$ref": "#/$defs/sha256" },
+            "domain_events_hash": { "$ref": "#/$defs/sha256" },
+            "migration_head": { "type": "string", "minLength": 1, "maxLength": 128 },
+            "strategy_package_hash": { "$ref": "#/$defs/sha256" },
+            "system_config_hash": { "$ref": "#/$defs/sha256" },
+            "risk_config_hash": { "$ref": "#/$defs/sha256" },
+            "universe_config_hash": { "$ref": "#/$defs/sha256" },
+            "price_action_schema_hash": { "$ref": "#/$defs/sha256" },
+            "price_action_config_hash": { "$ref": "#/$defs/sha256" },
+            "rate_budget_config_hash": { "$ref": "#/$defs/sha256" },
+            "rate_budget_schema_hash": { "$ref": "#/$defs/sha256" },
+            "endpoint_cost_catalog_hash": { "$ref": "#/$defs/sha256" },
+            "endpoint_cost_catalog_schema_hash": { "$ref": "#/$defs/sha256" },
+            "network_egress_policy_hash": { "$ref": "#/$defs/sha256" },
+            "testnet_protocol_probe_plan_hash": { "$ref": "#/$defs/sha256" },
+            "of_search_plan_hash": { "$ref": "#/$defs/sha256" },
+            "of_parameter_candidate_hash": { "$ref": "#/$defs/sha256" },
+            "of_parameter_manifest_hash": { "$ref": "#/$defs/sha256" },
+            "cost_model_schema_hash": { "$ref": "#/$defs/sha256" },
+            "execution_model_schema_hash": { "$ref": "#/$defs/sha256" },
+            "edge_decision_schema_hash": { "$ref": "#/$defs/sha256" },
+            "strategy_health_schema_hash": { "$ref": "#/$defs/sha256" },
+            "codex_review_schema_hash": { "$ref": "#/$defs/sha256" },
+            "execution_semantics_manifest": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["execution_model_hash", "order_state_machine_hash", "exchange_adapter_contract_hash", "native_protection_policy_hash", "cost_model_hash"],
+              "properties": {
+                "execution_model_hash": { "$ref": "#/$defs/sha256" },
+                "order_state_machine_hash": { "$ref": "#/$defs/sha256" },
+                "exchange_adapter_contract_hash": { "$ref": "#/$defs/sha256" },
+                "native_protection_policy_hash": { "$ref": "#/$defs/sha256" },
+                "cost_model_hash": { "$ref": "#/$defs/sha256" }
+              }
+            },
+            "execution_semantics_hash": { "$ref": "#/$defs/sha256", "description": "SHA-256(RFC 8785 JCS(execution_semantics_manifest))" },
+            "normalized_compose_hash": { "$ref": "#/$defs/sha256" },
+            "cgroup_cpu_cores": { "const": 2 },
+            "cgroup_memory_bytes": { "const": 12884901888 }
+          }
+        },
+        "allowed_differences": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "/runner/host_id", "/runner/instance_id", "/runner/boot_id", "/runner/static_ip",
+              "/runtime/compose_project", "/runtime/database_names", "/runtime/database_roles",
+              "/runtime/queue_namespaces", "/runtime/order_prefixes", "/runtime/redis_namespaces",
+              "/runtime/archive_namespace", "/runtime/heartbeat_namespace", "/runtime/volume_paths",
+              "/runtime/secret_refs", "/runtime/testnet_endpoint", "/runtime/testnet_credential_ref"
+            ]
+          }
+        },
+        "runner_attestation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "host_id", "instance_id", "boot_id", "os_name", "os_version", "kernel_release",
+            "architecture", "docker_version", "compose_version", "country_code", "region_id",
+            "network_path_hash", "static_ip_fingerprint", "disk_type", "disk_capacity_bytes",
+            "disk_quota_bytes", "cgroup_cpu_cores", "cgroup_memory_bytes", "attestation_bundle_hash"
+          ],
+          "properties": {
+            "host_id": { "$ref": "#/$defs/safeString" },
+            "instance_id": { "$ref": "#/$defs/safeString" },
+            "boot_id": { "$ref": "#/$defs/safeString" },
+            "os_name": { "const": "Ubuntu" },
+            "os_version": { "const": "24.04" },
+            "kernel_release": { "$ref": "#/$defs/safeString" },
+            "architecture": { "enum": ["amd64", "arm64"] },
+            "docker_version": { "$ref": "#/$defs/safeString" },
+            "compose_version": { "$ref": "#/$defs/safeString" },
+            "country_code": { "const": "KR" },
+            "region_id": { "$ref": "#/$defs/safeString" },
+            "network_path_hash": { "$ref": "#/$defs/sha256" },
+            "static_ip_fingerprint": { "$ref": "#/$defs/sha256" },
+            "disk_type": { "const": "NVME" },
+            "disk_capacity_bytes": { "type": "integer", "minimum": 180000000000, "maximum": 220000000000 },
+            "disk_quota_bytes": { "type": "integer", "minimum": 180000000000, "maximum": 220000000000 },
+            "cgroup_cpu_cores": { "const": 2 },
+            "cgroup_memory_bytes": { "const": 12884901888 },
+            "attestation_bundle_hash": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "validation_evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "observation_started_at", "observation_ended_at", "network_observation_hours",
+            "shadow_healthy_hours", "rtt_loss_disconnect_hash", "clock_hash", "cpu_steal_hash",
+            "disk_io_hash", "resource_curve_hash", "field_diff_report_hash",
+            "equivalence_report_hash", "unapproved_difference_count"
+          ],
+          "properties": {
+            "observation_started_at": { "type": "string", "format": "date-time" },
+            "observation_ended_at": { "type": "string", "format": "date-time" },
+            "network_observation_hours": { "type": "integer", "minimum": 24 },
+            "shadow_healthy_hours": { "type": "integer", "minimum": 2 },
+            "rtt_loss_disconnect_hash": { "$ref": "#/$defs/sha256" },
+            "clock_hash": { "$ref": "#/$defs/sha256" },
+            "cpu_steal_hash": { "$ref": "#/$defs/sha256" },
+            "disk_io_hash": { "$ref": "#/$defs/sha256" },
+            "resource_curve_hash": { "$ref": "#/$defs/sha256" },
+            "field_diff_report_hash": { "$ref": "#/$defs/sha256" },
+            "equivalence_report_hash": { "$ref": "#/$defs/sha256" },
+            "unapproved_difference_count": { "const": 0 }
+          }
+        },
+        "isolation_attestation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "production_key_present", "production_database_present", "production_volume_present",
+            "production_control_channel_present", "testnet_credential_ref", "isolation_report_hash"
+          ],
+          "properties": {
+            "production_key_present": { "const": false },
+            "production_database_present": { "const": false },
+            "production_volume_present": { "const": false },
+            "production_control_channel_present": { "const": false },
+            "testnet_credential_ref": { "$ref": "#/$defs/secretRef" },
+            "isolation_report_hash": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "cleanup_attestation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["runner_stopped", "testnet_credential_revoked", "ephemeral_secrets_destroyed", "cleanup_report_hash"],
+          "properties": {
+            "runner_stopped": { "const": true },
+            "testnet_credential_revoked": { "const": true },
+            "ephemeral_secrets_destroyed": { "const": true },
+            "cleanup_report_hash": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "issued_at": { "type": "string", "format": "date-time" },
+        "expires_at": { "type": "string", "format": "date-time" },
+        "nonce": { "type": "string", "minLength": 16, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "validation_class": { "const": "C3" } }, "required": ["validation_class"] },
+          "then": { "properties": { "validation_evidence": { "properties": { "shadow_healthy_hours": { "minimum": 72 } } } } }
+        }
+      ]
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "key_id", "signature_ref"],
+      "properties": {
+        "algorithm": { "const": "Ed25519" },
+        "key_id": { "$ref": "#/$defs/safeString" },
+        "signature_ref": { "$ref": "#/$defs/safeRelativeSigPath" }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|[0-9A-HJKMNP-TV-Z]{26})$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "safeString": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$" },
+    "secretRef": { "type": "string", "minLength": 1, "maxLength": 200, "pattern": "^(docker-secret|file-ref|vault-ref):[A-Za-z0-9_./:-]+$" },
+    "safeRelativeSigPath": { "type": "string", "maxLength": 300, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*\\.sig$" }
+  }
+}

@@ -1,0 +1,479 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant.local/contracts/rate-budget-uds.schema.json",
+  "title": "Host Rate Budget UDS Protocol",
+  "oneOf": [
+    { "$ref": "#/$defs/reserveRequest" },
+    { "$ref": "#/$defs/reserveDecision" },
+    { "$ref": "#/$defs/permitConsumeRequest" },
+    { "$ref": "#/$defs/permitConsumeDecision" },
+    { "$ref": "#/$defs/sendOutcome" },
+    { "$ref": "#/$defs/headerObservation" },
+    { "$ref": "#/$defs/connectionStateObservation" },
+    { "$ref": "#/$defs/serverTimeObservation" },
+    { "$ref": "#/$defs/exchangeRateLimitObservation" }
+  ],
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{8,128}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "dateTime": { "type": "string", "format": "date-time" },
+    "operationClass": { "enum": ["HOST_RATE_CONTROL", "EMERGENCY_REDUCE_ONLY", "PROTECTION_CREATE_REPLACE", "CANCEL", "RECONCILIATION", "USER_STREAM_MAINTENANCE", "NORMAL_EXIT", "NORMAL_ENTRY", "MARKET_DATA_SNAPSHOT"] },
+    "endpointAuthority": { "enum": ["BINANCE_PRODUCTION_FAPI", "BINANCE_TESTNET_FAPI", "BINANCE_PRODUCTION_FSTREAM", "BINANCE_TESTNET_FSTREAM"] },
+    "environment": { "enum": ["shadow", "paper", "testnet", "production"] },
+    "callerService": { "enum": ["realtime-engine", "execution-service", "testnet-probe-runner", "host-bootstrap-runner", "binance-egress-gateway", "rate-budget-service"] },
+    "requestCallerService": { "enum": ["realtime-engine", "execution-service", "testnet-probe-runner", "host-bootstrap-runner"] },
+    "causalRefType": { "enum": ["MARKET_DATA_TASK", "ORDER_INTENT", "OPERATOR_COMMAND", "INCIDENT", "RECONCILIATION_TASK", "USER_STREAM_TASK", "TESTNET_PROBE", "HOST_BOOTSTRAP"] },
+    "semanticAction": { "enum": ["HOST_RATE_CONTROL", "MARKET_DATA_READ", "USER_STREAM_MAINTAIN", "ORDER_ENTRY", "ORDER_EXIT", "PROTECTION_CREATE_REPLACE", "CANCEL", "RECONCILE", "EMERGENCY_REDUCE_ONLY"] },
+    "operationFacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["semantic_action", "transport", "order_role", "reduce_only", "close_position"],
+      "properties": {
+        "semantic_action": { "$ref": "#/$defs/semanticAction" },
+        "transport": { "enum": ["REST", "WS_API", "MARKET_STREAM_CONTROL"] },
+        "order_role": { "enum": [null, "ENTRY", "STOP_LOSS", "TAKE_PROFIT", "STRATEGY_EXIT", "RISK_EXIT", "OPERATOR_FLATTEN", "RECONCILIATION_REPAIR"] },
+        "reduce_only": { "type": ["boolean", "null"] },
+        "close_position": { "type": ["boolean", "null"] }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "semantic_action": { "enum": ["HOST_RATE_CONTROL", "MARKET_DATA_READ", "USER_STREAM_MAINTAIN", "CANCEL", "RECONCILE"] } }, "required": ["semantic_action"] },
+          "then": { "properties": { "order_role": { "type": "null" }, "reduce_only": { "type": "null" }, "close_position": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "semantic_action": { "const": "ORDER_ENTRY" } }, "required": ["semantic_action"] },
+          "then": { "properties": { "order_role": { "const": "ENTRY" }, "reduce_only": { "const": false }, "close_position": { "const": false } } }
+        },
+        {
+          "if": { "properties": { "semantic_action": { "enum": ["ORDER_EXIT", "PROTECTION_CREATE_REPLACE", "EMERGENCY_REDUCE_ONLY"] } }, "required": ["semantic_action"] },
+          "then": {
+            "properties": { "order_role": { "not": { "enum": [null, "ENTRY"] } } },
+            "anyOf": [
+              { "properties": { "reduce_only": { "const": true } } },
+              { "properties": { "close_position": { "const": true } } }
+            ]
+          }
+        }
+      ]
+    },
+    "causalCapability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["capability_id", "payload_hash", "signed_payload", "signature"],
+      "properties": {
+        "capability_id": { "$ref": "#/$defs/id" },
+        "payload_hash": { "$ref": "#/$defs/sha256" },
+        "signed_payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["capability_id", "issuer", "subject_caller_service", "environment", "allowed_operation_class", "endpoint_authority", "endpoint_id", "gateway_connection_id", "canonical_request_hash", "operation_facts_hash", "causal_ref_type", "causal_ref_id", "issued_at", "expires_at", "nonce"],
+          "properties": {
+            "capability_id": { "$ref": "#/$defs/id" },
+            "issuer": { "enum": ["RISK_AUTHORITY", "CONTROL_AUTHORITY", "RECONCILIATION_AUTHORITY", "MARKET_DATA_AUTHORITY", "USER_STREAM_AUTHORITY", "TESTNET_PROBE_AUTHORITY", "HOST_BOOTSTRAP_AUTHORITY"] },
+            "subject_caller_service": { "$ref": "#/$defs/requestCallerService" },
+            "environment": { "$ref": "#/$defs/environment" },
+            "allowed_operation_class": { "$ref": "#/$defs/operationClass" },
+            "endpoint_authority": { "$ref": "#/$defs/endpointAuthority" },
+            "endpoint_id": { "type": "string", "pattern": "^[A-Z0-9_]{4,96}$" },
+            "gateway_connection_id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+            "canonical_request_hash": { "$ref": "#/$defs/sha256" },
+            "operation_facts_hash": { "$ref": "#/$defs/sha256" },
+            "causal_ref_type": { "$ref": "#/$defs/causalRefType" },
+            "causal_ref_id": { "$ref": "#/$defs/id" },
+            "issued_at": { "$ref": "#/$defs/dateTime" },
+            "expires_at": { "$ref": "#/$defs/dateTime" },
+            "nonce": { "$ref": "#/$defs/id" }
+          }
+        },
+        "signature": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["algorithm", "key_id", "signature_base64"],
+          "properties": {
+            "algorithm": { "const": "Ed25519" },
+            "key_id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{8,128}$" },
+            "signature_base64": { "type": "string", "pattern": "^[A-Za-z0-9+/]{86}==$" }
+          }
+        }
+      }
+    },
+    "base": {
+      "type": "object",
+      "required": ["schema_version", "message_type", "message_id", "occurred_at", "caller_service", "caller_instance_id", "correlation_id"],
+      "properties": {
+        "schema_version": { "const": "1.0.0" },
+        "message_type": { "enum": ["ReserveRequest", "ReserveDecision", "PermitConsumeRequest", "PermitConsumeDecision", "SendOutcome", "HeaderObservation", "ConnectionStateObservation", "ServerTimeObservation", "ExchangeRateLimitObservation"] },
+        "message_id": { "$ref": "#/$defs/id" },
+        "occurred_at": { "$ref": "#/$defs/dateTime" },
+        "caller_service": { "$ref": "#/$defs/callerService" },
+        "caller_instance_id": { "$ref": "#/$defs/id" },
+        "correlation_id": { "$ref": "#/$defs/id" }
+      }
+    },
+    "reserveRequest": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema_version", "message_type", "message_id", "occurred_at", "caller_service", "caller_instance_id", "correlation_id", "request_key", "environment", "endpoint_authority", "endpoint_id", "gateway_connection_id", "endpoint_catalog_hash", "canonical_request_hash", "parameter_hash", "wire_bytes_hash", "gateway_request_document_hash", "operation_facts", "operation_facts_hash", "causal_ref_type", "causal_ref_id", "causal_capability", "expected_fencing_epoch"],
+          "properties": {
+            "schema_version": { "const": "1.0.0" },
+            "message_type": { "const": "ReserveRequest" },
+            "message_id": { "$ref": "#/$defs/id" },
+            "occurred_at": { "$ref": "#/$defs/dateTime" },
+            "caller_service": { "$ref": "#/$defs/requestCallerService" },
+            "caller_instance_id": { "$ref": "#/$defs/id" },
+            "correlation_id": { "$ref": "#/$defs/id" },
+            "request_key": { "$ref": "#/$defs/id" },
+            "environment": { "$ref": "#/$defs/environment" },
+            "endpoint_authority": { "$ref": "#/$defs/endpointAuthority" },
+            "endpoint_id": { "type": "string", "pattern": "^[A-Z0-9_]{4,96}$" },
+            "gateway_connection_id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+            "endpoint_catalog_hash": { "$ref": "#/$defs/sha256" },
+            "canonical_request_hash": { "$ref": "#/$defs/sha256" },
+            "parameter_hash": { "$ref": "#/$defs/sha256" },
+            "wire_bytes_hash": { "$ref": "#/$defs/sha256" },
+            "gateway_request_document_hash": { "$ref": "#/$defs/sha256" },
+            "operation_facts": { "$ref": "#/$defs/operationFacts" },
+            "operation_facts_hash": { "$ref": "#/$defs/sha256" },
+            "causal_ref_type": { "$ref": "#/$defs/causalRefType" },
+            "causal_ref_id": { "$ref": "#/$defs/id" },
+            "causal_capability": { "$ref": "#/$defs/causalCapability" },
+            "expected_fencing_epoch": { "type": "integer", "minimum": 1 }
+          }
+        }
+      ]
+    },
+    "allocation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["budget_id", "rate_limit_type", "scope_key_hash", "interval_name", "window_start", "window_end", "cost", "effective_used_before", "effective_used_after", "class_ceiling"],
+      "properties": {
+        "budget_id": { "$ref": "#/$defs/id" },
+        "rate_limit_type": { "enum": ["REQUEST_WEIGHT", "ORDERS", "WS_CONTROL_MESSAGES", "CONNECTION_ATTEMPTS"] },
+        "scope_key_hash": { "$ref": "#/$defs/sha256" },
+        "interval_name": { "type": "string", "pattern": "^[A-Z0-9_]{3,32}$" },
+        "window_start": { "$ref": "#/$defs/dateTime" },
+        "window_end": { "$ref": "#/$defs/dateTime" },
+        "cost": { "type": "integer", "minimum": 0 },
+        "effective_used_before": { "type": "integer", "minimum": 0 },
+        "effective_used_after": { "type": "integer", "minimum": 0 },
+        "class_ceiling": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "reserveDecision": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema_version", "message_type", "message_id", "occurred_at", "caller_service", "caller_instance_id", "correlation_id", "request_message_id", "request_key", "decision", "permit_id", "environment", "gateway_connection_id", "derived_operation_class", "endpoint_catalog_hash", "canonical_request_hash", "parameter_hash", "wire_bytes_hash", "gateway_request_document_hash", "operation_facts_hash", "causal_capability_payload_hash", "causal_capability_nonce", "capability_reservation_state", "fencing_epoch", "expires_at", "retry_not_before", "allocations", "reason_code"],
+          "properties": {
+            "schema_version": { "const": "1.0.0" },
+            "message_type": { "const": "ReserveDecision" },
+            "message_id": { "$ref": "#/$defs/id" },
+            "occurred_at": { "$ref": "#/$defs/dateTime" },
+            "caller_service": { "const": "rate-budget-service" },
+            "caller_instance_id": { "$ref": "#/$defs/id" },
+            "correlation_id": { "$ref": "#/$defs/id" },
+            "request_message_id": { "$ref": "#/$defs/id" },
+            "request_key": { "$ref": "#/$defs/id" },
+            "decision": { "enum": ["GRANTED", "DENIED"] },
+            "permit_id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+            "environment": { "$ref": "#/$defs/environment" },
+            "gateway_connection_id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+            "derived_operation_class": { "oneOf": [{ "$ref": "#/$defs/operationClass" }, { "type": "null" }] },
+            "endpoint_catalog_hash": { "$ref": "#/$defs/sha256" },
+            "canonical_request_hash": { "$ref": "#/$defs/sha256" },
+            "parameter_hash": { "$ref": "#/$defs/sha256" },
+            "wire_bytes_hash": { "$ref": "#/$defs/sha256" },
+            "gateway_request_document_hash": { "$ref": "#/$defs/sha256" },
+            "operation_facts_hash": { "$ref": "#/$defs/sha256" },
+            "causal_capability_payload_hash": { "$ref": "#/$defs/sha256" },
+            "causal_capability_nonce": { "$ref": "#/$defs/id" },
+            "capability_reservation_state": { "enum": ["RESERVED", null] },
+            "fencing_epoch": { "type": "integer", "minimum": 1 },
+            "expires_at": { "type": ["string", "null"], "format": "date-time" },
+            "retry_not_before": { "type": ["string", "null"], "format": "date-time" },
+            "allocations": { "type": "array", "items": { "$ref": "#/$defs/allocation" } },
+            "reason_code": { "enum": ["RATE_GRANTED", "RATE_SCOPE_BLOCKED", "RATE_CLASS_CEILING_EXCEEDED", "RATE_ENDPOINT_UNKNOWN", "RATE_CALLER_NOT_ALLOWED", "RATE_CAUSAL_ROLE_INVALID", "RATE_CAPABILITY_INVALID", "RATE_CAPABILITY_REPLAYED", "RATE_TRUST_BUNDLE_EXPIRED", "RATE_ENVIRONMENT_AUTHORITY_MISMATCH", "RATE_CONNECTION_HANDLE_INVALID", "RATE_FENCING_STALE", "RATE_AUTHORITY_UNAVAILABLE"] }
+          },
+          "allOf": [
+            {
+              "if": { "properties": { "decision": { "const": "GRANTED" } }, "required": ["decision"] },
+              "then": { "properties": { "permit_id": { "$ref": "#/$defs/id" }, "derived_operation_class": { "$ref": "#/$defs/operationClass" }, "capability_reservation_state": { "const": "RESERVED" }, "expires_at": { "$ref": "#/$defs/dateTime" }, "retry_not_before": { "type": "null" }, "allocations": { "minItems": 1 }, "reason_code": { "const": "RATE_GRANTED" } } },
+              "else": { "properties": { "permit_id": { "type": "null" }, "gateway_connection_id": { "type": "null" }, "derived_operation_class": { "type": "null" }, "capability_reservation_state": { "type": "null" }, "expires_at": { "type": "null" }, "allocations": { "maxItems": 0 }, "reason_code": { "not": { "const": "RATE_GRANTED" } } } }
+            }
+          ]
+        }
+      ]
+    },
+    "permitConsumeRequest": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema_version", "message_type", "message_id", "occurred_at", "caller_service", "caller_instance_id", "correlation_id", "permit_id", "subject_caller_service", "subject_caller_instance_id", "environment", "endpoint_authority", "endpoint_id", "gateway_connection_id", "endpoint_catalog_hash", "canonical_request_hash", "gateway_derived_parameter_hash", "gateway_derived_wire_bytes_hash", "gateway_request_document_hash", "gateway_derived_operation_facts", "gateway_derived_operation_facts_hash", "causal_capability_payload_hash", "expected_fencing_epoch"],
+          "properties": {
+            "schema_version": { "const": "1.0.0" },
+            "message_type": { "const": "PermitConsumeRequest" },
+            "message_id": { "$ref": "#/$defs/id" },
+            "occurred_at": { "$ref": "#/$defs/dateTime" },
+            "caller_service": { "const": "binance-egress-gateway" },
+            "caller_instance_id": { "$ref": "#/$defs/id" },
+            "correlation_id": { "$ref": "#/$defs/id" },
+            "permit_id": { "$ref": "#/$defs/id" },
+            "subject_caller_service": { "$ref": "#/$defs/requestCallerService" },
+            "subject_caller_instance_id": { "$ref": "#/$defs/id" },
+            "environment": { "$ref": "#/$defs/environment" },
+            "endpoint_authority": { "$ref": "#/$defs/endpointAuthority" },
+            "endpoint_id": { "type": "string", "pattern": "^[A-Z0-9_]{4,96}$" },
+            "gateway_connection_id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+            "endpoint_catalog_hash": { "$ref": "#/$defs/sha256" },
+            "canonical_request_hash": { "$ref": "#/$defs/sha256" },
+            "gateway_derived_parameter_hash": { "$ref": "#/$defs/sha256" },
+            "gateway_derived_wire_bytes_hash": { "$ref": "#/$defs/sha256" },
+            "gateway_request_document_hash": { "$ref": "#/$defs/sha256" },
+            "gateway_derived_operation_facts": { "$ref": "#/$defs/operationFacts" },
+            "gateway_derived_operation_facts_hash": { "$ref": "#/$defs/sha256" },
+            "causal_capability_payload_hash": { "$ref": "#/$defs/sha256" },
+            "expected_fencing_epoch": { "type": "integer", "minimum": 1 }
+          }
+        }
+      ]
+    },
+    "permitConsumeDecision": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema_version", "message_type", "message_id", "occurred_at", "caller_service", "caller_instance_id", "correlation_id", "request_message_id", "permit_id", "decision", "gateway_connection_id", "canonical_request_hash", "gateway_derived_parameter_hash", "gateway_derived_wire_bytes_hash", "gateway_request_document_hash", "gateway_derived_operation_facts_hash", "causal_capability_payload_hash", "capability_nonce_state", "fencing_epoch", "send_deadline", "reason_code"],
+          "properties": {
+            "schema_version": { "const": "1.0.0" },
+            "message_type": { "const": "PermitConsumeDecision" },
+            "message_id": { "$ref": "#/$defs/id" },
+            "occurred_at": { "$ref": "#/$defs/dateTime" },
+            "caller_service": { "const": "rate-budget-service" },
+            "caller_instance_id": { "$ref": "#/$defs/id" },
+            "correlation_id": { "$ref": "#/$defs/id" },
+            "request_message_id": { "$ref": "#/$defs/id" },
+            "permit_id": { "$ref": "#/$defs/id" },
+            "decision": { "enum": ["CONSUME_GRANTED", "CONSUME_DENIED"] },
+            "gateway_connection_id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+            "canonical_request_hash": { "$ref": "#/$defs/sha256" },
+            "gateway_derived_parameter_hash": { "$ref": "#/$defs/sha256" },
+            "gateway_derived_wire_bytes_hash": { "$ref": "#/$defs/sha256" },
+            "gateway_request_document_hash": { "$ref": "#/$defs/sha256" },
+            "gateway_derived_operation_facts_hash": { "$ref": "#/$defs/sha256" },
+            "causal_capability_payload_hash": { "$ref": "#/$defs/sha256" },
+            "capability_nonce_state": { "enum": ["CONSUMED", null] },
+            "fencing_epoch": { "type": "integer", "minimum": 1 },
+            "send_deadline": { "type": ["string", "null"], "format": "date-time" },
+            "reason_code": { "enum": ["RATE_PERMIT_CONSUMED", "RATE_PERMIT_UNKNOWN", "RATE_PERMIT_EXPIRED", "RATE_PERMIT_ALREADY_CONSUMED", "RATE_PERMIT_BINDING_MISMATCH", "RATE_PARAMETER_HASH_MISMATCH", "RATE_WIRE_HASH_MISMATCH", "RATE_REQUEST_DOCUMENT_HASH_MISMATCH", "RATE_OPERATION_FACTS_MISMATCH", "RATE_CAPABILITY_INVALID_OR_REPLAYED", "RATE_FENCING_STALE", "RATE_AUTHORITY_UNAVAILABLE"] }
+          },
+          "allOf": [
+            {
+              "if": { "properties": { "decision": { "const": "CONSUME_GRANTED" } }, "required": ["decision"] },
+              "then": { "properties": { "capability_nonce_state": { "const": "CONSUMED" }, "send_deadline": { "$ref": "#/$defs/dateTime" }, "reason_code": { "const": "RATE_PERMIT_CONSUMED" } } },
+              "else": { "properties": { "capability_nonce_state": { "type": "null" }, "send_deadline": { "type": "null" }, "reason_code": { "not": { "const": "RATE_PERMIT_CONSUMED" } } } }
+            }
+          ]
+        }
+      ]
+    },
+    "sendOutcome": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema_version", "message_type", "message_id", "occurred_at", "caller_service", "caller_instance_id", "correlation_id", "permit_id", "gateway_connection_id", "transport", "canonical_request_hash", "fencing_epoch", "outcome", "protocol_status", "connection_state_after", "sent_at", "http_status", "exchange_code", "response_message_hash", "result_receipt_hash"],
+          "properties": {
+            "schema_version": { "const": "1.0.0" },
+            "message_type": { "const": "SendOutcome" },
+            "message_id": { "$ref": "#/$defs/id" },
+            "occurred_at": { "$ref": "#/$defs/dateTime" },
+            "caller_service": { "const": "binance-egress-gateway" },
+            "caller_instance_id": { "$ref": "#/$defs/id" },
+            "correlation_id": { "$ref": "#/$defs/id" },
+            "permit_id": { "$ref": "#/$defs/id" },
+            "gateway_connection_id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+            "transport": { "enum": ["REST", "WS_API", "MARKET_STREAM_CONTROL"] },
+            "canonical_request_hash": { "$ref": "#/$defs/sha256" },
+            "fencing_epoch": { "type": "integer", "minimum": 1 },
+            "outcome": { "enum": ["NOT_SENT", "SENT_DEFINITE_RESULT", "SENT_UNKNOWN"] },
+            "protocol_status": { "enum": ["NOT_SENT", "HTTP_RESPONSE", "WS_HANDSHAKE", "WS_CONTROL_ACK", "LOCAL_WRITE_CONFIRMED", "UNKNOWN"] },
+            "connection_state_after": { "enum": [null, "OPEN", "UNCHANGED", "CLOSED", "UNKNOWN"] },
+            "sent_at": { "type": ["string", "null"], "format": "date-time" },
+            "http_status": { "type": ["integer", "null"], "minimum": 100, "maximum": 599 },
+            "exchange_code": { "type": ["integer", "null"] },
+            "response_message_hash": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+            "result_receipt_hash": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] }
+          },
+          "allOf": [
+            {
+              "if": { "properties": { "outcome": { "const": "NOT_SENT" } }, "required": ["outcome"] },
+              "then": { "properties": { "protocol_status": { "const": "NOT_SENT" }, "sent_at": { "type": "null" }, "http_status": { "type": "null" }, "exchange_code": { "type": "null" }, "response_message_hash": { "type": "null" }, "result_receipt_hash": { "type": "null" } } }
+            },
+            {
+              "if": { "properties": { "outcome": { "const": "SENT_DEFINITE_RESULT" } }, "required": ["outcome"] },
+              "then": { "properties": { "sent_at": { "$ref": "#/$defs/dateTime" }, "result_receipt_hash": { "$ref": "#/$defs/sha256" }, "protocol_status": { "not": { "enum": ["NOT_SENT", "UNKNOWN"] } } } }
+            },
+            {
+              "if": { "properties": { "outcome": { "const": "SENT_UNKNOWN" } }, "required": ["outcome"] },
+              "then": { "properties": { "sent_at": { "$ref": "#/$defs/dateTime" }, "protocol_status": { "const": "UNKNOWN" } } }
+            },
+            {
+              "if": { "properties": { "outcome": { "const": "SENT_DEFINITE_RESULT" }, "transport": { "const": "REST" } }, "required": ["outcome", "transport"] },
+              "then": { "properties": { "http_status": { "type": "integer", "minimum": 100, "maximum": 599 } } }
+            }
+          ]
+        }
+      ]
+    },
+    "headerObservation": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema_version", "message_type", "message_id", "occurred_at", "caller_service", "caller_instance_id", "correlation_id", "permit_id", "gateway_connection_id", "endpoint_authority", "canonical_header_hash", "used_weight_observations", "order_count_observations", "retry_after_seconds", "http_status", "fencing_epoch"],
+          "properties": {
+            "schema_version": { "const": "1.0.0" },
+            "message_type": { "const": "HeaderObservation" },
+            "message_id": { "$ref": "#/$defs/id" },
+            "occurred_at": { "$ref": "#/$defs/dateTime" },
+            "caller_service": { "const": "binance-egress-gateway" },
+            "caller_instance_id": { "$ref": "#/$defs/id" },
+            "correlation_id": { "$ref": "#/$defs/id" },
+            "permit_id": { "$ref": "#/$defs/id" },
+            "gateway_connection_id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+            "endpoint_authority": { "$ref": "#/$defs/endpointAuthority" },
+            "canonical_header_hash": { "$ref": "#/$defs/sha256" },
+            "used_weight_observations": { "type": "object", "propertyNames": { "pattern": "^x-mbx-used-weight-[a-z0-9]+$" }, "additionalProperties": { "type": "integer", "minimum": 0 } },
+            "order_count_observations": { "type": "object", "propertyNames": { "pattern": "^x-mbx-order-count-[a-z0-9]+$" }, "additionalProperties": { "type": "integer", "minimum": 0 } },
+            "retry_after_seconds": { "type": ["integer", "null"], "minimum": 1 },
+            "http_status": { "type": "integer", "minimum": 100, "maximum": 599 },
+            "fencing_epoch": { "type": "integer", "minimum": 1 }
+          }
+        }
+      ]
+    },
+    "connectionStateObservation": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema_version", "message_type", "message_id", "occurred_at", "caller_service", "caller_instance_id", "correlation_id", "gateway_connection_id", "connection_generation", "endpoint_authority", "market_stream_role", "state", "related_permit_id", "confirmed_stream_count", "confirmed_stream_set_hash", "socket_peer_hash", "fencing_epoch", "reason_code"],
+          "properties": {
+            "schema_version": { "const": "1.0.0" },
+            "message_type": { "const": "ConnectionStateObservation" },
+            "message_id": { "$ref": "#/$defs/id" },
+            "occurred_at": { "$ref": "#/$defs/dateTime" },
+            "caller_service": { "const": "binance-egress-gateway" },
+            "caller_instance_id": { "$ref": "#/$defs/id" },
+            "correlation_id": { "$ref": "#/$defs/id" },
+            "gateway_connection_id": { "$ref": "#/$defs/id" },
+            "connection_generation": { "type": "integer", "minimum": 1 },
+            "endpoint_authority": { "$ref": "#/$defs/endpointAuthority" },
+            "market_stream_role": { "enum": ["PUBLIC", "MARKET", "PRIVATE"] },
+            "state": { "enum": ["OPEN", "SUBSCRIPTIONS_UPDATED", "CLOSED"] },
+            "related_permit_id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+            "confirmed_stream_count": { "type": "integer", "minimum": 0 },
+            "confirmed_stream_set_hash": { "$ref": "#/$defs/sha256" },
+            "socket_peer_hash": { "$ref": "#/$defs/sha256" },
+            "fencing_epoch": { "type": "integer", "minimum": 1 },
+            "reason_code": { "enum": ["HANDSHAKE_CONFIRMED", "SUBSCRIBE_ACK", "UNSUBSCRIBE_ACK", "PARTIAL_SUBSCRIPTION_ACK", "REMOTE_CLOSED", "LOCAL_CLOSED", "PROTOCOL_ERROR", "RATE_POLICY_CLOSED", "ALLOCATOR_UNAVAILABLE_NATURAL_DISCONNECT"] }
+          },
+          "allOf": [
+            {
+              "if": { "properties": { "state": { "enum": ["OPEN", "SUBSCRIPTIONS_UPDATED"] } }, "required": ["state"] },
+              "then": { "properties": { "related_permit_id": { "$ref": "#/$defs/id" } } }
+            },
+            {
+              "if": { "properties": { "state": { "const": "CLOSED" } }, "required": ["state"] },
+              "then": { "properties": { "confirmed_stream_count": { "const": 0 } } }
+            }
+          ]
+        }
+      ]
+    },
+    "serverTimeObservation": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema_version", "message_type", "message_id", "occurred_at", "caller_service", "caller_instance_id", "correlation_id", "permit_id", "endpoint_authority", "endpoint_id", "raw_response_hash", "tls_peer_certificate_hash", "server_time_ms", "gateway_boot_id", "gateway_monotonic_ns", "fencing_epoch"],
+          "properties": {
+            "schema_version": { "const": "1.0.0" },
+            "message_type": { "const": "ServerTimeObservation" },
+            "message_id": { "$ref": "#/$defs/id" },
+            "occurred_at": { "$ref": "#/$defs/dateTime" },
+            "caller_service": { "const": "binance-egress-gateway" },
+            "caller_instance_id": { "$ref": "#/$defs/id" },
+            "correlation_id": { "$ref": "#/$defs/id" },
+            "permit_id": { "$ref": "#/$defs/id" },
+            "endpoint_authority": { "enum": ["BINANCE_PRODUCTION_FAPI", "BINANCE_TESTNET_FAPI"] },
+            "endpoint_id": { "const": "REST_SERVER_TIME" },
+            "raw_response_hash": { "$ref": "#/$defs/sha256" },
+            "tls_peer_certificate_hash": { "$ref": "#/$defs/sha256" },
+            "server_time_ms": { "type": "integer", "minimum": 1 },
+            "gateway_boot_id": { "$ref": "#/$defs/id" },
+            "gateway_monotonic_ns": { "type": "integer", "minimum": 1 },
+            "fencing_epoch": { "type": "integer", "minimum": 1 }
+          }
+        }
+      ]
+    },
+    "exchangeRateLimitObservation": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema_version", "message_type", "message_id", "occurred_at", "caller_service", "caller_instance_id", "correlation_id", "permit_id", "endpoint_authority", "endpoint_id", "raw_response_hash", "tls_peer_certificate_hash", "exchange_info_server_time_observation_id", "normalized_rate_limits", "gateway_boot_id", "gateway_monotonic_ns", "fencing_epoch"],
+          "properties": {
+            "schema_version": { "const": "1.0.0" },
+            "message_type": { "const": "ExchangeRateLimitObservation" },
+            "message_id": { "$ref": "#/$defs/id" },
+            "occurred_at": { "$ref": "#/$defs/dateTime" },
+            "caller_service": { "const": "binance-egress-gateway" },
+            "caller_instance_id": { "$ref": "#/$defs/id" },
+            "correlation_id": { "$ref": "#/$defs/id" },
+            "permit_id": { "$ref": "#/$defs/id" },
+            "endpoint_authority": { "enum": ["BINANCE_PRODUCTION_FAPI", "BINANCE_TESTNET_FAPI"] },
+            "endpoint_id": { "const": "REST_UM_EXCHANGE_INFO" },
+            "raw_response_hash": { "$ref": "#/$defs/sha256" },
+            "tls_peer_certificate_hash": { "$ref": "#/$defs/sha256" },
+            "exchange_info_server_time_observation_id": { "$ref": "#/$defs/id" },
+            "normalized_rate_limits": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["rate_limit_type", "interval", "interval_num", "interval_seconds", "limit"],
+                "properties": {
+                  "rate_limit_type": { "enum": ["REQUEST_WEIGHT", "ORDERS"] },
+                  "interval": { "enum": ["SECOND", "MINUTE", "HOUR", "DAY"] },
+                  "interval_num": { "type": "integer", "minimum": 1 },
+                  "interval_seconds": { "type": "integer", "minimum": 1 },
+                  "limit": { "type": "integer", "minimum": 1 }
+                }
+              }
+            },
+            "gateway_boot_id": { "$ref": "#/$defs/id" },
+            "gateway_monotonic_ns": { "type": "integer", "minimum": 1 },
+            "fencing_epoch": { "type": "integer", "minimum": 1 }
+          }
+        }
+      ]
+    }
+  }
+}

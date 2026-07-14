@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "execution-model.schema.json",
+  "title": "Deterministic Maker-First Execution Model",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "model_hash", "content"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "model_hash": { "$ref": "#/$defs/sha256" },
+    "content": { "$ref": "#/$defs/content" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "dateTime": { "type": "string", "format": "date-time" },
+    "content": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model_id", "created_at", "market", "maker_first", "taker_escalation", "queue_fill", "latency", "partial_fill", "exchange_filters", "native_protection", "unknown_result", "replay", "automatic_update_forbidden"],
+      "properties": {
+        "model_id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{8,128}$" },
+        "created_at": { "$ref": "#/$defs/dateTime" },
+        "market": { "const": "BINANCE_USDM_FUTURES" },
+        "maker_first": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["required_for_normal_entry", "order_type", "time_in_force", "ttl_ms_by_liquidity_bucket", "reprice_limit", "signal_must_remain_valid"],
+          "properties": {
+            "required_for_normal_entry": { "const": true },
+            "order_type": { "const": "LIMIT" },
+            "time_in_force": { "const": "GTX" },
+            "ttl_ms_by_liquidity_bucket": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["LOW", "MEDIUM", "HIGH"],
+              "properties": {
+                "LOW": { "type": "integer", "minimum": 50, "maximum": 5000 },
+                "MEDIUM": { "type": "integer", "minimum": 50, "maximum": 5000 },
+                "HIGH": { "type": "integer", "minimum": 50, "maximum": 5000 }
+              }
+            },
+            "reprice_limit": { "type": "integer", "minimum": 0, "maximum": 5 },
+            "signal_must_remain_valid": { "const": true }
+          }
+        },
+        "taker_escalation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["allowed", "required_conditions", "recompute_edge_with_taker_cost", "stale_or_missing_cost_action"],
+          "properties": {
+            "allowed": { "const": true },
+            "required_conditions": { "const": ["signal_not_expired", "pa_and_of_still_aligned", "book_healthy", "risk_reservation_valid", "net_edge_after_taker_cost_at_or_above_threshold", "urgency_elevated"] },
+            "recompute_edge_with_taker_cost": { "const": true },
+            "stale_or_missing_cost_action": { "const": "CANCEL_AND_NO_ENTRY" }
+          }
+        },
+        "queue_fill": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["method", "trade_quantity_field", "queue_ahead_source", "hidden_liquidity_credit", "cancel_ahead_credit", "fill_requires_trade_through_or_queue_depletion"],
+          "properties": {
+            "method": { "const": "FIFO_CONSERVATIVE_L2_REPLAY_V1" },
+            "trade_quantity_field": { "const": "nq" },
+            "queue_ahead_source": { "const": "VISIBLE_SIZE_AT_PRICE_WHEN_ACKED" },
+            "hidden_liquidity_credit": { "const": false },
+            "cancel_ahead_credit": { "const": false },
+            "fill_requires_trade_through_or_queue_depletion": { "const": true }
+          }
+        },
+        "latency": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["method", "components", "distribution_snapshot_hash", "minimum_observations_per_path", "fallback"],
+          "properties": {
+            "method": { "const": "EMPIRICAL_EVENT_TIME_DISTRIBUTION_V1" },
+            "components": { "const": ["market_to_feature", "feature_to_risk", "risk_to_durable_intent", "intent_to_gateway", "gateway_to_exchange_ack"] },
+            "distribution_snapshot_hash": { "$ref": "#/$defs/sha256" },
+            "minimum_observations_per_path": { "type": "integer", "minimum": 1, "maximum": 100000 },
+            "fallback": { "const": "CONSERVATIVE_P99_OR_REJECT" }
+          }
+        },
+        "partial_fill": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["protect_each_increment", "protection_deadline_ms", "remaining_quantity_rule", "signal_expiry_action"],
+          "properties": {
+            "protect_each_increment": { "const": true },
+            "protection_deadline_ms": { "const": 1000 },
+            "remaining_quantity_rule": { "const": "RECHECK_SIGNAL_EDGE_RISK_AND_EXCHANGE_FILTERS" },
+            "signal_expiry_action": { "const": "CANCEL_REMAINDER_KEEP_FILLED_PROTECTED" }
+          }
+        },
+        "exchange_filters": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source", "refresh_on_reject", "round_price", "round_quantity", "stale_action"],
+          "properties": {
+            "source": { "const": "CURRENT_EXCHANGE_INFO" },
+            "refresh_on_reject": { "const": true },
+            "round_price": { "const": "SIDE_AND_ORDER_ROLE_SAFE_TICK" },
+            "round_quantity": { "const": "DOWN_TO_STEP_SIZE" },
+            "stale_action": { "const": "REJECT_ENTRY" }
+          }
+        },
+        "native_protection": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["transport", "stop_order_type", "reduce_position", "deadline_ms", "missing_action"],
+          "properties": {
+            "transport": { "const": "ALGO" },
+            "stop_order_type": { "const": "STOP_MARKET" },
+            "reduce_position": { "const": true },
+            "deadline_ms": { "const": 1000 },
+            "missing_action": { "const": "STOP_NEW_ENTRIES_AND_EMERGENCY_EXIT_IF_POSSIBLE" }
+          }
+        },
+        "unknown_result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["reconcile_deadline_ms", "blind_retry_forbidden", "same_client_id_required", "timeout_action"],
+          "properties": {
+            "reconcile_deadline_ms": { "const": 5000 },
+            "blind_retry_forbidden": { "const": true },
+            "same_client_id_required": { "const": true },
+            "timeout_action": { "const": "RISK_LOCKED_AND_INCIDENT" }
+          }
+        },
+        "replay": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["event_time_only", "deterministic_seed", "same_order_state_machine", "same_cost_model", "same_exchange_filter_snapshot"],
+          "properties": {
+            "event_time_only": { "const": true },
+            "deterministic_seed": { "type": "integer", "minimum": 0 },
+            "same_order_state_machine": { "const": true },
+            "same_cost_model": { "const": true },
+            "same_exchange_filter_snapshot": { "const": true }
+          }
+        },
+        "automatic_update_forbidden": { "const": true }
+      }
+    }
+  }
+}

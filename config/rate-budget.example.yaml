@@ -1,0 +1,147 @@
+schema_version: 1.0.0
+authority: POSTGRESQL_DURABLE_ATOMIC
+allocator:
+  service: rate-budget-service
+  lifecycle: HOST_PERSISTENT_CROSS_PROJECT
+  ipc: UNIX_DOMAIN_SOCKET
+  socket_path: /run/ai-quant-rate/rate.sock
+  single_writer_per_scope: true
+  owner_fencing: POSTGRESQL_EPOCH_LEASE
+  redis_is_authority: false
+scope:
+  request_weight: ENDPOINT_AUTHORITY_AND_EGRESS_IP_SHARED_REST_WS_API_UM_CM
+  order_count: ENDPOINT_AUTHORITY_AND_ACCOUNT_SHARED_UM_CM
+  websocket_control: ENDPOINT_AUTHORITY_AND_CONNECTION
+  connection_attempts: ENDPOINT_AUTHORITY_AND_EGRESS_IP
+  application_environment_is_scope_key: false
+  project_name_is_scope_key: false
+limit_sources:
+  exchange_info: true
+  response_headers:
+    - X-MBX-USED-WEIGHT-*
+    - X-MBX-ORDER-COUNT-*
+    - Retry-After
+  endpoint_cost_catalog:
+    path: /etc/ai-quant/host-control/binance-endpoint-cost-catalog.json
+    schema_version: 1.0.0
+    content_hash: cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    source: SIGNED_OFFICIAL_CONTRACT_AND_EXCHANGE_INFO_SNAPSHOT
+    checked_at: '2026-07-13T00:00:00Z'
+    max_age_seconds: 86400
+    unknown_endpoint_policy: DENY
+    bootstrap_snapshot_required: true
+  mandatory_endpoint_inventory:
+    path: /etc/ai-quant/host-control/binance-mandatory-endpoint-inventory.json
+    schema_version: 1.0.0
+    content_hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    required_status: SIGNED_RUNTIME
+    exact_coverage_required: true
+  hardcoded_limits_forbidden: true
+authorization:
+  trust_bundle_path: /etc/ai-quant/host-control/capability-trust-bundle.json
+  trust_bundle_schema_version: 1.0.0
+  trust_bundle_content_hash: ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  payload_canonicalization: RFC8785_JCS_SHA256_ED25519
+  peer_identity: SO_PEERCRED_UID_GID_PLUS_SIGNED_CALLER_ACL
+  reserve_nonce_transition: ATOMIC_UNUSED_TO_RESERVED_BOUND_TO_GRANTED_PERMIT
+  duplicate_nonce_action: DENY_AND_AUDIT
+  consume_transition: ATOMIC_RESERVED_TO_CONSUMED_BY_GATEWAY
+  not_sent_releases_nonce_or_budget: false
+  gateway_holds_signing_key: false
+reservation_policy:
+  priority_order:
+    - HOST_RATE_CONTROL
+    - EMERGENCY_REDUCE_ONLY
+    - PROTECTION_CREATE_REPLACE
+    - CANCEL
+    - RECONCILIATION
+    - USER_STREAM_MAINTENANCE
+    - NORMAL_EXIT
+    - NORMAL_ENTRY
+    - MARKET_DATA_SNAPSHOT
+  class_assignment: SIGNED_ENDPOINT_ALLOWED_CLASSES_PLUS_VERIFIED_ONE_TIME_CAUSAL_CAPABILITY_AND_OPERATION_FACTS
+  bootstrap_floor_policy: BEFORE_VERIFIED_EXCHANGE_INFO_ALLOW_EXACTLY_ONE_SERVER_TIME_AND_ONE_EXCHANGE_INFO_COST_ONE_EACH_ONCE_NO_PERCENTAGE_POOL
+  minimum_supported_runtime_total_limit: 3
+  host_rate_control_reserved_pct_of_request_weight_total: '5.00'
+  host_rate_control_reserved_units_rule: MAX_2_FLOOR_TOTAL_LIMIT_TIMES_5_DIV_100
+  host_rate_control_reserve_nonborrowable: true
+  host_rate_control_may_borrow_business_capacity: false
+  business_may_borrow_host_rate_control_reserve: false
+  business_usable_limit_rule: TOTAL_LIMIT_MINUS_HOST_RATE_CONTROL_RESERVE_THEN_APPLY_BUSINESS_CLASS_CEILINGS
+  cumulative_ceilings_pct:
+    normal_entry_and_market_snapshot: '70.00'
+    reconciliation_uds_and_normal_exit: '80.00'
+    protection_and_cancel: '90.00'
+    emergency_reduce_only: '100.00'
+  ceiling_rounding: FLOOR_LIMIT_TIMES_PERCENT_DIV_100_PER_WINDOW
+  business_priority_borrowing_scope: BUSINESS_CLASSES_ONLY_EXCLUDES_HOST_RATE_CONTROL
+  higher_priority_may_use_lower_unused_capacity: true
+  lower_priority_may_cross_ceiling: false
+  market_data_snapshot_total_subcap_pct: '60.00'
+  block_state_overrides_all_classes: true
+accounting:
+  reserve_before_send: true
+  transaction_isolation: SERIALIZABLE_OR_ROW_LOCK
+  multi_window_lock_order: ENDPOINT_AUTHORITY_SCOPE_TYPE_SCOPE_KEY_RATE_LIMIT_INTERVAL_WINDOW_START_ASC
+  multi_window_atomicity: ALL_ALLOCATIONS_OR_NONE
+  effective_used_grant_rule: LOCK_THEN_EFFECTIVE_USED_MAX_OBSERVED_THEN_CHECK_PLUS_COST_THEN_INCREMENT
+  header_reconciliation: MONOTONIC_MAX_WITHIN_VERIFIED_WINDOW
+  missing_header_rule: CONSERVATIVELY_CHARGE_DECLARED_COST
+  unknown_result_rule: KEEP_RESERVATION_CONSUMED_UNTIL_WINDOW_END
+  permit_release_rule: V1_NEVER_RELEASE_GRANTED_COST_BEFORE_WINDOW_END
+  window_reset_rule: FRESH_VERIFIED_SERVER_OFFSET_PLUS_MONOTONIC_AFTER_WINDOW_END_AND_GUARD
+  limit_decrease_rule: IF_LIMIT_BELOW_EFFECTIVE_USED_BLOCK_UNTIL_VERIFIED_WINDOW_TRANSITION
+  persist_across_restart: true
+  persist_across_project_transition: true
+  audit_every_reservation: true
+window_clock:
+  server_time_source: GATEWAY_ATTESTED_BINANCE_TLS_RESPONSE_OVER_AUTHENTICATED_UDS
+  monotonic_projection: LAST_VERIFIED_SERVER_TIME_PLUS_MONOTONIC_ELAPSED
+  max_server_time_age_seconds: 300
+  max_chrony_uncertainty_ms: 50
+  boundary_guard_ms: 250
+  normal_transition: PROJECTED_SERVER_TIME_AFTER_WINDOW_END_PLUS_GUARD
+  stale_or_uncertain_action: BLOCK_ALL_NEW_BINANCE_EGRESS_AND_OPEN_P0
+  recovery_time_probe: ONE_TIME_CHRONY_GUARDED_BOOTSTRAP_FLOOR_SERVER_TIME_ONLY
+  recovery_requires_operator_signature: true
+  recovery_all_other_traffic_blocked: true
+backoff:
+  header_names_case_insensitive: true
+  retry_after_unit: SECONDS
+  http_429: HONOR_RETRY_AFTER_AND_RECONCILE_HEADERS
+  http_429_scope: AFFECTED_EXTERNAL_SCOPE_OR_CONSERVATIVE_ENDPOINT_AUTHORITY_SCOPE_IF_UNKNOWN
+  invalid_or_missing_retry_after_429:
+    formula: BLOCKED_UNTIL_EQUALS_MAX_WINDOW_END_PLUS_GUARD_COMMA_NOW_PLUS_MIN_MAXIMUM_COMMA_BASE_TIMES_MULTIPLIER_POWER_N
+    base_seconds: 60
+    multiplier: 2
+    maximum_seconds: 900
+    consecutive_count_scope: ENDPOINT_AUTHORITY_AND_EXTERNAL_SCOPE
+    n_rule: ZERO_BASED_CONSECUTIVE_MISSING_OR_INVALID_RETRY_AFTER_429_COUNT
+    reset_rule: RESET_AFTER_ONE_FULL_VERIFIED_WINDOW_WITHOUT_429_FOR_SCOPE
+    jitter: NONE_DETERMINISTIC
+    minimum_block: UNTIL_COMPUTED_NOT_BEFORE
+  http_418: PERSIST_BAN_UNTIL_AND_OPEN_P0
+  http_418_scope: ENDPOINT_AUTHORITY_AND_EGRESS_IP_ALL_CLASSES
+  invalid_or_missing_retry_after_418: BLOCK_INDEFINITELY_UNTIL_SIGNED_MANUAL_CLEAR_WITH_OFFICIAL_EVIDENCE
+  persist_blocked_until: true
+  blocked_state_restored_before_any_probe: true
+  blocked_state_overrides_all_classes: true
+failure_policy:
+  allocator_or_authority_unavailable: BLOCK_ALL_NEW_BINANCE_EGRESS_REQUESTS
+  preissued_emergency_leases_v1: false
+  native_protection_dependency: true
+  manual_exchange_control_escalation: P0
+websocket_constraints:
+  ws_api_enabled_v1: false
+  operational_values_authority: SIGNED_SYSTEM_CONFIG_EXACT_MATCH_OFFICIAL_CONTRACT
+  connection_contract_path: /etc/ai-quant/host-control/binance-connection-contract.json
+  connection_contract_schema_version: 1.0.0
+  connection_contract_content_hash: eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+  checked_at: '2026-07-13T00:00:00Z'
+  valid_until: '2026-07-14T00:00:00Z'
+  market_stream_control_messages_per_second: 10
+  streams_per_connection: 1024
+  ping_interval_seconds: 180
+  pong_deadline_seconds: 600
+  connection_attempt_interval_seconds: 60
+  connection_attempt_conservative_limit: 12

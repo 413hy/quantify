@@ -1,0 +1,198 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant.local/config/capability-trust-bundle.schema.json",
+  "title": "Signed Rate Capability Trust Bundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "bundle_hash", "content", "signature"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "bundle_hash": { "$ref": "#/$defs/sha256" },
+    "content": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bundle_id", "bundle_status", "issued_at", "valid_until", "issuers", "attestation_signers", "caller_acl", "protocol_acl", "revoked_key_ids", "gateway_holds_signing_key", "unknown_identity_action"],
+      "properties": {
+        "bundle_id": { "$ref": "#/$defs/id" },
+        "bundle_status": { "enum": ["UNVALIDATED_ENGINEERING_BASELINE", "SIGNED_RUNTIME"] },
+        "issued_at": { "type": "string", "format": "date-time" },
+        "valid_until": { "type": "string", "format": "date-time" },
+        "issuers": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["issuer", "key_id", "public_key_base64", "private_key_holder_service", "allowed_operation_classes", "allowed_subject_services", "allowed_endpoint_authorities", "allowed_environments", "not_before", "not_after"],
+            "properties": {
+              "issuer": { "$ref": "#/$defs/issuer" },
+              "key_id": { "$ref": "#/$defs/id" },
+              "public_key_base64": { "type": "string", "pattern": "^[A-Za-z0-9+/]{43}=$" },
+              "private_key_holder_service": { "$ref": "#/$defs/authorityService" },
+              "allowed_operation_classes": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/operationClass" } },
+              "allowed_subject_services": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/requestService" } },
+              "allowed_endpoint_authorities": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/endpointAuthority" } },
+              "allowed_environments": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/environment" } },
+              "not_before": { "type": "string", "format": "date-time" },
+              "not_after": { "type": "string", "format": "date-time" }
+            },
+            "allOf": [
+              {
+                "if": { "properties": { "issuer": { "const": "MARKET_DATA_AUTHORITY" } }, "required": ["issuer"] },
+                "then": { "properties": { "private_key_holder_service": { "const": "realtime-engine" }, "allowed_operation_classes": { "const": ["MARKET_DATA_SNAPSHOT"] }, "allowed_subject_services": { "const": ["realtime-engine"] }, "allowed_endpoint_authorities": { "const": ["BINANCE_PRODUCTION_FAPI", "BINANCE_PRODUCTION_FSTREAM"] }, "allowed_environments": { "const": ["shadow", "paper", "production"] } } }
+              },
+              {
+                "if": { "properties": { "issuer": { "const": "RISK_AUTHORITY" } }, "required": ["issuer"] },
+                "then": { "properties": { "private_key_holder_service": { "const": "realtime-engine" }, "allowed_operation_classes": { "const": ["NORMAL_ENTRY", "NORMAL_EXIT", "PROTECTION_CREATE_REPLACE", "CANCEL", "EMERGENCY_REDUCE_ONLY"] }, "allowed_subject_services": { "const": ["execution-service"] }, "allowed_endpoint_authorities": { "const": ["BINANCE_PRODUCTION_FAPI"] }, "allowed_environments": { "const": ["production"] } } }
+              },
+              {
+                "if": { "properties": { "issuer": { "const": "CONTROL_AUTHORITY" } }, "required": ["issuer"] },
+                "then": { "properties": { "private_key_holder_service": { "const": "control-service" }, "allowed_operation_classes": { "const": ["CANCEL", "EMERGENCY_REDUCE_ONLY"] }, "allowed_subject_services": { "const": ["execution-service"] }, "allowed_endpoint_authorities": { "const": ["BINANCE_PRODUCTION_FAPI"] }, "allowed_environments": { "const": ["production"] } } }
+              },
+              {
+                "if": { "properties": { "issuer": { "const": "RECONCILIATION_AUTHORITY" } }, "required": ["issuer"] },
+                "then": { "properties": { "private_key_holder_service": { "const": "control-service" }, "allowed_operation_classes": { "const": ["RECONCILIATION"] }, "allowed_subject_services": { "const": ["execution-service"] }, "allowed_endpoint_authorities": { "const": ["BINANCE_PRODUCTION_FAPI"] }, "allowed_environments": { "const": ["production"] } } }
+              },
+              {
+                "if": { "properties": { "issuer": { "const": "USER_STREAM_AUTHORITY" } }, "required": ["issuer"] },
+                "then": { "properties": { "private_key_holder_service": { "const": "control-service" }, "allowed_operation_classes": { "const": ["USER_STREAM_MAINTENANCE"] }, "allowed_subject_services": { "const": ["execution-service"] }, "allowed_endpoint_authorities": { "const": ["BINANCE_PRODUCTION_FAPI", "BINANCE_PRODUCTION_FSTREAM"] }, "allowed_environments": { "const": ["production"] } } }
+              },
+              {
+                "if": { "properties": { "issuer": { "const": "HOST_BOOTSTRAP_AUTHORITY" } }, "required": ["issuer"] },
+                "then": { "properties": { "private_key_holder_service": { "const": "host-bootstrap-runner" }, "allowed_operation_classes": { "const": ["HOST_RATE_CONTROL"] }, "allowed_subject_services": { "const": ["host-bootstrap-runner"] }, "allowed_endpoint_authorities": { "const": ["BINANCE_PRODUCTION_FAPI"] }, "allowed_environments": { "const": ["shadow", "paper", "production"] } } }
+              },
+              {
+                "if": { "properties": { "issuer": { "const": "TESTNET_PROBE_AUTHORITY" } }, "required": ["issuer"] },
+                "then": { "properties": { "private_key_holder_service": { "const": "testnet-probe-runner" }, "allowed_operation_classes": { "const": ["HOST_RATE_CONTROL", "MARKET_DATA_SNAPSHOT", "USER_STREAM_MAINTENANCE", "NORMAL_ENTRY", "NORMAL_EXIT", "PROTECTION_CREATE_REPLACE", "CANCEL", "RECONCILIATION"] }, "allowed_subject_services": { "const": ["testnet-probe-runner"] }, "allowed_endpoint_authorities": { "const": ["BINANCE_TESTNET_FAPI", "BINANCE_TESTNET_FSTREAM"] }, "allowed_environments": { "const": ["testnet"] } } }
+              }
+            ]
+          }
+        },
+        "attestation_signers": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["purpose", "key_id", "public_key_base64", "private_key_holder_service", "holder_uid", "holder_gid", "payload", "max_evidence_ttl_seconds", "refresh_before_expiry_seconds", "not_before", "not_after", "rotation_overlap_seconds", "revoked"],
+            "properties": {
+              "purpose": { "const": "HOST_RATE_STARTUP_EVIDENCE" },
+              "key_id": { "$ref": "#/$defs/id" },
+              "public_key_base64": { "type": "string", "pattern": "^[A-Za-z0-9+/]{43}=$" },
+              "private_key_holder_service": { "const": "host-attestation-signer" },
+              "holder_uid": { "const": 11007 },
+              "holder_gid": { "const": 11007 },
+              "payload": { "const": "RFC8785_JCS_UTF8_OF_CONTENT_THEN_SHA256_DIGEST_SIGNED_BY_ED25519" },
+              "max_evidence_ttl_seconds": { "const": 300 },
+              "refresh_before_expiry_seconds": { "type": "integer", "minimum": 30, "maximum": 120 },
+              "not_before": { "type": "string", "format": "date-time" },
+              "not_after": { "type": "string", "format": "date-time" },
+              "rotation_overlap_seconds": { "type": "integer", "minimum": 300, "maximum": 86400 },
+              "revoked": { "type": "boolean" }
+            }
+          }
+        },
+        "caller_acl": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["service", "allowed_peer_uids", "allowed_peer_gids", "allowed_issuers", "allowed_endpoint_authorities", "allowed_environments"],
+            "properties": {
+              "service": { "$ref": "#/$defs/requestService" },
+              "allowed_peer_uids": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "integer", "minimum": 1 } },
+              "allowed_peer_gids": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "integer", "minimum": 1 } },
+              "allowed_issuers": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/issuer" } },
+              "allowed_endpoint_authorities": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/endpointAuthority" } },
+              "allowed_environments": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/environment" } }
+            }
+          }
+        },
+        "protocol_acl": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["service", "allowed_peer_uids", "allowed_peer_gids", "allowed_message_types", "may_reserve", "may_sign_capability"],
+            "properties": {
+              "service": { "enum": ["binance-egress-gateway", "rate-budget-service"] },
+              "allowed_peer_uids": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "integer", "minimum": 1 } },
+              "allowed_peer_gids": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "integer", "minimum": 1 } },
+              "allowed_message_types": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": ["ReserveDecision", "PermitConsumeRequest", "PermitConsumeDecision", "SendOutcome", "HeaderObservation", "ConnectionStateObservation", "ServerTimeObservation", "ExchangeRateLimitObservation"] } },
+              "may_reserve": { "const": false },
+              "may_sign_capability": { "const": false }
+            },
+            "allOf": [
+              {
+                "if": { "properties": { "service": { "const": "binance-egress-gateway" } }, "required": ["service"] },
+                "then": { "properties": { "allowed_message_types": { "const": ["PermitConsumeRequest", "SendOutcome", "HeaderObservation", "ConnectionStateObservation", "ServerTimeObservation", "ExchangeRateLimitObservation"] } } }
+              },
+              {
+                "if": { "properties": { "service": { "const": "rate-budget-service" } }, "required": ["service"] },
+                "then": { "properties": { "allowed_message_types": { "const": ["ReserveDecision", "PermitConsumeDecision"] } } }
+              }
+            ]
+          }
+        },
+        "revoked_key_ids": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/id" } },
+        "gateway_holds_signing_key": { "const": false },
+        "unknown_identity_action": { "const": "DENY_AND_AUDIT" }
+      }
+    },
+    "signature": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["algorithm", "key_id", "signed_at", "signature_base64"],
+          "properties": {
+            "algorithm": { "const": "Ed25519" },
+            "key_id": { "$ref": "#/$defs/id" },
+            "signed_at": { "type": "string", "format": "date-time" },
+            "signature_base64": { "type": "string", "pattern": "^[A-Za-z0-9+/]{86}==$" }
+          }
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "content": { "properties": { "bundle_status": { "const": "SIGNED_RUNTIME" } }, "required": ["bundle_status"] } }, "required": ["content"] },
+      "then": { "properties": { "signature": { "type": "object" } } },
+      "else": { "properties": { "signature": { "type": "null" } } }
+    },
+    {
+      "properties": {
+        "content": {
+          "properties": {
+            "protocol_acl": {
+              "allOf": [
+                { "contains": { "properties": { "service": { "const": "binance-egress-gateway" } }, "required": ["service"] }, "minContains": 1, "maxContains": 1 },
+                { "contains": { "properties": { "service": { "const": "rate-budget-service" } }, "required": ["service"] }, "minContains": 1, "maxContains": 1 }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$comment": "加载器必须验证 bundle_hash=SHA-256(RFC8785 JCS(content))、Ed25519 public key 解码恰为32字节、signature解码恰为64字节、issuer/key/service 与 caller ACL 唯一闭合、active key 不在 revoked_key_ids、not_before<not_after 且当前处于有效期。host-attestation-signer 是独立最小权限进程，只能读取启动状态并签 startup evidence；allocator/gateway 不得挂载其私钥。消费者在证据过期或刷新失败时 fail-closed。",
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{8,128}$" },
+    "requestService": { "enum": ["realtime-engine", "execution-service", "testnet-probe-runner", "host-bootstrap-runner"] },
+    "authorityService": { "enum": ["realtime-engine", "control-service", "testnet-probe-runner", "host-bootstrap-runner"] },
+    "endpointAuthority": { "enum": ["BINANCE_PRODUCTION_FAPI", "BINANCE_TESTNET_FAPI", "BINANCE_PRODUCTION_FSTREAM", "BINANCE_TESTNET_FSTREAM"] },
+    "environment": { "enum": ["shadow", "paper", "testnet", "production"] },
+    "issuer": { "enum": ["RISK_AUTHORITY", "CONTROL_AUTHORITY", "RECONCILIATION_AUTHORITY", "MARKET_DATA_AUTHORITY", "USER_STREAM_AUTHORITY", "TESTNET_PROBE_AUTHORITY", "HOST_BOOTSTRAP_AUTHORITY"] },
+    "operationClass": { "enum": ["HOST_RATE_CONTROL", "EMERGENCY_REDUCE_ONLY", "PROTECTION_CREATE_REPLACE", "CANCEL", "RECONCILIATION", "USER_STREAM_MAINTENANCE", "NORMAL_EXIT", "NORMAL_ENTRY", "MARKET_DATA_SNAPSHOT"] }
+  }
+}

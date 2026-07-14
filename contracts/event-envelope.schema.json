@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "event-envelope.schema.json",
+  "title": "Domain Event Envelope",
+  "description": "所有领域事件共用的不可变信封。金额、价格和数量在 payload 中必须使用十进制字符串。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_type",
+    "event_id",
+    "occurred_at",
+    "received_at",
+    "correlation_id",
+    "causation_id",
+    "strategy_version",
+    "symbol",
+    "source_sequence",
+    "idempotency_key",
+    "producer",
+    "payload"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.1.0" },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "UniverseSnapshot",
+        "MarketDataHealth",
+        "FeatureSnapshot",
+        "SignalCandidate",
+        "RiskDecision",
+        "OrderIntent",
+        "OrderEvent",
+        "PositionSnapshot",
+        "Incident",
+        "OperatorCommand",
+        "StrategyPackage",
+        "ResearchProposal",
+        "StrategyAnalysisCycle",
+        "DecisionAuthorityChanged",
+        "TradePlan",
+        "AutoIterationReport",
+        "EngineeringProposal",
+        "ModelSelectionDecision"
+      ]
+    },
+    "event_id": { "$ref": "#/$defs/id" },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "received_at": { "type": "string", "format": "date-time" },
+    "correlation_id": { "$ref": "#/$defs/id" },
+    "causation_id": {
+      "oneOf": [
+        { "$ref": "#/$defs/id" },
+        { "type": "null" }
+      ]
+    },
+    "strategy_version": {
+      "oneOf": [
+        { "type": "string", "minLength": 1, "maxLength": 128 },
+        { "type": "null" }
+      ]
+    },
+    "symbol": {
+      "oneOf": [
+        { "type": "string", "pattern": "^[A-Z0-9_]{2,30}$" },
+        { "type": "null" }
+      ]
+    },
+    "source_sequence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["channel", "first", "last", "previous_last"],
+      "properties": {
+        "channel": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "first": { "type": ["integer", "null"], "minimum": 0 },
+        "last": { "type": ["integer", "null"], "minimum": 0 },
+        "previous_last": { "type": ["integer", "null"], "minimum": 0 }
+      }
+    },
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 16,
+      "maxLength": 200,
+      "pattern": "^[A-Za-z0-9._:-]+$"
+    },
+    "producer": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "trace_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$"
+    },
+    "data_classification": {
+      "type": "string",
+      "enum": ["INTERNAL", "CONFIDENTIAL"]
+    },
+    "payload": {
+      "type": "object"
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|[0-9A-HJKMNP-TV-Z]{26})$"
+    },
+    "decimal": {
+      "type": "string",
+      "pattern": "^-?(?:0|[1-9][0-9]{0,19})(?:\\.[0-9]{1,18})?$"
+    }
+  }
+}

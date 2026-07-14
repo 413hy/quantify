@@ -1,0 +1,68 @@
+{
+  "schema_version": "2.0.0",
+  "report_hash": "ef1bea1d810304b972cb54c8c6bb9b55bc231db309f7419bb1a018453fabc15c",
+  "content": {
+    "report_id": "018f53c0-1234-7abc-8def-123456789040",
+    "iteration_cycle_id": "2026-07",
+    "attempt_id": "018f53c0-1234-7abc-8def-123456789041",
+    "attempt_number": 3,
+    "scheduled_for": "2026-07-01T03:10:00Z",
+    "data_cutoff_at": "2026-07-01T03:10:00Z",
+    "started_at": "2026-07-03T03:10:01Z",
+    "completed_at": "2026-07-03T03:11:10Z",
+    "mode": "AUTO_VALIDATION",
+    "cycle_state": "DEFERRED_QUOTA",
+    "queue_position": 1,
+    "model_selection_decision_id": "018f53c0-1234-7abc-8def-123456789031",
+    "model_selection_decision_hash": "0933fcb8dc199311b78477e37566200bf04e2b69dc84f31da5adb83ceb6bd808",
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "high",
+    "champion_package_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+    "challenger_package_hash": null,
+    "changed_fields": [],
+    "whitelist_verdict": "NOT_APPLICABLE",
+    "dataset_manifest_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+    "metrics": {
+      "oos_trades": 0,
+      "net_expectancy": "0",
+      "profit_factor": "0",
+      "max_drawdown_pct": "0",
+      "cost_stress_expectancy": "0",
+      "parameter_perturbation_expectancy": "0",
+      "max_symbol_contribution_pct": "0",
+      "without_top_symbol_expectancy": "0",
+      "risk_adjusted_improvement": "0",
+      "meaningful_improvement_threshold": "0.05"
+    },
+    "gates": [
+      {
+        "stage": "QUOTA_GATE",
+        "status": "FAIL",
+        "started_at": "2026-07-03T03:10:30Z",
+        "completed_at": "2026-07-03T03:11:10Z",
+        "risk_multiplier": "0",
+        "evidence_hash": "3333333333333333333333333333333333333333333333333333333333333333",
+        "blocking_reasons": ["ANALYSIS_QUOTA_INSUFFICIENT"]
+      }
+    ],
+    "final_decision": "DEFERRED_QUOTA",
+    "deferral": {
+      "category": "ANALYSIS_QUOTA",
+      "deferred_at": "2026-07-03T03:11:10Z",
+      "next_retry_at": "2026-07-04T03:10:00Z",
+      "original_scheduled_for": "2026-07-01T03:10:00Z",
+      "frozen_data_cutoff_at": "2026-07-01T03:10:00Z",
+      "fallback_model_attempted": false,
+      "resume_attempted": false,
+      "champion_unchanged": true,
+      "queue_order": "FIFO"
+    },
+    "rollback": {
+      "required": false,
+      "completed": false,
+      "restored_package_hash": null,
+      "same_cycle_candidate_retry_forbidden": false
+    },
+    "evidence_manifest_hash": "4444444444444444444444444444444444444444444444444444444444444444"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0.0",
+  "message_type": "HeaderObservation",
+  "message_id": "rate-msg-00000004",
+  "occurred_at": "2026-07-13T00:00:00.011Z",
+  "caller_service": "binance-egress-gateway",
+  "caller_instance_id": "egress-gateway-01",
+  "correlation_id": "rate-correlation-0001",
+  "permit_id": "rate-permit-00000001",
+  "gateway_connection_id": null,
+  "endpoint_authority": "BINANCE_PRODUCTION_FAPI",
+  "canonical_header_hash": "5555555555555555555555555555555555555555555555555555555555555555",
+  "used_weight_observations": { "x-mbx-used-weight-1m": 21 },
+  "order_count_observations": { "x-mbx-order-count-1m": 1 },
+  "retry_after_seconds": 2,
+  "http_status": 429,
+  "fencing_epoch": 7
+}

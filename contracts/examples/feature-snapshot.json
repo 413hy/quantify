@@ -1,0 +1,122 @@
+{
+  "schema_version": "1.1.0",
+  "event_type": "FeatureSnapshot",
+  "event_id": "23232323-2323-4232-8232-232323232321",
+  "occurred_at": "2026-07-16T01:31:00Z",
+  "received_at": "2026-07-16T01:31:00.025Z",
+  "correlation_id": "23232323-2323-4232-8232-232323232322",
+  "causation_id": "23232323-2323-4232-8232-232323232323",
+  "strategy_version": "1.0.0-experimental",
+  "symbol": "BTCUSDT",
+  "source_sequence": {
+    "channel": "feature-engine",
+    "first": 1001,
+    "last": 1001,
+    "previous_last": 1000
+  },
+  "idempotency_key": "feature:2323232323232323232323232323232323232323232323232323232323232323",
+  "producer": "realtime-engine",
+  "payload": {
+    "feature_schema_version": "1.0.0",
+    "frame_time": "2026-07-16T01:31:00Z",
+    "input_manifest_hash": "2424242424242424242424242424242424242424242424242424242424242424",
+    "full_frame_hash": "2525252525252525252525252525252525252525252525252525252525252525",
+    "pa": {
+      "parameter_config_hash": "2626262626262626262626262626262626262626262626262626262626262626",
+      "bar_close_time_1m": "2026-07-16T01:31:00Z",
+      "bar_close_time_5m": "2026-07-16T01:30:00Z",
+      "regime": "TREND_UP",
+      "direction_bias": "LONG",
+      "location": "TREND_PULLBACK",
+      "structure": "HH_HL",
+      "setup_type": "T1_TREND_PULLBACK_CONTINUATION",
+      "atr_1m": "42.125",
+      "atr_5m": "118.75",
+      "efficiency_ratio_1m": "0.41",
+      "efficiency_ratio_5m": "0.52",
+      "normalized_slope_atr_per_bar_1m": "0.08",
+      "normalized_slope_atr_per_bar_5m": "0.07",
+      "last_confirmed_swing_high": "60200.1",
+      "last_confirmed_swing_low": "59800.2",
+      "structure_pair_count": 2,
+      "range_high": null,
+      "range_low": null,
+      "range_touch_count_high": 0,
+      "range_touch_count_low": 0,
+      "range_width_atr": null,
+      "range_status": "NOT_APPLICABLE",
+      "compression_atr_ratio": "0.82",
+      "compression_width_atr": "2.4",
+      "compression_status": "UNCONFIRMED",
+      "break_distance_atr": null,
+      "break_distance_bps": null,
+      "breakout_status": "NOT_APPLICABLE",
+      "pullback_depth_ratio": "0.45",
+      "structure_anchor_distance_atr": "0.12",
+      "pullback_status": "CONFIRMED",
+      "retest_distance_atr": null,
+      "retest_age_1m_bars": null,
+      "retest_status": "NOT_APPLICABLE",
+      "structure_stop": "59800.2",
+      "arm_expires_at": "2026-07-16T01:33:00Z"
+    },
+    "order_flow": {
+      "parameter_manifest_hash": "2727272727272727272727272727272727272727272727272727272727272727",
+      "liquidity_bucket": "HIGH",
+      "latest_book": {
+        "book_depth_levels": 20,
+        "book_imbalance": "0.31",
+        "microprice_mid_bps": "0.9",
+        "spread_bps": "0.5"
+      },
+      "windows": {
+        "SHORT": {
+          "window_ms": 500,
+          "trade_imbalance": "0.38",
+          "aggressive_notional": "125000",
+          "event_count": 180,
+          "complete": true
+        },
+        "MEDIUM": {
+          "window_ms": 3000,
+          "trade_imbalance": "0.29",
+          "aggressive_notional": "540000",
+          "event_count": 860,
+          "complete": true
+        },
+        "LONG": {
+          "window_ms": 15000,
+          "trade_imbalance": "0.18",
+          "aggressive_notional": "1900000",
+          "event_count": 4200,
+          "complete": true
+        }
+      },
+      "continuation": {
+        "status": "CONFIRMED",
+        "sweep_episode_id": "2929292929292929292929292929292929292929292929292929292929292929",
+        "episode_start": "2026-07-16T01:30:59.500Z",
+        "episode_end": "2026-07-16T01:30:59.750Z",
+        "pre_event_book_hash": "3030303030303030303030303030303030303030303030303030303030303030",
+        "cvd_slope_medium": "0.61",
+        "aggressive_notional_quantile_short": "0.82",
+        "sweep_intensity_short": "1.2",
+        "swept_levels": 4,
+        "maximum_retrace_ratio": "0.35",
+        "hold_ms": 1200,
+        "passed_components": 6
+      },
+      "absorption": {
+        "status": "NOT_APPLICABLE",
+        "score_medium": null,
+        "mid_move_bps_medium": null,
+        "refill_ratio": null,
+        "refill_window_ms": null,
+        "reversal_trade_imbalance_short": null,
+        "passed_components": 0
+      }
+    },
+    "ready": true,
+    "reason_codes": []
+  }
+}

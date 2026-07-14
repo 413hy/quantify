@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant.local/contracts/binance-gateway-request.schema.json",
+  "title": "Closed Binance Egress Gateway Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "request_id", "created_at", "expires_at", "subject_caller_service", "subject_caller_instance_id", "environment", "endpoint_authority", "endpoint_id", "endpoint_catalog_hash", "endpoint_request_schema_hash", "gateway_connection_id", "request_kind", "contains_sensitive_material", "transport", "method", "scheme", "host", "port", "path", "parameters", "body_base64", "websocket_frame", "immutable_wire_bytes_base64", "parameter_hash", "canonical_request_hash", "wire_bytes_hash", "persistence_allowed", "logging_allowed"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "request_id": { "$ref": "#/$defs/id" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "expires_at": { "type": "string", "format": "date-time" },
+    "subject_caller_service": { "enum": ["realtime-engine", "execution-service", "testnet-probe-runner", "host-bootstrap-runner"] },
+    "subject_caller_instance_id": { "$ref": "#/$defs/id" },
+    "environment": { "enum": ["shadow", "paper", "testnet", "production"] },
+    "endpoint_authority": { "enum": ["BINANCE_PRODUCTION_FAPI", "BINANCE_TESTNET_FAPI", "BINANCE_PRODUCTION_FSTREAM", "BINANCE_TESTNET_FSTREAM"] },
+    "endpoint_id": { "type": "string", "pattern": "^[A-Z0-9_]{4,96}$" },
+    "endpoint_catalog_hash": { "$ref": "#/$defs/sha256" },
+    "endpoint_request_schema_hash": { "$ref": "#/$defs/sha256" },
+    "gateway_connection_id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+    "request_kind": { "enum": ["STRUCTURED_UNSIGNED", "PRESIGNED_IMMUTABLE"] },
+    "contains_sensitive_material": { "type": "boolean" },
+    "transport": { "enum": ["REST", "WS_API", "MARKET_STREAM_CONTROL"] },
+    "method": { "enum": ["GET", "POST", "PUT", "DELETE", "CONNECT", "SEND"] },
+    "scheme": { "enum": ["https", "wss"] },
+    "host": { "type": "string", "pattern": "^[A-Za-z0-9.-]+$" },
+    "port": { "const": 443 },
+    "path": { "type": "string", "pattern": "^/" },
+    "parameters": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["location", "name", "value_base64", "value_hash", "sensitivity_class"],
+        "properties": {
+          "location": { "enum": ["QUERY", "HEADER", "FORM", "WS_JSON"] },
+          "name": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$" },
+          "value_base64": { "type": "string", "maxLength": 1398104, "pattern": "^[A-Za-z0-9+/]*={0,2}$" },
+          "value_hash": { "$ref": "#/$defs/sha256" },
+          "sensitivity_class": { "enum": ["NONE", "API_KEY", "LISTEN_KEY", "SIGNED_QUERY", "PRIVATE_STREAM_URL"] }
+        }
+      }
+    },
+    "body_base64": { "type": ["string", "null"], "maxLength": 22369624, "pattern": "^[A-Za-z0-9+/]*={0,2}$" },
+    "websocket_frame": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["frame_type", "payload_base64", "payload_hash"],
+          "properties": {
+            "frame_type": { "enum": ["JSON_SUBSCRIBE", "JSON_UNSUBSCRIBE", "PING", "PONG"] },
+            "payload_base64": { "type": "string", "maxLength": 22369624, "pattern": "^[A-Za-z0-9+/]*={0,2}$" },
+            "payload_hash": { "$ref": "#/$defs/sha256" }
+          }
+        }
+      ]
+    },
+    "immutable_wire_bytes_base64": { "type": ["string", "null"], "maxLength": 22369624, "pattern": "^[A-Za-z0-9+/]*={0,2}$" },
+    "parameter_hash": { "$ref": "#/$defs/sha256" },
+    "canonical_request_hash": { "$ref": "#/$defs/sha256" },
+    "wire_bytes_hash": { "$ref": "#/$defs/sha256" },
+    "persistence_allowed": { "const": false },
+    "logging_allowed": { "const": false }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "request_kind": { "const": "PRESIGNED_IMMUTABLE" } }, "required": ["request_kind"] },
+      "then": { "properties": { "immutable_wire_bytes_base64": { "type": "string", "minLength": 4 } } },
+      "else": { "properties": { "immutable_wire_bytes_base64": { "type": "null" }, "contains_sensitive_material": { "const": false }, "parameters": { "items": { "properties": { "sensitivity_class": { "const": "NONE" } } } } } }
+    },
+    {
+      "if": { "properties": { "contains_sensitive_material": { "const": true } }, "required": ["contains_sensitive_material"] },
+      "then": { "properties": { "request_kind": { "const": "PRESIGNED_IMMUTABLE" } } }
+    },
+    {
+      "if": { "properties": { "transport": { "const": "MARKET_STREAM_CONTROL" }, "method": { "const": "SEND" } }, "required": ["transport", "method"] },
+      "then": { "properties": { "websocket_frame": { "type": "object" }, "gateway_connection_id": { "$ref": "#/$defs/id" } } }
+    },
+    {
+      "if": { "properties": { "method": { "const": "CONNECT" } }, "required": ["method"] },
+      "then": { "properties": { "transport": { "const": "MARKET_STREAM_CONTROL" }, "scheme": { "const": "wss" }, "gateway_connection_id": { "type": "null" }, "websocket_frame": { "type": "null" } } }
+    },
+    {
+      "if": { "properties": { "transport": { "const": "REST" } }, "required": ["transport"] },
+      "then": { "properties": { "scheme": { "const": "https" }, "method": { "enum": ["GET", "POST", "PUT", "DELETE"] }, "gateway_connection_id": { "type": "null" }, "websocket_frame": { "type": "null" } } }
+    },
+    {
+      "if": { "properties": { "transport": { "enum": ["WS_API", "MARKET_STREAM_CONTROL"] } }, "required": ["transport"] },
+      "then": { "properties": { "scheme": { "const": "wss" } } }
+    }
+  ],
+  "$comment": "Gateway 必须从实际内存载荷重算 host/authority/endpoint/method/path/parameter/wire hashes，并按签名 catalog 做精确参数集合与值来源校验；API key、listenKey、signed query、private URL 和 wire bytes 仅存在于有界、清零内存，禁止日志、trace、metric、core dump 或持久化。",
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{8,128}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

@@ -1,0 +1,57 @@
+schema_version: 1.0.0
+config_status: APPROVED_BASELINE
+currency: USDT
+risk_multiplier: '0.10'
+hard_caps:
+  per_trade_initial_stop_pct: '0.50'
+  total_open_risk_pct: '2.00'
+  correlation_cluster_risk_pct: '1.00'
+  utc_daily_net_loss_pct: '4.00'
+  intraday_equity_drawdown_pct: '5.00'
+  effective_leverage: '10.00'
+  concurrent_positions: 10
+configured_limits:
+  per_trade_initial_stop_pct: '0.50'
+  total_open_risk_pct: '2.00'
+  correlation_cluster_risk_pct: '1.00'
+  utc_daily_net_loss_pct: '4.00'
+  intraday_equity_drawdown_pct: '5.00'
+  effective_leverage: '10.00'
+  concurrent_positions: 10
+loss_streak:
+  pause_after_net_losses: 5
+  pause_seconds: 3600
+  manual_review_after_utc_day_losses: 8
+initial_live:
+  duration_hours: 24
+  multiplier: '0.10'
+  post_window_multiplier: '1.00'
+  automatic_promotion: false
+  local_cli_signature_required: true
+position_sizing:
+  numeric_type: DECIMAL
+  round_quantity_down: true
+  use_current_exchange_filters: true
+  include_fees_slippage_funding: true
+native_protection:
+  transport: ALGO
+  rest_endpoint: /fapi/v1/algoOrder
+  algo_type: CONDITIONAL
+  stop_order_type: STOP_MARKET
+  working_type: MARK_PRICE
+  price_protect: false
+  coverage_mode: CLOSE_POSITION
+  algo_status_mapping_version: binance-um-algo-v1
+  exchange_rules_binding: EXCHANGE_INFO_VERSION_AT_SUBMISSION
+  confirmation_timeout_ms: 1000
+kill_switch:
+  fail_closed: true
+  unknown_order_state:
+    reconcile_timeout_seconds: 5
+    during_timeout: FREEZE_SYMBOL_AND_RECONCILE
+    after_timeout: REDUCE_ONLY_FLATTEN_SYMBOL
+    systemic_scope: GLOBAL_RISK_LOCK
+  account_mismatch: CANCEL_AND_REDUCE_ONLY_FLATTEN
+  protection_missing: CANCEL_AND_REDUCE_ONLY_FLATTEN
+  transient_data_fault: PAUSE_NEW_ENTRIES_KEEP_NATIVE_PROTECTION
+  data_fault_and_protection_unhealthy: REDUCE_ONLY_FLATTEN

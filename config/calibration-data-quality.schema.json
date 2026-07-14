@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant.local/config/calibration-data-quality.schema.json",
+  "title": "Preregistered Three-Day Calibration Data Quality Profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "profile_id", "config_status", "window", "clock", "orderbook", "coverage", "archive", "stability", "resources", "failure_policy"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "profile_id": { "type": "string", "minLength": 8, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$" },
+    "config_status": { "const": "PREREGISTERED_ENGINEERING_GATE" },
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["duration_hours", "selection_rule", "exclusive_end", "allow_extension", "allow_posthoc_relaxation"],
+      "properties": {
+        "duration_hours": { "const": 72 },
+        "selection_rule": { "const": "FIRST_CONTINUOUS_QUALIFIED_WINDOW" },
+        "exclusive_end": { "const": true },
+        "allow_extension": { "const": false },
+        "allow_posthoc_relaxation": { "const": false }
+      }
+    },
+    "clock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maximum_qualified_offset_ms", "abort_offset_ms", "source_monotonic_required"],
+      "properties": {
+        "maximum_qualified_offset_ms": { "const": 50 },
+        "abort_offset_ms": { "const": 100 },
+        "source_monotonic_required": { "const": true }
+      }
+    },
+    "orderbook": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maximum_unrecovered_sequence_gaps", "maximum_stale_decision_frames", "maximum_unresolved_out_of_order_events", "maximum_duplicate_effects", "snapshot_rebuild_on_gap", "maximum_market_data_gap_ms"],
+      "properties": {
+        "maximum_unrecovered_sequence_gaps": { "const": 0 },
+        "maximum_stale_decision_frames": { "const": 0 },
+        "maximum_unresolved_out_of_order_events": { "const": 0 },
+        "maximum_duplicate_effects": { "const": 0 },
+        "snapshot_rebuild_on_gap": { "const": true },
+        "maximum_market_data_gap_ms": { "const": 0 }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minimum_full_market_lightweight_pct", "minimum_universe_snapshot_pct", "minimum_required_l2_pct", "maximum_critical_observability_gap_seconds"],
+      "properties": {
+        "minimum_full_market_lightweight_pct": { "const": "99.50" },
+        "minimum_universe_snapshot_pct": { "const": "100.00" },
+        "minimum_required_l2_pct": { "const": "100.00" },
+        "maximum_critical_observability_gap_seconds": { "const": 300 }
+      }
+    },
+    "archive": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expected_hourly_slices", "minimum_hourly_slice_valid_pct", "minimum_daily_manifest_valid_pct", "minimum_remote_verified_pct", "require_remote_decrypt", "require_plaintext_hash", "require_parquet_read", "require_signed_receipt", "reject_receipt_replay"],
+      "properties": {
+        "expected_hourly_slices": { "const": 72 },
+        "minimum_hourly_slice_valid_pct": { "const": "100.00" },
+        "minimum_daily_manifest_valid_pct": { "const": "100.00" },
+        "minimum_remote_verified_pct": { "const": "100.00" },
+        "require_remote_decrypt": { "const": true },
+        "require_plaintext_hash": { "const": true },
+        "require_parquet_read": { "const": true },
+        "require_signed_receipt": { "const": true },
+        "reject_receipt_replay": { "const": true }
+      }
+    },
+    "stability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["collector_release_unchanged", "git_commit_unchanged", "image_manifest_unchanged", "config_manifest_unchanged", "schema_bundle_unchanged", "universe_rules_unchanged", "quality_profile_unchanged"],
+      "properties": {
+        "collector_release_unchanged": { "const": true },
+        "git_commit_unchanged": { "const": true },
+        "image_manifest_unchanged": { "const": true },
+        "config_manifest_unchanged": { "const": true },
+        "schema_bundle_unchanged": { "const": true },
+        "universe_rules_unchanged": { "const": true },
+        "quality_profile_unchanged": { "const": true }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maximum_cpu_mean_5m_pct", "maximum_cpu_p95_pct", "maximum_host_memory_bytes", "maximum_raw_l2_bytes", "maximum_filesystem_used_pct", "minimum_free_bytes", "maximum_oom_events", "maximum_database_write_failures"],
+      "properties": {
+        "maximum_cpu_mean_5m_pct": { "const": "70.00" },
+        "maximum_cpu_p95_pct": { "const": "85.00" },
+        "maximum_host_memory_bytes": { "const": 9663676416 },
+        "maximum_raw_l2_bytes": { "const": 72000000000 },
+        "maximum_filesystem_used_pct": { "const": "90.00" },
+        "minimum_free_bytes": { "const": 20000000000 },
+        "maximum_oom_events": { "const": 0 },
+        "maximum_database_write_failures": { "const": 0 }
+      }
+    },
+    "failure_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["any_hard_failure_marks_dataset_failed", "retain_failed_dataset", "require_new_dataset_id", "select_next_first_qualified_window", "forbid_performance_based_selection"],
+      "properties": {
+        "any_hard_failure_marks_dataset_failed": { "const": true },
+        "retain_failed_dataset": { "const": true },
+        "require_new_dataset_id": { "const": true },
+        "select_next_first_qualified_window": { "const": true },
+        "forbid_performance_based_selection": { "const": true }
+      }
+    }
+  }
+}

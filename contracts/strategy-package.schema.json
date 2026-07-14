@@ -1,0 +1,236 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant.local/contracts/strategy-package.schema.json",
+  "title": "Immutable Strategy Package",
+  "description": "不可变策略内容包。package_hash=SHA-256(RFC 8785 JCS(content))；生命周期和人工签名不写回本文件。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "package_hash", "content"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "package_hash": { "$ref": "#/$defs/sha256" },
+    "content": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "package_id",
+        "package_role",
+        "parent_package_hash",
+        "rollback_package_hash",
+        "source_proposal_id",
+        "strategy_name",
+        "strategy_version",
+        "created_at",
+        "created_by",
+        "code_commit",
+        "image_digests",
+        "parameter_files",
+        "parameter_manifest_hash",
+        "parameter_schema_hash",
+        "price_action_schema_hash",
+        "price_action_config_hash",
+        "of_search_plan_hash",
+        "of_parameter_candidate_hash",
+        "universe_config_hash",
+        "cost_model_file",
+        "cost_model_schema_hash",
+        "cost_model_hash",
+        "execution_model_file",
+        "execution_model_schema_hash",
+        "execution_model_hash",
+        "edge_decision_schema_hash",
+        "dependency_lock_hash",
+        "replay_engine_version",
+        "feature_schema_version",
+        "event_schema_version",
+        "training_window",
+        "oos_window",
+        "data_manifest_hashes",
+        "calibration_run_ids",
+        "research_run_ids",
+        "research_evidence_hash",
+        "quality_report_hashes",
+        "risk_config_hash",
+        "compatibility",
+        "limitations"
+      ],
+      "properties": {
+        "package_id": { "$ref": "#/$defs/id" },
+        "package_role": { "enum": ["CHAMPION", "CHALLENGER"] },
+        "parent_package_hash": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+        "rollback_package_hash": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+        "source_proposal_id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+        "strategy_name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "strategy_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[a-z0-9.-]+)?$" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "created_by": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "code_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "image_digests": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "pattern": "^[a-z][a-z0-9_-]{1,63}$" },
+          "additionalProperties": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+        },
+        "parameter_files": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/safeRelativeYamlPath" }
+        },
+        "parameter_manifest_hash": { "$ref": "#/$defs/sha256" },
+        "parameter_schema_hash": {
+          "$ref": "#/$defs/sha256",
+          "description": "参数名、类型、单位、合法边界、步长和跨参数约束清单的 SHA-256"
+        },
+        "price_action_schema_hash": {
+          "$ref": "#/$defs/sha256",
+          "description": "首版 closed PA Schema 精确 UTF-8 文件字节 SHA-256"
+        },
+        "price_action_config_hash": {
+          "$ref": "#/$defs/sha256",
+          "description": "预登记且不参与三日优化的 PA YAML 安全解析结果之 RFC 8785 JCS SHA-256"
+        },
+        "of_search_plan_hash": {
+          "$ref": "#/$defs/sha256",
+          "description": "T0 前签署的完整 OF alpha 搜索计划 plan_hash"
+        },
+        "of_parameter_candidate_hash": {
+          "$ref": "#/$defs/sha256",
+          "description": "通过 of-parameter-candidate.schema.json 的冻结候选 candidate_hash"
+        },
+        "universe_config_hash": { "$ref": "#/$defs/sha256" },
+        "cost_model_file": { "$ref": "#/$defs/safeRelativeJsonPath" },
+        "cost_model_schema_hash": { "$ref": "#/$defs/sha256", "description": "cost-model.schema.json 精确 UTF-8 文件字节 SHA-256" },
+        "cost_model_hash": { "$ref": "#/$defs/sha256", "description": "从 cost_model_file 重算的 SHA-256(JCS(content))" },
+        "execution_model_file": { "$ref": "#/$defs/safeRelativeJsonPath" },
+        "execution_model_schema_hash": { "$ref": "#/$defs/sha256", "description": "execution-model.schema.json 精确 UTF-8 文件字节 SHA-256" },
+        "execution_model_hash": { "$ref": "#/$defs/sha256", "description": "从 execution_model_file 重算的 SHA-256(JCS(content))" },
+        "edge_decision_schema_hash": { "$ref": "#/$defs/sha256", "description": "edge-decision.schema.json 精确 UTF-8 文件字节 SHA-256" },
+        "dependency_lock_hash": { "$ref": "#/$defs/sha256" },
+        "replay_engine_version": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "feature_schema_version": { "const": "1.0.0" },
+        "event_schema_version": { "const": "1.0.0" },
+        "training_window": { "$ref": "#/$defs/trainingWindow" },
+        "oos_window": { "$ref": "#/$defs/oosWindowOrNull" },
+        "data_manifest_hashes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/sha256" }
+        },
+        "calibration_run_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/id" }
+        },
+        "research_run_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/id" }
+        },
+        "research_evidence_hash": {
+          "$ref": "#/$defs/sha256",
+          "description": "研究输入、运行清单、失败案例和来源等级的不可变 evidence manifest SHA-256"
+        },
+        "quality_report_hashes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["baseline_metrics", "cost_stress_1_5x", "parameter_stability_20pct", "symbol_contribution"],
+          "properties": {
+            "baseline_metrics": { "$ref": "#/$defs/sha256" },
+            "cost_stress_1_5x": { "$ref": "#/$defs/sha256" },
+            "parameter_stability_20pct": { "$ref": "#/$defs/sha256" },
+            "symbol_contribution": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "risk_config_hash": { "$ref": "#/$defs/sha256" },
+        "compatibility": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["min_database_revision", "supported_event_major", "position_mode", "margin_type"],
+          "properties": {
+            "min_database_revision": { "type": "string", "minLength": 1, "maxLength": 128 },
+            "supported_event_major": { "const": 1 },
+            "position_mode": { "const": "ONE_WAY" },
+            "margin_type": { "const": "CROSSED" }
+          }
+        },
+        "limitations": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 500 }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "package_role": { "const": "CHAMPION" } }, "required": ["package_role"] },
+          "then": {
+            "properties": {
+              "training_window": { "type": "object", "properties": { "purpose": { "const": "CALIBRATION_3D" } } },
+              "oos_window": { "$ref": "#/$defs/oosWindow", "type": "object", "properties": { "purpose": { "const": "OOS_FORWARD_87D" } } },
+              "calibration_run_ids": { "type": "array", "minItems": 1 },
+              "source_proposal_id": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "package_role": { "const": "CHALLENGER" } }, "required": ["package_role"] },
+          "then": {
+            "properties": {
+              "parent_package_hash": { "$ref": "#/$defs/sha256" },
+              "source_proposal_id": { "$ref": "#/$defs/id" },
+              "training_window": { "type": "object", "properties": { "purpose": { "const": "TRAIN" } } },
+              "oos_window": { "$ref": "#/$defs/oosWindow" },
+              "calibration_run_ids": { "type": "array", "maxItems": 0 }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|[0-9A-HJKMNP-TV-Z]{26})$"
+    },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "safeRelativeYamlPath": {
+      "type": "string",
+      "maxLength": 300,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*\\.ya?ml$"
+    },
+    "safeRelativeJsonPath": {
+      "type": "string",
+      "maxLength": 300,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*\\.json$"
+    },
+    "trainingWindow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end", "purpose"],
+      "properties": {
+        "start": { "type": "string", "format": "date-time" },
+        "end": { "type": "string", "format": "date-time" },
+        "purpose": { "enum": ["TRAIN", "CALIBRATION_3D"] }
+      }
+    },
+    "oosWindow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end", "purpose"],
+      "properties": {
+        "start": { "type": "string", "format": "date-time" },
+        "end": { "type": "string", "format": "date-time" },
+        "purpose": { "enum": ["VALIDATION", "OOS_FORWARD_87D", "WALK_FORWARD"] }
+      }
+    },
+    "oosWindowOrNull": {
+      "oneOf": [
+        { "$ref": "#/$defs/oosWindow" },
+        { "type": "null" }
+      ]
+    }
+  }
+}

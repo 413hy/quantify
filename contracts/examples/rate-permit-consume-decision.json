@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0.0",
+  "message_type": "PermitConsumeDecision",
+  "message_id": "rate-msg-000000026",
+  "occurred_at": "2026-07-13T00:00:00.004Z",
+  "caller_service": "rate-budget-service",
+  "caller_instance_id": "rate-allocator-01",
+  "correlation_id": "rate-correlation-0001",
+  "request_message_id": "rate-msg-000000025",
+  "permit_id": "rate-permit-00000001",
+  "decision": "CONSUME_GRANTED",
+  "gateway_connection_id": null,
+  "canonical_request_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+  "gateway_derived_parameter_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+  "gateway_derived_wire_bytes_hash": "3333333333333333333333333333333333333333333333333333333333333333",
+  "gateway_request_document_hash": "4444444444444444444444444444444444444444444444444444444444444444",
+  "gateway_derived_operation_facts_hash": "5ad4286fdedc1974e53d8d2a583b588fd912203297ec8ab8284ccc894e731cc6",
+  "causal_capability_payload_hash": "72863e57ba905a86f8b099dbd05fdb1665f2b0fee0a03e97e38148f7f4c6462b",
+  "capability_nonce_state": "CONSUMED",
+  "fencing_epoch": 7,
+  "send_deadline": "2026-07-13T00:00:00.050Z",
+  "reason_code": "RATE_PERMIT_CONSUMED"
+}

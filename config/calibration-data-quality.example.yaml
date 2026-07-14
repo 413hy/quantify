@@ -1,0 +1,58 @@
+schema_version: 1.0.0
+profile_id: calibration-3d-thresholds-v1
+config_status: PREREGISTERED_ENGINEERING_GATE
+window:
+  duration_hours: 72
+  selection_rule: FIRST_CONTINUOUS_QUALIFIED_WINDOW
+  exclusive_end: true
+  allow_extension: false
+  allow_posthoc_relaxation: false
+clock:
+  maximum_qualified_offset_ms: 50
+  abort_offset_ms: 100
+  source_monotonic_required: true
+orderbook:
+  maximum_unrecovered_sequence_gaps: 0
+  maximum_stale_decision_frames: 0
+  maximum_unresolved_out_of_order_events: 0
+  maximum_duplicate_effects: 0
+  snapshot_rebuild_on_gap: true
+  maximum_market_data_gap_ms: 0
+coverage:
+  minimum_full_market_lightweight_pct: '99.50'
+  minimum_universe_snapshot_pct: '100.00'
+  minimum_required_l2_pct: '100.00'
+  maximum_critical_observability_gap_seconds: 300
+archive:
+  expected_hourly_slices: 72
+  minimum_hourly_slice_valid_pct: '100.00'
+  minimum_daily_manifest_valid_pct: '100.00'
+  minimum_remote_verified_pct: '100.00'
+  require_remote_decrypt: true
+  require_plaintext_hash: true
+  require_parquet_read: true
+  require_signed_receipt: true
+  reject_receipt_replay: true
+stability:
+  collector_release_unchanged: true
+  git_commit_unchanged: true
+  image_manifest_unchanged: true
+  config_manifest_unchanged: true
+  schema_bundle_unchanged: true
+  universe_rules_unchanged: true
+  quality_profile_unchanged: true
+resources:
+  maximum_cpu_mean_5m_pct: '70.00'
+  maximum_cpu_p95_pct: '85.00'
+  maximum_host_memory_bytes: 9663676416
+  maximum_raw_l2_bytes: 72000000000
+  maximum_filesystem_used_pct: '90.00'
+  minimum_free_bytes: 20000000000
+  maximum_oom_events: 0
+  maximum_database_write_failures: 0
+failure_policy:
+  any_hard_failure_marks_dataset_failed: true
+  retain_failed_dataset: true
+  require_new_dataset_id: true
+  select_next_first_qualified_window: true
+  forbid_performance_based_selection: true

@@ -1,0 +1,7 @@
+.git
+.venv
+artifacts
+evidence
+reference-materials
+__pycache__
+*.pyc

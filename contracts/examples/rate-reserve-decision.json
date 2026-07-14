@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0.0",
+  "message_type": "ReserveDecision",
+  "message_id": "rate-msg-00000002",
+  "occurred_at": "2026-07-13T00:00:00.001Z",
+  "caller_service": "rate-budget-service",
+  "caller_instance_id": "rate-allocator-01",
+  "correlation_id": "rate-correlation-0001",
+  "request_message_id": "rate-msg-00000001",
+  "request_key": "rate-request-00000001",
+  "decision": "GRANTED",
+  "permit_id": "rate-permit-00000001",
+  "environment": "production",
+  "gateway_connection_id": null,
+  "derived_operation_class": "PROTECTION_CREATE_REPLACE",
+  "endpoint_catalog_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "canonical_request_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+  "parameter_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+  "wire_bytes_hash": "3333333333333333333333333333333333333333333333333333333333333333",
+  "gateway_request_document_hash": "4444444444444444444444444444444444444444444444444444444444444444",
+  "operation_facts_hash": "5ad4286fdedc1974e53d8d2a583b588fd912203297ec8ab8284ccc894e731cc6",
+  "causal_capability_payload_hash": "72863e57ba905a86f8b099dbd05fdb1665f2b0fee0a03e97e38148f7f4c6462b",
+  "causal_capability_nonce": "rate-capability-nonce-000001",
+  "capability_reservation_state": "RESERVED",
+  "fencing_epoch": 7,
+  "expires_at": "2026-07-13T00:00:01Z",
+  "retry_not_before": null,
+  "allocations": [
+    {
+      "budget_id": "rate-budget-minute-0001",
+      "rate_limit_type": "REQUEST_WEIGHT",
+      "scope_key_hash": "3333333333333333333333333333333333333333333333333333333333333333",
+      "interval_name": "MINUTE_1",
+      "window_start": "2026-07-13T00:00:00Z",
+      "window_end": "2026-07-13T00:01:00Z",
+      "cost": 1,
+      "effective_used_before": 20,
+      "effective_used_after": 21,
+      "class_ceiling": 90
+    }
+  ],
+  "reason_code": "RATE_GRANTED"
+}

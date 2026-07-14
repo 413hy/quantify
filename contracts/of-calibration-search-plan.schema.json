@@ -1,0 +1,293 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant.local/contracts/of-calibration-search-plan.schema.json",
+  "title": "Preregistered Complete Order Flow Calibration Search Plan",
+  "description": "三日校准前签署的封闭搜索计划。plan_hash=SHA-256(RFC 8785 JCS(content))；键集合即首版全部可优化 OF alpha 参数。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "plan_hash", "content", "signature"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "plan_hash": { "$ref": "#/$defs/sha256" },
+    "content": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plan_id", "created_at", "dataset_purpose", "parameter_set_version", "price_action_schema_hash", "price_action_config_hash", "parameters", "parameter_scope", "feature_window_mapping", "non_optimized_semantics", "liquidity_buckets", "objective", "cost_model", "search", "stopping", "forbidden_changes", "output_label"],
+      "properties": {
+        "plan_id": { "$ref": "#/$defs/id" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "dataset_purpose": { "const": "CALIBRATION_3D" },
+        "parameter_set_version": { "const": "of-alpha-v1" },
+        "price_action_schema_hash": { "$ref": "#/$defs/sha256", "description": "SHA-256(config/price-action.schema.json 精确 UTF-8 文件字节)" },
+        "price_action_config_hash": { "$ref": "#/$defs/sha256", "description": "SHA-256(RFC 8785 JCS(安全解析后的 PA YAML))" },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "of_window_short_ms", "of_window_medium_ms", "of_window_long_ms", "book_depth_levels",
+            "book_imbalance_threshold", "microprice_confirmation_bps", "trade_imbalance_threshold",
+            "cvd_slope_threshold", "aggressive_notional_quantile", "sweep_intensity_threshold",
+            "swept_levels_min", "continuation_hold_ms", "maximum_sweep_retrace_ratio",
+            "absorption_score_threshold", "absorption_max_move_bps", "refill_ratio_threshold",
+            "refill_window_ms", "reversal_trade_imbalance_threshold", "minimum_confirmation_components",
+            "signal_cooldown_ms"
+          ],
+          "properties": {
+            "of_window_short_ms": { "const": { "type": "integer", "minimum": 100, "maximum": 1000, "step": 100 } },
+            "of_window_medium_ms": { "const": { "type": "integer", "minimum": 1000, "maximum": 5000, "step": 500 } },
+            "of_window_long_ms": { "const": { "type": "integer", "minimum": 5000, "maximum": 30000, "step": 1000 } },
+            "book_depth_levels": { "const": { "type": "integer", "minimum": 5, "maximum": 50, "step": 5 } },
+            "book_imbalance_threshold": { "const": { "type": "decimal", "minimum": "0.05", "maximum": "0.80", "step": "0.05" } },
+            "microprice_confirmation_bps": { "const": { "type": "decimal", "minimum": "0.10", "maximum": "5.00", "step": "0.10" } },
+            "trade_imbalance_threshold": { "const": { "type": "decimal", "minimum": "0.05", "maximum": "0.90", "step": "0.05" } },
+            "cvd_slope_threshold": { "const": { "type": "decimal", "minimum": "0.00", "maximum": "5.00", "step": "0.10" } },
+            "aggressive_notional_quantile": { "const": { "type": "decimal", "minimum": "0.50", "maximum": "0.99", "step": "0.01" } },
+            "sweep_intensity_threshold": { "const": { "type": "decimal", "minimum": "0.10", "maximum": "3.00", "step": "0.10" } },
+            "swept_levels_min": { "const": { "type": "integer", "minimum": 1, "maximum": 10, "step": 1 } },
+            "continuation_hold_ms": { "const": { "type": "integer", "minimum": 100, "maximum": 5000, "step": 100 } },
+            "maximum_sweep_retrace_ratio": { "const": { "type": "decimal", "minimum": "0.10", "maximum": "1.00", "step": "0.05" } },
+            "absorption_score_threshold": { "const": { "type": "decimal", "minimum": "0.10", "maximum": "10.00", "step": "0.10" } },
+            "absorption_max_move_bps": { "const": { "type": "decimal", "minimum": "0.10", "maximum": "10.00", "step": "0.10" } },
+            "refill_ratio_threshold": { "const": { "type": "decimal", "minimum": "0.10", "maximum": "3.00", "step": "0.10" } },
+            "refill_window_ms": { "const": { "type": "integer", "minimum": 100, "maximum": 5000, "step": 100 } },
+            "reversal_trade_imbalance_threshold": { "const": { "type": "decimal", "minimum": "0.05", "maximum": "0.90", "step": "0.05" } },
+            "minimum_confirmation_components": { "const": { "type": "integer", "minimum": 2, "maximum": 6, "step": 1 } },
+            "signal_cooldown_ms": { "const": { "type": "integer", "minimum": 0, "maximum": 30000, "step": 500 } }
+          }
+        },
+        "parameter_scope": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "of_window_short_ms", "of_window_medium_ms", "of_window_long_ms", "book_depth_levels",
+            "book_imbalance_threshold", "microprice_confirmation_bps", "trade_imbalance_threshold",
+            "cvd_slope_threshold", "aggressive_notional_quantile", "sweep_intensity_threshold",
+            "swept_levels_min", "continuation_hold_ms", "maximum_sweep_retrace_ratio",
+            "absorption_score_threshold", "absorption_max_move_bps", "refill_ratio_threshold",
+            "refill_window_ms", "reversal_trade_imbalance_threshold", "minimum_confirmation_components",
+            "signal_cooldown_ms"
+          ],
+          "properties": {
+            "of_window_short_ms": { "const": "GLOBAL" },
+            "of_window_medium_ms": { "const": "GLOBAL" },
+            "of_window_long_ms": { "const": "GLOBAL" },
+            "book_depth_levels": { "const": "GLOBAL" },
+            "book_imbalance_threshold": { "const": "BY_LIQUIDITY_BUCKET" },
+            "microprice_confirmation_bps": { "const": "BY_LIQUIDITY_BUCKET" },
+            "trade_imbalance_threshold": { "const": "BY_LIQUIDITY_BUCKET" },
+            "cvd_slope_threshold": { "const": "BY_LIQUIDITY_BUCKET" },
+            "aggressive_notional_quantile": { "const": "BY_LIQUIDITY_BUCKET" },
+            "sweep_intensity_threshold": { "const": "BY_LIQUIDITY_BUCKET" },
+            "swept_levels_min": { "const": "BY_LIQUIDITY_BUCKET" },
+            "continuation_hold_ms": { "const": "GLOBAL" },
+            "maximum_sweep_retrace_ratio": { "const": "BY_LIQUIDITY_BUCKET" },
+            "absorption_score_threshold": { "const": "BY_LIQUIDITY_BUCKET" },
+            "absorption_max_move_bps": { "const": "BY_LIQUIDITY_BUCKET" },
+            "refill_ratio_threshold": { "const": "BY_LIQUIDITY_BUCKET" },
+            "refill_window_ms": { "const": "GLOBAL" },
+            "reversal_trade_imbalance_threshold": { "const": "BY_LIQUIDITY_BUCKET" },
+            "minimum_confirmation_components": { "const": "GLOBAL" },
+            "signal_cooldown_ms": { "const": "GLOBAL" }
+          }
+        },
+        "feature_window_mapping": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["book_imbalance", "microprice", "trade_imbalance_continuation", "trade_imbalance_reversal", "cvd_slope", "aggressive_notional", "sweep_intensity", "absorption_score", "sweep_retrace", "refill"],
+          "properties": {
+            "book_imbalance": { "const": "LATEST_VALID_BOOK" },
+            "microprice": { "const": "LATEST_VALID_BOOK" },
+            "trade_imbalance_continuation": { "const": "SHORT" },
+            "trade_imbalance_reversal": { "const": "SHORT" },
+            "cvd_slope": { "const": "MEDIUM" },
+            "aggressive_notional": { "const": "SHORT" },
+            "sweep_intensity": { "const": "SHORT" },
+            "absorption_score": { "const": "MEDIUM" },
+            "sweep_retrace": { "const": "CONTINUATION_HOLD" },
+            "refill": { "const": "REFILL_WINDOW" }
+          }
+        },
+        "non_optimized_semantics": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["numeric_type", "decimal_context_precision", "rounding", "intermediate_quantization", "output_decimal_places", "comparison_boundary", "event_window_interval", "market_event_merge_rule", "channel_priority", "nonpositive_denominator", "absorption_move_floor", "fixed_move_floor_bps", "sweep_episode_max_gap_ms", "sweep_episode_direction_rule", "pre_event_book_rule", "swept_levels_rule", "refill_price_set_rule", "bucket_tie_break", "candidate_selection_rule"],
+          "properties": {
+            "numeric_type": { "const": "DECIMAL" },
+            "decimal_context_precision": { "const": 34 },
+            "rounding": { "const": "ROUND_HALF_EVEN" },
+            "intermediate_quantization": { "const": "NONE" },
+            "output_decimal_places": { "const": 18 },
+            "comparison_boundary": { "const": "INCLUSIVE" },
+            "event_window_interval": { "const": "LEFT_OPEN_RIGHT_CLOSED_AS_OF_INCLUSIVE" },
+            "market_event_merge_rule": { "const": "PARTITION_SEQUENCE_THEN_250MS_WATERMARK_KWAY_HEAD_ORDER_V1" },
+            "channel_priority": { "const": ["BOOK_SNAPSHOT", "BOOK_DIFF", "AGG_TRADE", "MARK_PRICE", "KLINE", "INTERNAL_TIMER"] },
+            "nonpositive_denominator": { "const": "INVALID_NO_TRADE" },
+            "absorption_move_floor": { "const": "MAX_ONE_TICK_BPS_AND_FIXED_FLOOR" },
+            "fixed_move_floor_bps": { "const": "0.10" },
+            "sweep_episode_max_gap_ms": { "const": 100 },
+            "sweep_episode_direction_rule": { "const": "SAME_AGGRESSOR_DIRECTION_UNTIL_OPPOSITE_OR_GAP" },
+            "pre_event_book_rule": { "const": "LATEST_VALID_CAUSALLY_AVAILABLE_BOOK_BEFORE_FIRST_TRADE" },
+            "swept_levels_rule": { "const": "CONTIGUOUS_FROM_BEST_FULLY_DEPLETED_PRE_EVENT_LEVELS" },
+            "refill_price_set_rule": { "const": "EXACT_FULLY_DEPLETED_SWEPT_LEVELS" },
+            "bucket_tie_break": { "const": "SYMBOL_UTF8_ASC" },
+            "candidate_selection_rule": { "const": "DOCS03_SECTION_11_2_V1_DECIMAL_LEXICOGRAPHIC" }
+          }
+        },
+        "liquidity_buckets": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["method", "bucket_count", "observation_unit", "assignment_inputs", "component_transforms", "component_percentile", "composite_weights", "cross_section_assignment", "minimum_cross_section_symbols", "fit_on_training_only", "minimum_symbol_hours_per_bucket", "persist_bucket_in_feature"],
+          "properties": {
+            "method": { "const": "PREREGISTERED_CROSS_SECTIONAL_QUANTILES" },
+            "bucket_count": { "const": 3 },
+            "observation_unit": { "const": "ELIGIBLE_SYMBOL_AT_UNIVERSE_15M_SNAPSHOT" },
+            "assignment_inputs": { "const": ["trade_notional_15m", "two_sided_depth_10bps", "median_spread_bps"] },
+            "component_transforms": {
+              "const": {
+                "trade_notional_15m": "LOG1P_ASCENDING",
+                "two_sided_depth_10bps": "LOG1P_ASCENDING",
+                "median_spread_bps": "NEGATE_ASCENDING"
+              }
+            },
+            "component_percentile": { "const": "ORDINAL_RANK_MINUS_1_OVER_N_MINUS_1_SYMBOL_UTF8_TIE_BREAK_N1_HALF" },
+            "composite_weights": { "const": { "trade_notional_15m": "0.333333333333333333", "two_sided_depth_10bps": "0.333333333333333333", "median_spread_bps": "0.333333333333333334" } },
+            "cross_section_assignment": { "const": "SORT_COMPOSITE_ASC_SYMBOL_ASC_THEN_BUCKET_FLOOR_3I_OVER_N" },
+            "minimum_cross_section_symbols": { "const": 15 },
+            "fit_on_training_only": { "const": true },
+            "minimum_symbol_hours_per_bucket": { "type": "integer", "minimum": 24, "maximum": 720 },
+            "persist_bucket_in_feature": { "const": true }
+          }
+        },
+        "objective": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["primary", "secondary", "minimum_calibration_trades", "maximum_drawdown_pct", "reject_if_single_symbol_dominates", "no_profit_claim"],
+          "properties": {
+            "primary": { "const": "NET_EXPECTANCY_AFTER_ALL_COSTS" },
+            "secondary": { "const": ["PROFIT_FACTOR", "MAX_DRAWDOWN", "PARAMETER_STABILITY", "SYMBOL_CONCENTRATION"] },
+            "minimum_calibration_trades": { "type": "integer", "minimum": 1, "maximum": 10000 },
+            "maximum_drawdown_pct": { "type": "string", "pattern": "^(?:0|[1-9][0-9]?|100)(?:\\.[0-9]{1,2})?$" },
+            "reject_if_single_symbol_dominates": { "const": true },
+            "no_profit_claim": { "const": true }
+          }
+        },
+        "cost_model": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cost_model_artifact_ref", "cost_model_schema_hash", "cost_model_hash", "execution_model_artifact_ref", "execution_model_schema_hash", "execution_model_hash", "edge_decision_schema_hash", "gross_edge_method", "maker_fee", "taker_fee", "slippage", "adverse_selection", "funding", "failure_and_cancel", "latency", "partial_fill", "maker_to_taker", "stress_multiplier"],
+          "properties": {
+            "cost_model_artifact_ref": { "$ref": "#/$defs/safeRelativeJsonPath" },
+            "cost_model_schema_hash": { "$ref": "#/$defs/sha256" },
+            "cost_model_hash": { "$ref": "#/$defs/sha256" },
+            "execution_model_artifact_ref": { "$ref": "#/$defs/safeRelativeJsonPath" },
+            "execution_model_schema_hash": { "$ref": "#/$defs/sha256" },
+            "execution_model_hash": { "$ref": "#/$defs/sha256" },
+            "edge_decision_schema_hash": { "$ref": "#/$defs/sha256" },
+            "gross_edge_method": { "const": "SHRUNK_MARKOUT_CELL_MEAN_V1" },
+            "maker_fee": { "const": true },
+            "taker_fee": { "const": true },
+            "slippage": { "const": true },
+            "adverse_selection": { "const": true },
+            "funding": { "const": true },
+            "failure_and_cancel": { "const": true },
+            "latency": { "const": true },
+            "partial_fill": { "const": true },
+            "maker_to_taker": { "const": true },
+            "stress_multiplier": { "const": "1.50" }
+          }
+        },
+        "search": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["algorithm", "seed", "maximum_trials", "optimizer_implementation_id", "optimizer_code_commit", "optimizer_image_digest", "optimizer_dependency_lock_hash", "startup_trials", "trial_concurrency", "candidate_evaluator_version", "candidate_evaluator_hash", "deterministic_replay_required", "all_declared_parameters_must_be_searched"],
+          "properties": {
+            "algorithm": { "enum": ["GRID", "SEEDED_TPE"] },
+            "seed": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
+            "maximum_trials": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+            "optimizer_implementation_id": { "type": "string", "minLength": 3, "maxLength": 128 },
+            "optimizer_code_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+            "optimizer_image_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+            "optimizer_dependency_lock_hash": { "$ref": "#/$defs/sha256" },
+            "startup_trials": { "type": "integer", "minimum": 0, "maximum": 10000 },
+            "trial_concurrency": { "const": 1 },
+            "candidate_evaluator_version": { "const": "candidate-evaluator-v1" },
+            "candidate_evaluator_hash": { "$ref": "#/$defs/sha256" },
+            "deterministic_replay_required": { "const": true },
+            "all_declared_parameters_must_be_searched": { "const": true }
+          }
+        },
+        "stopping": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["stop_on_trial_budget", "stop_on_wall_clock_seconds", "allow_manual_early_stop_after_results", "retain_all_trials"],
+          "properties": {
+            "stop_on_trial_budget": { "const": true },
+            "stop_on_wall_clock_seconds": { "type": "integer", "minimum": 60, "maximum": 604800 },
+            "allow_manual_early_stop_after_results": { "const": false },
+            "retain_all_trials": { "const": true }
+          }
+        },
+        "forbidden_changes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["price_action", "risk_limits", "universe_rules", "data_quality_rules", "pa_of_conflict_veto", "execution_safety", "future_or_champion_oos_access", "delete_losing_trades"],
+          "properties": {
+            "price_action": { "const": true },
+            "risk_limits": { "const": true },
+            "universe_rules": { "const": true },
+            "data_quality_rules": { "const": true },
+            "pa_of_conflict_veto": { "const": true },
+            "execution_safety": { "const": true },
+            "future_or_champion_oos_access": { "const": true },
+            "delete_losing_trades": { "const": true }
+          },
+          "description": "true 表示禁止改变或执行该行为。"
+        },
+        "output_label": { "const": "UNVALIDATED_HIGH_OVERFIT_RISK" }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "key_id", "signed_at", "signature_ref"],
+      "properties": {
+        "algorithm": { "const": "Ed25519" },
+        "key_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "signed_at": { "type": "string", "format": "date-time" },
+        "signature_ref": { "$ref": "#/$defs/safeRelativeSigPath" }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|[0-9A-HJKMNP-TV-Z]{26})$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "safeRelativeJsonPath": {
+      "type": "string",
+      "maxLength": 300,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*\\.json$"
+    },
+    "intParam": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "minimum", "maximum", "step"],
+      "properties": {
+        "type": { "const": "integer" },
+        "minimum": { "type": "integer", "minimum": 0 },
+        "maximum": { "type": "integer", "minimum": 1 },
+        "step": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "decimalParam": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "minimum", "maximum", "step"],
+      "properties": {
+        "type": { "const": "decimal" },
+        "minimum": { "type": "string", "pattern": "^-?(?:0|[1-9][0-9]{0,9})(?:\\.[0-9]{1,6})?$" },
+        "maximum": { "type": "string", "pattern": "^-?(?:0|[1-9][0-9]{0,9})(?:\\.[0-9]{1,6})?$" },
+        "step": { "type": "string", "pattern": "^(?:0\\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(?:\\.[0-9]+)?)$" }
+      }
+    },
+    "safeRelativeSigPath": { "type": "string", "maxLength": 300, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*\\.sig$" }
+  }
+}

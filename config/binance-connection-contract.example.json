@@ -1,0 +1,72 @@
+{
+  "schema_version": "1.0.0",
+  "contract_hash": "c47fb051763eee86827a44f5b276d9c44cbcaa3dfee9f25e783fe97d87d43ad3",
+  "content": {
+    "contract_id": "binance-stream-connection-20260713",
+    "contract_status": "UNVALIDATED_ENGINEERING_BASELINE",
+    "checked_at": "2026-07-13T00:00:00Z",
+    "valid_until": "2026-07-14T00:00:00Z",
+    "source_documents": [
+      {
+        "source_id": "production-fstream-connect-20260713",
+        "uri": "https://developers.binance.com/en/docs/products/derivatives-trading-usds-futures/websocket-market-streams/Connect",
+        "retrieved_at": "2026-07-13T00:00:00Z",
+        "artifact_path": "evidence/official-contracts/binance-fstream-connect-20260713.txt",
+        "canonicalization": "UTF8_LF_NORMALIZED_VISIBLE_DOCUMENT_TEXT_WITH_URI_AND_RETRIEVED_AT_SIDECAR",
+        "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "covered_authorities": ["BINANCE_PRODUCTION_FSTREAM"],
+        "covered_environments": ["shadow", "paper", "production"]
+      },
+      {
+        "source_id": "production-fstream-change-20260713",
+        "uri": "https://developers.binance.com/en/docs/products/derivatives-trading-usds-futures/websocket-market-streams/Important-WebSocket-Change-Notice",
+        "retrieved_at": "2026-07-13T00:00:00Z",
+        "artifact_path": "evidence/official-contracts/binance-fstream-route-migration-20260713.txt",
+        "canonicalization": "UTF8_LF_NORMALIZED_VISIBLE_DOCUMENT_TEXT_WITH_URI_AND_RETRIEVED_AT_SIDECAR",
+        "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "covered_authorities": ["BINANCE_PRODUCTION_FSTREAM"],
+        "covered_environments": ["shadow", "paper", "production"]
+      },
+      {
+        "source_id": "production-fstream-live-sub-20260713",
+        "uri": "https://developers.binance.com/en/docs/products/derivatives-trading-usds-futures/websocket-market-streams/Live-Subscribing-Unsubscribing-to-streams",
+        "retrieved_at": "2026-07-13T00:00:00Z",
+        "artifact_path": "evidence/official-contracts/binance-fstream-live-subscriptions-20260713.txt",
+        "canonicalization": "UTF8_LF_NORMALIZED_VISIBLE_DOCUMENT_TEXT_WITH_URI_AND_RETRIEVED_AT_SIDECAR",
+        "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "covered_authorities": ["BINANCE_PRODUCTION_FSTREAM"],
+        "covered_environments": ["shadow", "paper", "production"]
+      }
+    ],
+    "authority_profiles": [
+      {
+        "profile_id": "production-fstream-profile-20260713",
+        "endpoint_authority": "BINANCE_PRODUCTION_FSTREAM",
+        "environments": ["shadow", "paper", "production"],
+        "provenance": "OFFICIAL_PRODUCTION_DOCUMENT",
+        "source_ids": ["production-fstream-connect-20260713", "production-fstream-change-20260713", "production-fstream-live-sub-20260713"],
+        "probe_evidence": null,
+        "bootstrap_constraints": null,
+        "operator_ceiling_evidence": null,
+        "market_stream": {
+          "connection_lifetime_seconds": 86400,
+          "rotate_no_later_than_seconds": 84600,
+          "minimum_overlap_seconds": 60,
+          "ping_interval_seconds": 180,
+          "pong_deadline_seconds": 600,
+          "control_messages_per_second": 10,
+          "max_streams_per_connection": 1024
+        },
+        "connection_attempt_budget": {
+          "source": "SIGNED_OPERATOR_SAFETY_CEILING",
+          "scope": "ENDPOINT_AUTHORITY_AND_EGRESS_IP",
+          "interval_seconds": 60,
+          "conservative_limit": 12,
+          "missing_action": "BLOCK_NEW_CONNECTIONS"
+        }
+      }
+    ],
+    "mismatch_action": "BLOCK_ALL_NEW_BINANCE_EGRESS_AND_OPEN_P0"
+  },
+  "signature": null
+}

@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "codex-review-report.schema.json",
+  "title": "Independent VPS Codex Review Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "report_hash", "content"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "report_hash": { "$ref": "#/$defs/sha256" },
+    "content": { "$ref": "#/$defs/content" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "dateTime": { "type": "string", "format": "date-time" },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "evidence_hashes", "notes"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "status": { "enum": ["PASS", "FAIL", "NOT_APPLICABLE"] },
+        "evidence_hashes": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/sha256" } },
+        "notes": { "type": "string", "minLength": 1, "maxLength": 2000 }
+      }
+    },
+    "defect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["defect_id", "severity", "state", "title", "requirement_refs", "evidence_hash"],
+      "properties": {
+        "defect_id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{4,64}$" },
+        "severity": { "enum": ["P0", "P1", "P2", "P3"] },
+        "state": { "enum": ["OPEN", "FIXED_RETEST_PENDING", "VERIFIED_CLOSED", "HUMAN_ACCEPTED_RISK"] },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "requirement_refs": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^[A-Z]+-[0-9]{3}$" } },
+        "evidence_hash": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "content": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["review_id", "created_at", "release_id", "patch_id", "change_class", "implementer_actor_id", "reviewer_actor_id", "same_actor", "reviewer_role", "requirement_refs", "changed_file_manifest_hash", "checks", "tests", "defects", "open_p0_count", "open_p1_count", "oos_access", "reset_decision", "rollback_evidence_hash", "verdict", "human_approval_required", "approval_ref"],
+      "properties": {
+        "review_id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{8,128}$" },
+        "created_at": { "$ref": "#/$defs/dateTime" },
+        "release_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "patch_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "change_class": { "enum": ["C0", "C1", "C2", "C3", "C4"] },
+        "implementer_actor_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "reviewer_actor_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "same_actor": { "const": false },
+        "reviewer_role": { "const": "CODEX_INDEPENDENT_REVIEW" },
+        "requirement_refs": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^[A-Z]+-[0-9]{3}$" } },
+        "changed_file_manifest_hash": { "$ref": "#/$defs/sha256" },
+        "checks": { "type": "array", "minItems": 8, "items": { "$ref": "#/$defs/check" } },
+        "tests": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/check" } },
+        "defects": { "type": "array", "items": { "$ref": "#/$defs/defect" } },
+        "open_p0_count": { "const": 0 },
+        "open_p1_count": { "const": 0 },
+        "oos_access": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["champion_oos_metrics_read", "champion_oos_rows_read", "access_log_hash", "contamination_detected"],
+          "properties": {
+            "champion_oos_metrics_read": { "type": "boolean" },
+            "champion_oos_rows_read": { "type": "boolean" },
+            "access_log_hash": { "$ref": "#/$defs/sha256" },
+            "contamination_detected": { "type": "boolean" }
+          }
+        },
+        "reset_decision": { "enum": ["LOCAL_TESTS_ONLY", "RESTART_72H", "RESTART_OOS_87D", "NEW_CHAMPION_REQUIRED", "HUMAN_DECISION_REQUIRED"] },
+        "rollback_evidence_hash": { "$ref": "#/$defs/sha256" },
+        "verdict": { "enum": ["PASS", "FAIL", "HUMAN_DECISION_REQUIRED"] },
+        "human_approval_required": { "const": true },
+        "approval_ref": { "type": ["string", "null"], "minLength": 1, "maxLength": 256 }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "verdict": { "const": "PASS" } }, "required": ["verdict"] },
+          "then": { "properties": { "oos_access": { "properties": { "contamination_detected": { "const": false } } } } }
+        },
+        {
+          "if": { "properties": { "change_class": { "enum": ["C0", "C1", "C2", "C3"] } }, "required": ["change_class"] },
+          "then": { "properties": { "oos_access": { "properties": { "champion_oos_metrics_read": { "const": false }, "champion_oos_rows_read": { "const": false }, "contamination_detected": { "const": false } } } } }
+        },
+        {
+          "if": { "properties": { "change_class": { "enum": ["C0", "C1"] } }, "required": ["change_class"] },
+          "then": { "properties": { "reset_decision": { "const": "LOCAL_TESTS_ONLY" } } }
+        },
+        {
+          "if": { "properties": { "change_class": { "const": "C2" } }, "required": ["change_class"] },
+          "then": { "properties": { "reset_decision": { "enum": ["LOCAL_TESTS_ONLY", "RESTART_72H", "HUMAN_DECISION_REQUIRED"] } } }
+        },
+        {
+          "if": { "properties": { "change_class": { "const": "C3" } }, "required": ["change_class"] },
+          "then": { "properties": { "reset_decision": { "enum": ["NEW_CHAMPION_REQUIRED", "RESTART_OOS_87D", "HUMAN_DECISION_REQUIRED"] } } }
+        }
+      ]
+    }
+  }
+}

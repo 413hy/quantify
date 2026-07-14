@@ -1,0 +1,246 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant.local/contracts/binance-gateway-ipc.schema.json",
+  "title": "Closed Binance Egress Gateway IPC",
+  "oneOf": [
+    { "$ref": "#/$defs/sendRequest" },
+    { "$ref": "#/$defs/sendResult" },
+    { "$ref": "#/$defs/inboundFrame" },
+    { "$ref": "#/$defs/connectionUpdate" },
+    { "$ref": "#/$defs/closeRequest" },
+    { "$ref": "#/$defs/closeResult" }
+  ],
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{8,128}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "dateTime": { "type": "string", "format": "date-time" },
+    "requestService": { "enum": ["realtime-engine", "execution-service", "testnet-probe-runner", "host-bootstrap-runner"] },
+    "base": {
+      "type": "object",
+      "required": ["schema_version", "message_type", "message_id", "occurred_at", "correlation_id"],
+      "properties": {
+        "schema_version": { "const": "1.0.0" },
+        "message_type": { "enum": ["GatewaySendRequest", "GatewaySendResult", "GatewayInboundFrame", "GatewayConnectionUpdate", "GatewayCloseRequest", "GatewayCloseResult"] },
+        "message_id": { "$ref": "#/$defs/id" },
+        "occurred_at": { "$ref": "#/$defs/dateTime" },
+        "correlation_id": { "$ref": "#/$defs/id" }
+      }
+    },
+    "permitBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["permit_id", "reserve_decision_message_id", "reserve_decision_hash", "allocated_gateway_connection_id", "endpoint_catalog_hash", "canonical_request_hash", "parameter_hash", "wire_bytes_hash", "request_document_hash", "operation_facts_hash", "causal_capability_payload_hash", "fencing_epoch", "expires_at"],
+      "properties": {
+        "permit_id": { "$ref": "#/$defs/id" },
+        "reserve_decision_message_id": { "$ref": "#/$defs/id" },
+        "reserve_decision_hash": { "$ref": "#/$defs/sha256" },
+        "allocated_gateway_connection_id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+        "endpoint_catalog_hash": { "$ref": "#/$defs/sha256" },
+        "canonical_request_hash": { "$ref": "#/$defs/sha256" },
+        "parameter_hash": { "$ref": "#/$defs/sha256" },
+        "wire_bytes_hash": { "$ref": "#/$defs/sha256" },
+        "request_document_hash": { "$ref": "#/$defs/sha256" },
+        "operation_facts_hash": { "$ref": "#/$defs/sha256" },
+        "causal_capability_payload_hash": { "$ref": "#/$defs/sha256" },
+        "fencing_epoch": { "type": "integer", "minimum": 1 },
+        "expires_at": { "$ref": "#/$defs/dateTime" }
+      }
+    },
+    "sendRequest": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema_version", "message_type", "message_id", "occurred_at", "correlation_id", "caller_service", "caller_instance_id", "peer_credential_claim_hash", "request_document", "permit_binding", "maximum_response_bytes", "maximum_inbound_frame_bytes"],
+          "properties": {
+            "schema_version": { "const": "1.0.0" },
+            "message_type": { "const": "GatewaySendRequest" },
+            "message_id": { "$ref": "#/$defs/id" },
+            "occurred_at": { "$ref": "#/$defs/dateTime" },
+            "correlation_id": { "$ref": "#/$defs/id" },
+            "caller_service": { "$ref": "#/$defs/requestService" },
+            "caller_instance_id": { "$ref": "#/$defs/id" },
+            "peer_credential_claim_hash": { "$ref": "#/$defs/sha256" },
+            "request_document": { "$ref": "binance-gateway-request.schema.json" },
+            "permit_binding": { "$ref": "#/$defs/permitBinding" },
+            "maximum_response_bytes": { "type": "integer", "minimum": 1, "maximum": 12582912 },
+            "maximum_inbound_frame_bytes": { "type": "integer", "minimum": 1, "maximum": 12582912 }
+          }
+        }
+      ]
+    },
+    "sendResult": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema_version", "message_type", "message_id", "occurred_at", "correlation_id", "request_message_id", "permit_id", "gateway_connection_id", "status", "reason_code", "protocol_status", "http_status", "exchange_code", "permit_consume_decision_message_id", "permit_consume_decision_hash", "send_outcome_message_id", "send_outcome_hash", "result_receipt_id", "protected_result_ref", "response_payload_base64", "response_payload_hash", "sensitivity_class", "logging_allowed"],
+          "properties": {
+            "schema_version": { "const": "1.0.0" },
+            "message_type": { "const": "GatewaySendResult" },
+            "message_id": { "$ref": "#/$defs/id" },
+            "occurred_at": { "$ref": "#/$defs/dateTime" },
+            "correlation_id": { "$ref": "#/$defs/id" },
+            "request_message_id": { "$ref": "#/$defs/id" },
+            "permit_id": { "$ref": "#/$defs/id" },
+            "gateway_connection_id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+            "status": { "enum": ["DENIED_BEFORE_CONSUME", "CONSUME_DENIED", "NOT_SENT_AFTER_CONSUME", "SENT_DEFINITE_RESULT", "SENT_UNKNOWN"] },
+            "reason_code": { "enum": ["LOCAL_REQUEST_INVALID", "CALLER_ACL_DENIED", "PERMIT_BINDING_INVALID", "PERMIT_CONSUME_DENIED", "SEND_DEADLINE_EXPIRED", "LOCAL_WRITE_NOT_ATTEMPTED", "DEFINITE_EXCHANGE_RESULT", "SEND_RESULT_UNKNOWN", "RESPONSE_TOO_LARGE", "ALLOCATOR_UNAVAILABLE"] },
+            "protocol_status": { "enum": [null, "HTTP_RESPONSE", "WS_HANDSHAKE", "WS_CONTROL_ACK", "LOCAL_WRITE_CONFIRMED", "UNKNOWN"] },
+            "http_status": { "type": ["integer", "null"], "minimum": 100, "maximum": 599 },
+            "exchange_code": { "type": ["integer", "null"] },
+            "permit_consume_decision_message_id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+            "permit_consume_decision_hash": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+            "send_outcome_message_id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+            "send_outcome_hash": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+            "result_receipt_id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+            "protected_result_ref": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+            "response_payload_base64": { "type": ["string", "null"], "maxLength": 16777216, "pattern": "^[A-Za-z0-9+/]*={0,2}$" },
+            "response_payload_hash": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+            "sensitivity_class": { "enum": ["PUBLIC", "PRIVATE_USER_DATA", "ORDER_OR_ACCOUNT_RESPONSE"] },
+            "logging_allowed": { "const": false }
+          },
+          "allOf": [
+            {
+              "if": { "properties": { "status": { "const": "DENIED_BEFORE_CONSUME" } }, "required": ["status"] },
+              "then": { "properties": { "reason_code": { "enum": ["LOCAL_REQUEST_INVALID", "CALLER_ACL_DENIED", "PERMIT_BINDING_INVALID"] }, "protocol_status": { "type": "null" }, "http_status": { "type": "null" }, "exchange_code": { "type": "null" }, "permit_consume_decision_message_id": { "type": "null" }, "permit_consume_decision_hash": { "type": "null" }, "send_outcome_message_id": { "type": "null" }, "send_outcome_hash": { "type": "null" }, "result_receipt_id": { "type": "null" }, "protected_result_ref": { "type": "null" }, "response_payload_base64": { "type": "null" }, "response_payload_hash": { "type": "null" } } }
+            },
+            {
+              "if": { "properties": { "status": { "const": "CONSUME_DENIED" } }, "required": ["status"] },
+              "then": { "properties": { "reason_code": { "const": "PERMIT_CONSUME_DENIED" }, "protocol_status": { "type": "null" }, "http_status": { "type": "null" }, "exchange_code": { "type": "null" }, "permit_consume_decision_message_id": { "$ref": "#/$defs/id" }, "permit_consume_decision_hash": { "$ref": "#/$defs/sha256" }, "send_outcome_message_id": { "type": "null" }, "send_outcome_hash": { "type": "null" }, "result_receipt_id": { "type": "null" }, "protected_result_ref": { "type": "null" }, "response_payload_base64": { "type": "null" }, "response_payload_hash": { "type": "null" } } }
+            },
+            {
+              "if": { "properties": { "status": { "const": "NOT_SENT_AFTER_CONSUME" } }, "required": ["status"] },
+              "then": { "properties": { "reason_code": { "enum": ["SEND_DEADLINE_EXPIRED", "LOCAL_WRITE_NOT_ATTEMPTED", "ALLOCATOR_UNAVAILABLE"] }, "protocol_status": { "type": "null" }, "http_status": { "type": "null" }, "exchange_code": { "type": "null" }, "permit_consume_decision_message_id": { "$ref": "#/$defs/id" }, "permit_consume_decision_hash": { "$ref": "#/$defs/sha256" }, "send_outcome_message_id": { "$ref": "#/$defs/id" }, "send_outcome_hash": { "$ref": "#/$defs/sha256" }, "result_receipt_id": { "$ref": "#/$defs/id" }, "protected_result_ref": { "type": "null" }, "response_payload_base64": { "type": "null" }, "response_payload_hash": { "type": "null" } } }
+            },
+            {
+              "if": { "properties": { "status": { "enum": ["SENT_DEFINITE_RESULT", "SENT_UNKNOWN"] } }, "required": ["status"] },
+              "then": { "properties": { "permit_consume_decision_message_id": { "$ref": "#/$defs/id" }, "permit_consume_decision_hash": { "$ref": "#/$defs/sha256" }, "send_outcome_message_id": { "$ref": "#/$defs/id" }, "send_outcome_hash": { "$ref": "#/$defs/sha256" }, "result_receipt_id": { "$ref": "#/$defs/id" } } }
+            },
+            {
+              "if": { "properties": { "status": { "const": "SENT_DEFINITE_RESULT" } }, "required": ["status"] },
+              "then": { "properties": { "reason_code": { "enum": ["DEFINITE_EXCHANGE_RESULT", "RESPONSE_TOO_LARGE"] }, "protocol_status": { "enum": ["HTTP_RESPONSE", "WS_HANDSHAKE", "WS_CONTROL_ACK", "LOCAL_WRITE_CONFIRMED"] } }, "anyOf": [{ "required": ["response_payload_hash"], "properties": { "response_payload_hash": { "$ref": "#/$defs/sha256" } } }, { "required": ["protected_result_ref"], "properties": { "protected_result_ref": { "$ref": "#/$defs/id" } } }] }
+            },
+            {
+              "if": { "properties": { "status": { "const": "SENT_UNKNOWN" } }, "required": ["status"] },
+              "then": { "properties": { "reason_code": { "const": "SEND_RESULT_UNKNOWN" }, "protocol_status": { "const": "UNKNOWN" }, "response_payload_base64": { "type": "null" }, "response_payload_hash": { "type": "null" }, "protected_result_ref": { "type": "null" } } }
+            }
+          ]
+        }
+      ]
+    },
+    "inboundFrame": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema_version", "message_type", "message_id", "occurred_at", "correlation_id", "owner_service", "owner_instance_id", "environment", "endpoint_authority", "gateway_connection_id", "connection_generation", "frame_sequence", "payload_base64", "payload_hash", "payload_bytes", "sensitivity_class", "logging_allowed"],
+          "properties": {
+            "schema_version": { "const": "1.0.0" },
+            "message_type": { "const": "GatewayInboundFrame" },
+            "message_id": { "$ref": "#/$defs/id" },
+            "occurred_at": { "$ref": "#/$defs/dateTime" },
+            "correlation_id": { "$ref": "#/$defs/id" },
+            "owner_service": { "$ref": "#/$defs/requestService" },
+            "owner_instance_id": { "$ref": "#/$defs/id" },
+            "environment": { "enum": ["shadow", "paper", "testnet", "production"] },
+            "endpoint_authority": { "enum": ["BINANCE_PRODUCTION_FAPI", "BINANCE_TESTNET_FAPI", "BINANCE_PRODUCTION_FSTREAM", "BINANCE_TESTNET_FSTREAM"] },
+            "gateway_connection_id": { "$ref": "#/$defs/id" },
+            "connection_generation": { "type": "integer", "minimum": 1 },
+            "frame_sequence": { "type": "integer", "minimum": 1 },
+            "payload_base64": { "type": "string", "maxLength": 16777216, "pattern": "^[A-Za-z0-9+/]*={0,2}$" },
+            "payload_hash": { "$ref": "#/$defs/sha256" },
+            "payload_bytes": { "type": "integer", "minimum": 0, "maximum": 12582912 },
+            "sensitivity_class": { "enum": ["PUBLIC", "PRIVATE_USER_DATA"] },
+            "logging_allowed": { "const": false }
+          }
+        }
+      ]
+    },
+    "connectionUpdate": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema_version", "message_type", "message_id", "occurred_at", "correlation_id", "owner_service", "owner_instance_id", "environment", "endpoint_authority", "gateway_connection_id", "connection_generation", "state", "confirmed_stream_count", "confirmed_stream_set_hash", "ack_payload_hash", "reason_code"],
+          "properties": {
+            "schema_version": { "const": "1.0.0" },
+            "message_type": { "const": "GatewayConnectionUpdate" },
+            "message_id": { "$ref": "#/$defs/id" },
+            "occurred_at": { "$ref": "#/$defs/dateTime" },
+            "correlation_id": { "$ref": "#/$defs/id" },
+            "owner_service": { "$ref": "#/$defs/requestService" },
+            "owner_instance_id": { "$ref": "#/$defs/id" },
+            "environment": { "enum": ["shadow", "paper", "testnet", "production"] },
+            "endpoint_authority": { "enum": ["BINANCE_PRODUCTION_FAPI", "BINANCE_TESTNET_FAPI", "BINANCE_PRODUCTION_FSTREAM", "BINANCE_TESTNET_FSTREAM"] },
+            "gateway_connection_id": { "$ref": "#/$defs/id" },
+            "connection_generation": { "type": "integer", "minimum": 1 },
+            "state": { "enum": ["OPEN", "SUBSCRIPTIONS_UPDATED", "CLOSED"] },
+            "confirmed_stream_count": { "type": "integer", "minimum": 0 },
+            "confirmed_stream_set_hash": { "$ref": "#/$defs/sha256" },
+            "ack_payload_hash": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+            "reason_code": { "enum": ["HANDSHAKE_CONFIRMED", "SUBSCRIBE_ACK", "UNSUBSCRIBE_ACK", "PARTIAL_SUBSCRIPTION_ACK", "REMOTE_CLOSED", "LOCAL_CLOSED", "PROTOCOL_ERROR", "ALLOCATOR_UNAVAILABLE_NATURAL_DISCONNECT"] }
+          }
+        }
+      ]
+    },
+    "closeRequest": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema_version", "message_type", "message_id", "occurred_at", "correlation_id", "caller_service", "caller_instance_id", "peer_credential_claim_hash", "environment", "endpoint_authority", "gateway_connection_id", "connection_generation", "authorization_mode", "reason_code", "wire_close_frame_allowed"],
+          "properties": {
+            "schema_version": { "const": "1.0.0" },
+            "message_type": { "const": "GatewayCloseRequest" },
+            "message_id": { "$ref": "#/$defs/id" },
+            "occurred_at": { "$ref": "#/$defs/dateTime" },
+            "correlation_id": { "$ref": "#/$defs/id" },
+            "caller_service": { "$ref": "#/$defs/requestService" },
+            "caller_instance_id": { "$ref": "#/$defs/id" },
+            "peer_credential_claim_hash": { "$ref": "#/$defs/sha256" },
+            "environment": { "enum": ["shadow", "paper", "testnet", "production"] },
+            "endpoint_authority": { "enum": ["BINANCE_PRODUCTION_FSTREAM", "BINANCE_TESTNET_FSTREAM"] },
+            "gateway_connection_id": { "$ref": "#/$defs/id" },
+            "connection_generation": { "type": "integer", "minimum": 1 },
+            "authorization_mode": { "const": "OWNER_EXACT_MATCH" },
+            "reason_code": { "enum": ["OPERATOR_REQUEST", "SHUTDOWN", "PROTOCOL_ERROR", "RATE_POLICY"] },
+            "wire_close_frame_allowed": { "const": false }
+          }
+        }
+      ]
+    },
+    "closeResult": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema_version", "message_type", "message_id", "occurred_at", "correlation_id", "request_message_id", "owner_service", "owner_instance_id", "environment", "endpoint_authority", "gateway_connection_id", "connection_generation", "state", "close_receipt_hash"],
+          "properties": {
+            "schema_version": { "const": "1.0.0" },
+            "message_type": { "const": "GatewayCloseResult" },
+            "message_id": { "$ref": "#/$defs/id" },
+            "occurred_at": { "$ref": "#/$defs/dateTime" },
+            "correlation_id": { "$ref": "#/$defs/id" },
+            "request_message_id": { "$ref": "#/$defs/id" },
+            "owner_service": { "$ref": "#/$defs/requestService" },
+            "owner_instance_id": { "$ref": "#/$defs/id" },
+            "environment": { "enum": ["shadow", "paper", "testnet", "production"] },
+            "endpoint_authority": { "enum": ["BINANCE_PRODUCTION_FSTREAM", "BINANCE_TESTNET_FSTREAM"] },
+            "gateway_connection_id": { "$ref": "#/$defs/id" },
+            "connection_generation": { "type": "integer", "minimum": 1 },
+            "state": { "const": "CLOSED" },
+            "close_receipt_hash": { "$ref": "#/$defs/sha256" }
+          }
+        }
+      ]
+    }
+  },
+  "$comment": "所有 peer identity 必须以 SO_PEERCRED 实测 UID/GID 为准并与 subject/caller ACL 交叉验证；caller claim 不能覆盖内核身份。连接 handle 在 OPEN 时永久绑定 owner UID/GID/service/instance/environment/authority/generation，frame/update 只定向 owner，Testnet 与 production 不可互读互关，关闭后 handle 永不复用。GatewayCloseRequest 只允许 owner 精确匹配且仅执行本地 socket drop；控制服务若需关闭，必须经 owner 进程的受审计命令路径，任何 WS close/control frame 都仍须 reservation+consume。GatewaySendRequest 的 request_document 与 permit binding 哈希必须一致。gateway 在 CONSUME_GRANTED 前不得创建 socket 或发送字节。所有队列有界；超限即断开、审计并 fail-closed。"
+}

@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "model-selection-decision.schema.json",
+  "title": "ModelSelectionDecision",
+  "description": "月度 selector 全新会话从签名 OpenAI Codex 当前账户 catalog 中选择正式分析模型的不可变决定。decision_hash=SHA-256(RFC8785 JCS(content))。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "decision_hash", "content"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "decision_hash": { "$ref": "#/$defs/sha256" },
+    "content": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["selection_id", "iteration_cycle_id", "attempt_id", "created_at", "provider", "selector_model", "selector_reasoning_effort", "selected_model", "selected_reasoning_effort", "catalog_hash", "catalog_checked_at", "catalog_valid_until", "task_manifest_hash", "task_complexity", "estimated_input_tokens", "estimated_output_tokens", "selection_reason_codes", "ranked_candidates", "quota_visibility", "selected_quota_status", "selected_model_available", "session_isolation"],
+      "properties": {
+        "selection_id": { "$ref": "#/$defs/id" },
+        "iteration_cycle_id": { "type": "string", "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$" },
+        "attempt_id": { "$ref": "#/$defs/id" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "provider": { "const": "OPENAI_CODEX" },
+        "selector_model": { "$ref": "#/$defs/modelId" },
+        "selector_reasoning_effort": { "$ref": "#/$defs/reasoningEffort" },
+        "selected_model": { "$ref": "#/$defs/modelId" },
+        "selected_reasoning_effort": { "$ref": "#/$defs/reasoningEffort" },
+        "catalog_hash": { "$ref": "#/$defs/sha256" },
+        "catalog_checked_at": { "type": "string", "format": "date-time" },
+        "catalog_valid_until": { "type": "string", "format": "date-time" },
+        "task_manifest_hash": { "$ref": "#/$defs/sha256" },
+        "task_complexity": { "enum": ["LOW", "MEDIUM", "HIGH", "VERY_HIGH"] },
+        "estimated_input_tokens": { "type": "integer", "minimum": 1, "maximum": 10000000 },
+        "estimated_output_tokens": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+        "selection_reason_codes": {
+          "type": "array", "minItems": 1, "maxItems": 16, "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{2,79}$" }
+        },
+        "ranked_candidates": {
+          "type": "array", "minItems": 1, "maxItems": 32,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["rank", "model", "reasoning_effort", "suitability_score", "reason_codes"],
+            "properties": {
+              "rank": { "type": "integer", "minimum": 1, "maximum": 32 },
+              "model": { "$ref": "#/$defs/modelId" },
+              "reasoning_effort": { "$ref": "#/$defs/reasoningEffort" },
+              "suitability_score": { "type": "string", "pattern": "^(?:0|[1-9][0-9]?|100)(?:\\.[0-9]{1,4})?$" },
+              "reason_codes": {
+                "type": "array", "minItems": 1, "maxItems": 8, "uniqueItems": true,
+                "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{2,79}$" }
+              }
+            }
+          }
+        },
+        "quota_visibility": { "enum": ["KNOWN", "UNKNOWN"] },
+        "selected_quota_status": { "enum": ["SUFFICIENT", "INSUFFICIENT", "UNKNOWN"] },
+        "selected_model_available": { "const": true },
+        "session_isolation": {
+          "type": "object", "additionalProperties": false,
+          "required": ["analysis_run_id", "thread_id", "workspace_manifest_hash", "prompt_input_manifest_hash", "ephemeral", "resume_used", "history_or_transcript_input", "memory_input"],
+          "properties": {
+            "analysis_run_id": { "$ref": "#/$defs/id" },
+            "thread_id": { "$ref": "#/$defs/id" },
+            "workspace_manifest_hash": { "$ref": "#/$defs/sha256" },
+            "prompt_input_manifest_hash": { "$ref": "#/$defs/sha256" },
+            "ephemeral": { "const": true },
+            "resume_used": { "const": false },
+            "history_or_transcript_input": { "const": false },
+            "memory_input": { "const": false }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|[0-9A-HJKMNP-TV-Z]{26})$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "modelId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{1,127}$" },
+    "reasoningEffort": { "enum": ["low", "medium", "high", "xhigh"] }
+  }
+}

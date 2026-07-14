@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant.local/contracts/strategy-approval.schema.json",
+  "title": "Append-only Strategy Lifecycle Approval",
+  "description": "独立、追加式策略生命周期批准。payload_hash=SHA-256(RFC 8785 JCS(signed_payload))；detached signature 签署相同 JCS 字节。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "payload_hash", "signed_payload", "signature"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "payload_hash": { "$ref": "#/$defs/sha256" },
+    "signed_payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["approval_id", "package_id", "package_hash", "action", "resulting_stage", "target_environment", "release_id", "predecessor_approval_id", "predecessor_payload_hash", "evidence_hashes", "operator_id", "issued_at", "effective_at", "expires_at", "nonce"],
+      "properties": {
+        "approval_id": { "$ref": "#/$defs/id" },
+        "package_id": { "$ref": "#/$defs/id" },
+        "package_hash": { "$ref": "#/$defs/sha256" },
+        "action": { "enum": ["FREEZE_CHAMPION", "APPROVE_SHADOW", "APPROVE_TESTNET", "ARM_EXPERIMENTAL_LIVE", "RETIRE", "REJECT"] },
+        "resulting_stage": { "enum": ["CHAMPION_FROZEN", "SHADOW_APPROVED", "TESTNET_APPROVED", "EXPERIMENTAL_LIVE", "RETIRED", "REJECTED"] },
+        "target_environment": { "enum": ["shadow", "paper", "testnet", "production"] },
+        "release_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "predecessor_approval_id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+        "predecessor_payload_hash": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+        "evidence_hashes": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/sha256" } },
+        "operator_id": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "issued_at": { "type": "string", "format": "date-time" },
+        "effective_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "审批动作允许被原子消费的精确 UTC 时刻；语义校验要求 issued_at <= effective_at < expires_at。FREEZE_CHAMPION 时必须等于 StrategyPackage.content.oos_window.start。"
+        },
+        "expires_at": { "type": "string", "format": "date-time" },
+        "nonce": { "type": "string", "minLength": 16, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "action": { "const": "FREEZE_CHAMPION" } }, "required": ["action"] },
+          "then": { "properties": { "resulting_stage": { "const": "CHAMPION_FROZEN" }, "target_environment": { "enum": ["shadow", "paper"] }, "predecessor_approval_id": { "type": "null" }, "predecessor_payload_hash": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "action": { "const": "APPROVE_SHADOW" } }, "required": ["action"] },
+          "then": { "properties": { "resulting_stage": { "const": "SHADOW_APPROVED" }, "target_environment": { "enum": ["shadow", "paper"] }, "predecessor_approval_id": { "$ref": "#/$defs/id" }, "predecessor_payload_hash": { "$ref": "#/$defs/sha256" } } }
+        },
+        {
+          "if": { "properties": { "action": { "const": "APPROVE_TESTNET" } }, "required": ["action"] },
+          "then": { "properties": { "resulting_stage": { "const": "TESTNET_APPROVED" }, "target_environment": { "const": "testnet" }, "predecessor_approval_id": { "$ref": "#/$defs/id" }, "predecessor_payload_hash": { "$ref": "#/$defs/sha256" } } }
+        },
+        {
+          "if": { "properties": { "action": { "const": "ARM_EXPERIMENTAL_LIVE" } }, "required": ["action"] },
+          "then": { "properties": { "resulting_stage": { "const": "EXPERIMENTAL_LIVE" }, "target_environment": { "const": "production" }, "predecessor_approval_id": { "$ref": "#/$defs/id" }, "predecessor_payload_hash": { "$ref": "#/$defs/sha256" } } }
+        },
+        {
+          "if": { "properties": { "action": { "const": "RETIRE" } }, "required": ["action"] },
+          "then": { "properties": { "resulting_stage": { "const": "RETIRED" }, "predecessor_approval_id": { "$ref": "#/$defs/id" }, "predecessor_payload_hash": { "$ref": "#/$defs/sha256" } } }
+        },
+        {
+          "if": { "properties": { "action": { "const": "REJECT" } }, "required": ["action"] },
+          "then": { "properties": { "resulting_stage": { "const": "REJECTED" } } }
+        }
+      ]
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "key_id", "signature_ref"],
+      "properties": {
+        "algorithm": { "const": "Ed25519" },
+        "key_id": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "signature_ref": { "$ref": "#/$defs/safeRelativeSigPath" }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|[0-9A-HJKMNP-TV-Z]{26})$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "safeRelativeSigPath": { "type": "string", "maxLength": 300, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*\\.sig$" }
+  }
+}

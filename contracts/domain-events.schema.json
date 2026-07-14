@@ -1,0 +1,1115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "domain-events.schema.json",
+  "title": "AI Quant Domain Events",
+  "description": "18 类领域事件的严格 payload 契约。公共信封由 event-envelope.schema.json 定义。",
+  "allOf": [
+    { "$ref": "event-envelope.schema.json" },
+    {
+      "oneOf": [
+        { "$ref": "#/$defs/universeEvent" },
+        { "$ref": "#/$defs/marketHealthEvent" },
+        { "$ref": "#/$defs/featureEvent" },
+        { "$ref": "#/$defs/signalEvent" },
+        { "$ref": "#/$defs/riskEvent" },
+        { "$ref": "#/$defs/orderIntentEvent" },
+        { "$ref": "#/$defs/orderEvent" },
+        { "$ref": "#/$defs/positionEvent" },
+        { "$ref": "#/$defs/incidentEvent" },
+        { "$ref": "#/$defs/operatorEvent" },
+        { "$ref": "#/$defs/strategyEvent" },
+        { "$ref": "#/$defs/researchEvent" },
+        { "$ref": "#/$defs/strategyAnalysisCycleEvent" },
+        { "$ref": "#/$defs/decisionAuthorityChangedEvent" },
+        { "$ref": "#/$defs/tradePlanEvent" },
+        { "$ref": "#/$defs/autoIterationReportEvent" },
+        { "$ref": "#/$defs/engineeringProposalEvent" },
+        { "$ref": "#/$defs/modelSelectionDecisionEvent" }
+      ]
+    }
+  ],
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|[0-9A-HJKMNP-TV-Z]{26})$"
+    },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "decimal": { "type": "string", "pattern": "^(?:0|-?(?:0\\.[0-9]{0,17}[1-9]|[1-9][0-9]{0,19}(?:\\.[0-9]{0,17}[1-9])?))$" },
+    "nonNegativeDecimal": { "type": "string", "pattern": "^(?:0|0\\.[0-9]{0,17}[1-9]|[1-9][0-9]{0,19}(?:\\.[0-9]{0,17}[1-9])?)$" },
+    "positiveDecimal": { "type": "string", "pattern": "^(?:0\\.[0-9]{0,17}[1-9]|[1-9][0-9]{0,19}(?:\\.[0-9]{0,17}[1-9])?)$" },
+    "nullableDecimal": { "oneOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] },
+    "nullableNonNegativeDecimal": { "oneOf": [{ "$ref": "#/$defs/nonNegativeDecimal" }, { "type": "null" }] },
+    "nullablePositiveDecimal": { "oneOf": [{ "$ref": "#/$defs/positiveDecimal" }, { "type": "null" }] },
+    "pctDecimal": { "type": "string", "pattern": "^(?:0|0\\.[0-9]{0,17}[1-9]|[1-9][0-9]?(?:\\.[0-9]{0,17}[1-9])?|100)$" },
+    "nullablePctDecimal": { "oneOf": [{ "$ref": "#/$defs/pctDecimal" }, { "type": "null" }] },
+    "ofWindow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["window_ms", "trade_imbalance", "aggressive_notional", "event_count", "complete"],
+      "properties": {
+        "window_ms": { "type": "integer", "minimum": 100, "maximum": 30000 },
+        "trade_imbalance": { "$ref": "#/$defs/nullableDecimal" },
+        "aggressive_notional": { "$ref": "#/$defs/nullableNonNegativeDecimal" },
+        "event_count": { "type": "integer", "minimum": 0 },
+        "complete": { "type": "boolean" }
+      }
+    },
+    "max005Decimal": { "type": "string", "pattern": "^(0|0\\.0(?:[0-4][0-9]{0,16})?|0\\.05(?:0{0,16})?)$" },
+    "max010Decimal": { "type": "string", "pattern": "^(0|0\\.0[0-9]{0,17}|0\\.1(?:0{0,17})?)$" },
+    "max020Decimal": { "type": "string", "pattern": "^(0|0\\.[01][0-9]{0,17}|0\\.2(?:0{0,17})?)$" },
+    "max040Decimal": { "type": "string", "pattern": "^(0|0\\.[0-3][0-9]{0,17}|0\\.4(?:0{0,17})?)$" },
+    "max050Decimal": { "type": "string", "pattern": "^(0|0\\.[0-4][0-9]{0,17}|0\\.5(?:0{0,17})?)$" },
+    "max100Decimal": { "type": "string", "pattern": "^(0|0\\.[0-9]{1,18}|1(?:\\.0{1,18})?)$" },
+    "max200Decimal": { "type": "string", "pattern": "^(0|[01](?:\\.[0-9]{1,18})?|2(?:\\.0{1,18})?)$" },
+    "max400Decimal": { "type": "string", "pattern": "^(0|[0-3](?:\\.[0-9]{1,18})?|4(?:\\.0{1,18})?)$" },
+    "max500Decimal": { "type": "string", "pattern": "^(0|[0-4](?:\\.[0-9]{1,18})?|5(?:\\.0{1,18})?)$" },
+    "max1000Decimal": { "type": "string", "pattern": "^(0|[0-9](?:\\.[0-9]{1,18})?|10(?:\\.0{1,18})?)$" },
+    "reasonCodes": {
+      "type": "array",
+      "minItems": 0,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "DATA_BOOK_GAP",
+          "DATA_BOOK_REBUILDING",
+          "DATA_STALE",
+          "DATA_TRADE_GAP",
+          "DATA_KLINE_UNCLOSED",
+          "DATA_FEATURE_INCOMPLETE",
+          "TIME_CLOCK_DRIFT",
+          "TIME_LATE_EVENT",
+          "UNIVERSE_SELECTED_TOP10",
+          "UNIVERSE_SELECTED_STANDBY",
+          "UNIVERSE_NOT_MEMBER",
+          "UNIVERSE_WARMING_UP",
+          "UNIVERSE_INELIGIBLE",
+          "UNIVERSE_HYSTERESIS_HOLD",
+          "UNIVERSE_CAPACITY_REDUCED",
+          "UNIVERSE_MANAGED_POSITION_ONLY",
+          "UNIVERSE_BUCKET_INVALID",
+          "PA_REGIME_INVALID",
+          "PA_REGIME_TRANSITION",
+          "PA_DIRECTION_NEUTRAL",
+          "PA_SETUP_ARMED",
+          "PA_SETUP_CONFLICT",
+          "PA_STRUCTURE_INVALIDATED",
+          "PA_ARM_EXPIRED",
+          "PA_RANGE_TOO_NARROW",
+          "OF_MOMENTUM_CONFIRMED",
+          "OF_ABSORPTION_CONFIRMED",
+          "OF_INSUFFICIENT_AGGRESSION",
+          "OF_BOOK_CONFLICT",
+          "OF_CONFIRMATION_EXPIRED",
+          "FUSION_DIRECTION_CONFLICT",
+          "FUSION_NO_CONFIRMATION",
+          "SIGNAL_EXPIRED",
+          "NET_EDGE_SUFFICIENT",
+          "NET_EDGE_INSUFFICIENT",
+          "NET_EDGE_COMPONENT_STALE",
+          "NET_EDGE_EVIDENCE_INCOMPLETE",
+          "RISK_APPROVED",
+          "RISK_STRATEGY_EXIT_APPROVED",
+          "RISK_PROTECTIVE_EXIT_APPROVED",
+          "RISK_FORCED_EXIT_APPROVED",
+          "RISK_OPERATOR_FLATTEN_APPROVED",
+          "RISK_RECONCILIATION_REPAIR_APPROVED",
+          "RISK_LIFECYCLE_BLOCKED",
+          "RISK_ACCOUNT_MISMATCH",
+          "RISK_ACCOUNT_STALE",
+          "RISK_SIGNAL_EXPIRED",
+          "RISK_SINGLE_TRADE_LIMIT",
+          "RISK_TOTAL_LIMIT",
+          "RISK_CLUSTER_LIMIT",
+          "RISK_DAILY_LOSS_LIMIT",
+          "RISK_DRAWDOWN_LIMIT",
+          "RISK_LEVERAGE_LIMIT",
+          "RISK_POSITION_COUNT_LIMIT",
+          "RISK_LOSS_STREAK_PAUSE",
+          "RISK_DAILY_LOSS_COUNT_LOCK",
+          "RISK_PROTECTION_UNAVAILABLE",
+          "RISK_EXCHANGE_FILTER",
+          "RISK_NET_EDGE_INSUFFICIENT",
+          "RISK_PERSISTENCE_UNAVAILABLE",
+          "EXCHANGE_RULE_STALE",
+          "DATABASE_UNWRITABLE",
+          "RESOURCE_OVERLOAD",
+          "EXEC_PROTECTION_MISSING",
+          "EXEC_ORDER_STATE_UNKNOWN",
+          "EXEC_ORDER_STATE_INVARIANT_BREACH",
+          "EXEC_EXCHANGE_UPDATE_APPLIED",
+          "EXEC_ALGO_UPDATE_APPLIED",
+          "EXEC_ALGO_STATUS_UNKNOWN",
+          "EXEC_ALGO_ACTUAL_ORDER_RECONCILING",
+          "EXEC_ALGO_PROTECTION_REJECTED",
+          "EXEC_DEFINITE_FAILURE",
+          "EXEC_MAKER_TTL_EXPIRED",
+          "EXEC_DUPLICATE_IDEMPOTENCY_KEY",
+          "CONTROL_NOT_AUTHORIZED",
+          "CONTROL_COMMAND_REPLAYED",
+          "CONTROL_HUMAN_SIGNATURE_REQUIRED",
+          "CONTROL_COMMAND_ACCEPTED",
+          "EXPERIMENTAL_LIVE_GATE"
+        ]
+      }
+    },
+    "symbolScore": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["symbol", "rank", "membership", "eligible", "data_health_status", "warmed_up", "tradable", "raw_inputs", "winsorized_components", "normalized_components", "weighted_components", "score", "reason_codes"],
+      "properties": {
+        "symbol": { "type": "string", "pattern": "^[A-Z0-9_]{2,30}$" },
+        "rank": { "type": "integer", "minimum": 1 },
+        "membership": { "enum": ["TOP10", "STANDBY_11_15", "MANAGED_POSITION", "LIGHTWEIGHT_ONLY"] },
+        "eligible": { "const": true },
+        "data_health_status": { "enum": ["HEALTHY", "WARMING_UP", "STALE", "GAP_DETECTED", "CLOCK_UNSAFE", "INVALID"] },
+        "warmed_up": { "type": "boolean" },
+        "tradable": { "type": "boolean" },
+        "raw_inputs": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["trading_liquidity_quote_notional", "book_depth_quote_notional", "spread_bps", "trade_event_count", "input_completeness_pct"],
+          "properties": {
+            "trading_liquidity_quote_notional": { "$ref": "#/$defs/nonNegativeDecimal" },
+            "book_depth_quote_notional": { "$ref": "#/$defs/nonNegativeDecimal" },
+            "spread_bps": { "$ref": "#/$defs/nonNegativeDecimal" },
+            "trade_event_count": { "type": "integer", "minimum": 0 },
+            "input_completeness_pct": { "$ref": "#/$defs/pctDecimal" }
+          }
+        },
+        "winsorized_components": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["trading_liquidity", "book_depth", "inverse_spread", "activity", "data_health"],
+          "properties": {
+            "trading_liquidity": { "$ref": "#/$defs/nonNegativeDecimal" },
+            "book_depth": { "$ref": "#/$defs/nonNegativeDecimal" },
+            "inverse_spread": { "$ref": "#/$defs/decimal" },
+            "activity": { "$ref": "#/$defs/nonNegativeDecimal" },
+            "data_health": { "$ref": "#/$defs/pctDecimal" }
+          }
+        },
+        "normalized_components": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["trading_liquidity", "book_depth", "inverse_spread", "activity", "data_health"],
+          "properties": {
+            "trading_liquidity": { "$ref": "#/$defs/pctDecimal" },
+            "book_depth": { "$ref": "#/$defs/pctDecimal" },
+            "inverse_spread": { "$ref": "#/$defs/pctDecimal" },
+            "activity": { "$ref": "#/$defs/pctDecimal" },
+            "data_health": { "$ref": "#/$defs/pctDecimal" }
+          }
+        },
+        "weighted_components": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["trading_liquidity", "book_depth", "inverse_spread", "activity", "data_health"],
+          "properties": {
+            "trading_liquidity": { "$ref": "#/$defs/nonNegativeDecimal" },
+            "book_depth": { "$ref": "#/$defs/nonNegativeDecimal" },
+            "inverse_spread": { "$ref": "#/$defs/nonNegativeDecimal" },
+            "activity": { "$ref": "#/$defs/nonNegativeDecimal" },
+            "data_health": { "$ref": "#/$defs/nonNegativeDecimal" }
+          }
+        },
+        "score": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "reason_codes": {
+          "allOf": [
+            { "$ref": "#/$defs/reasonCodes" },
+            { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^UNIVERSE_" } }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "tradable": { "const": true } }, "required": ["tradable"] },
+          "then": { "properties": { "eligible": { "const": true }, "membership": { "enum": ["TOP10", "MANAGED_POSITION"] }, "data_health_status": { "const": "HEALTHY" }, "warmed_up": { "const": true } } }
+        }
+      ]
+    },
+    "excludedCandidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["symbol", "membership", "eligible", "data_health_status", "warmed_up", "tradable", "exclusion_stage", "h40_priority_rank", "raw_inputs", "evidence_hash", "reason_codes"],
+      "properties": {
+        "symbol": { "type": "string", "pattern": "^[A-Z0-9_]{2,30}$" },
+        "membership": { "const": "INELIGIBLE" },
+        "eligible": { "const": false },
+        "data_health_status": { "enum": ["WARMING_UP", "STALE", "GAP_DETECTED", "CLOCK_UNSAFE", "INVALID"] },
+        "warmed_up": { "type": "boolean" },
+        "tradable": { "const": false },
+        "exclusion_stage": { "enum": ["UM_FILTER", "L1_COMPLETENESS", "H40_DEPTH_CAPACITY", "NORMALIZATION", "DATA_HEALTH"] },
+        "h40_priority_rank": { "type": ["integer", "null"], "minimum": 1 },
+        "raw_inputs": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["trading_liquidity_quote_notional", "book_depth_quote_notional", "spread_bps", "trade_event_count", "input_completeness_pct"],
+          "properties": {
+            "trading_liquidity_quote_notional": { "$ref": "#/$defs/nullableNonNegativeDecimal" },
+            "book_depth_quote_notional": { "$ref": "#/$defs/nullableNonNegativeDecimal" },
+            "spread_bps": { "$ref": "#/$defs/nullableNonNegativeDecimal" },
+            "trade_event_count": { "type": ["integer", "null"], "minimum": 0 },
+            "input_completeness_pct": { "$ref": "#/$defs/nullablePctDecimal" }
+          }
+        },
+        "evidence_hash": { "$ref": "#/$defs/sha256" },
+        "reason_codes": {
+          "allOf": [
+            { "$ref": "#/$defs/reasonCodes" },
+            { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^UNIVERSE_" } }
+          ]
+        }
+      }
+    },
+    "normalizationComponentEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["q05", "q95", "direction", "eligible_count"],
+      "properties": {
+        "q05": { "$ref": "#/$defs/decimal" },
+        "q95": { "$ref": "#/$defs/decimal" },
+        "direction": { "enum": ["HIGHER_IS_BETTER", "LOWER_IS_BETTER"] },
+        "eligible_count": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "universePayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["snapshot_id", "computed_at", "effective_from", "next_refresh_at", "ranking_window_start", "ranking_window_end", "refresh_interval_seconds", "score_model_version", "source_manifest_hash", "scoring_input_hash", "exchange_rules_version", "eligible_count", "reduced_pool_alert", "active", "standby", "managed_positions", "ranking", "excluded_candidates", "normalization_evidence", "hysteresis"],
+      "properties": {
+        "snapshot_id": { "$ref": "#/$defs/id" },
+        "computed_at": { "type": "string", "format": "date-time" },
+        "effective_from": { "type": "string", "format": "date-time" },
+        "next_refresh_at": { "type": "string", "format": "date-time" },
+        "ranking_window_start": { "type": "string", "format": "date-time" },
+        "ranking_window_end": { "type": "string", "format": "date-time" },
+        "refresh_interval_seconds": { "const": 900 },
+        "score_model_version": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "source_manifest_hash": { "$ref": "#/$defs/sha256" },
+        "scoring_input_hash": { "$ref": "#/$defs/sha256" },
+        "exchange_rules_version": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "eligible_count": { "type": "integer", "minimum": 0 },
+        "reduced_pool_alert": { "type": "boolean" },
+        "active": {
+          "type": "array",
+          "maxItems": 10,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[A-Z0-9_]{2,30}$" }
+        },
+        "standby": {
+          "type": "array",
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[A-Z0-9_]{2,30}$" }
+        },
+        "managed_positions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[A-Z0-9_]{2,30}$" }
+        },
+        "ranking": { "type": "array", "items": { "$ref": "#/$defs/symbolScore" } },
+        "excluded_candidates": { "type": "array", "items": { "$ref": "#/$defs/excludedCandidate" } },
+        "normalization_evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["trading_liquidity", "book_depth", "inverse_spread", "activity", "data_health"],
+          "properties": {
+            "trading_liquidity": { "$ref": "#/$defs/normalizationComponentEvidence" },
+            "book_depth": { "$ref": "#/$defs/normalizationComponentEvidence" },
+            "inverse_spread": { "$ref": "#/$defs/normalizationComponentEvidence" },
+            "activity": { "$ref": "#/$defs/normalizationComponentEvidence" },
+            "data_health": { "$ref": "#/$defs/normalizationComponentEvidence" }
+          }
+        },
+        "hysteresis": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["minimum_residence_seconds", "confirmation_cycles", "replacement_score_delta"],
+          "properties": {
+            "minimum_residence_seconds": { "type": "integer", "minimum": 900 },
+            "confirmation_cycles": { "const": 2 },
+            "replacement_score_delta": { "$ref": "#/$defs/positiveDecimal" }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "active": { "type": "array", "maxItems": 9 } }, "required": ["active"] },
+          "then": { "properties": { "reduced_pool_alert": { "const": true } } }
+        }
+      ]
+    },
+    "marketHealthPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "book_valid", "warmed_up", "last_update_id", "event_lag_ms", "clock_offset_ms", "gap_count", "duplicate_count", "out_of_order_count", "stale_for_ms", "reason_codes"],
+      "properties": {
+        "status": { "enum": ["HEALTHY", "WARMING_UP", "STALE", "GAP_DETECTED", "CLOCK_UNSAFE", "INVALID"] },
+        "book_valid": { "type": "boolean" },
+        "warmed_up": { "type": "boolean" },
+        "last_update_id": { "type": ["integer", "null"], "minimum": 0 },
+        "event_lag_ms": { "type": "number", "minimum": 0 },
+        "clock_offset_ms": { "type": "number" },
+        "gap_count": { "type": "integer", "minimum": 0 },
+        "duplicate_count": { "type": "integer", "minimum": 0 },
+        "out_of_order_count": { "type": "integer", "minimum": 0 },
+        "stale_for_ms": { "type": "integer", "minimum": 0 },
+        "reason_codes": {
+          "allOf": [
+            { "$ref": "#/$defs/reasonCodes" },
+            { "type": "array", "items": { "type": "string", "pattern": "^(DATA_|TIME_|RESOURCE_)" } }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "HEALTHY" } }, "required": ["status"] },
+          "then": {
+            "properties": {
+              "book_valid": { "const": true },
+              "warmed_up": { "const": true },
+              "gap_count": { "const": 0 },
+              "out_of_order_count": { "const": 0 },
+              "stale_for_ms": { "const": 0 },
+              "reason_codes": { "type": "array", "maxItems": 0 }
+            }
+          },
+          "else": { "properties": { "reason_codes": { "type": "array", "minItems": 1 } } }
+        },
+        {
+          "if": { "properties": { "status": { "enum": ["GAP_DETECTED", "INVALID"] } }, "required": ["status"] },
+          "then": { "properties": { "book_valid": { "const": false } } }
+        }
+      ]
+    },
+    "featurePayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["feature_schema_version", "frame_time", "input_manifest_hash", "full_frame_hash", "pa", "order_flow", "ready", "reason_codes"],
+      "properties": {
+        "feature_schema_version": { "const": "1.0.0" },
+        "frame_time": { "type": "string", "format": "date-time" },
+        "input_manifest_hash": { "$ref": "#/$defs/sha256" },
+        "full_frame_hash": { "$ref": "#/$defs/sha256", "description": "SHA-256(RFC 8785 JCS(完整 Decimal 特征帧))；完整帧必须在事实/归档中按内容寻址。" },
+        "pa": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "parameter_config_hash", "bar_close_time_1m", "bar_close_time_5m", "regime", "direction_bias",
+            "location", "structure", "setup_type", "atr_1m", "atr_5m", "efficiency_ratio_1m",
+            "efficiency_ratio_5m", "normalized_slope_atr_per_bar_1m", "normalized_slope_atr_per_bar_5m",
+            "last_confirmed_swing_high", "last_confirmed_swing_low", "structure_pair_count", "range_high",
+            "range_low", "range_touch_count_high", "range_touch_count_low", "range_width_atr",
+            "range_status", "compression_atr_ratio", "compression_width_atr", "compression_status",
+            "break_distance_atr", "break_distance_bps", "breakout_status", "pullback_depth_ratio",
+            "structure_anchor_distance_atr", "pullback_status", "retest_distance_atr", "retest_age_1m_bars", "retest_status",
+            "structure_stop", "arm_expires_at"
+          ],
+          "properties": {
+            "parameter_config_hash": { "$ref": "#/$defs/sha256" },
+            "bar_close_time_1m": { "type": "string", "format": "date-time" },
+            "bar_close_time_5m": { "type": "string", "format": "date-time" },
+            "regime": { "enum": ["TREND_UP", "TREND_DOWN", "RANGE", "TRANSITION", "INVALID"] },
+            "direction_bias": { "enum": ["LONG", "SHORT", "NEUTRAL"] },
+            "location": { "enum": ["TREND_PULLBACK", "BREAKOUT_LEVEL", "RANGE_EDGE", "RANGE_MIDDLE", "UNQUALIFIED"] },
+            "structure": { "enum": ["HH_HL", "LH_LL", "COMPRESSION", "RANGE_BOUND", "UNCONFIRMED"] },
+            "setup_type": { "enum": ["T1_TREND_PULLBACK_CONTINUATION", "B1_BREAKOUT_FOLLOW_THROUGH", "B2_BREAK_RETEST", "R1_RANGE_EDGE_REJECTION", "NO_SETUP"] },
+            "atr_1m": { "$ref": "#/$defs/nullablePositiveDecimal" },
+            "atr_5m": { "$ref": "#/$defs/nullablePositiveDecimal" },
+            "efficiency_ratio_1m": { "$ref": "#/$defs/nullableNonNegativeDecimal" },
+            "efficiency_ratio_5m": { "$ref": "#/$defs/nullableNonNegativeDecimal" },
+            "normalized_slope_atr_per_bar_1m": { "$ref": "#/$defs/nullableDecimal" },
+            "normalized_slope_atr_per_bar_5m": { "$ref": "#/$defs/nullableDecimal" },
+            "last_confirmed_swing_high": { "$ref": "#/$defs/nullablePositiveDecimal" },
+            "last_confirmed_swing_low": { "$ref": "#/$defs/nullablePositiveDecimal" },
+            "structure_pair_count": { "type": "integer", "minimum": 0 },
+            "range_high": { "$ref": "#/$defs/nullablePositiveDecimal" },
+            "range_low": { "$ref": "#/$defs/nullablePositiveDecimal" },
+            "range_touch_count_high": { "type": "integer", "minimum": 0 },
+            "range_touch_count_low": { "type": "integer", "minimum": 0 },
+            "range_width_atr": { "$ref": "#/$defs/nullableNonNegativeDecimal" },
+            "range_status": { "enum": ["VALID", "UNCONFIRMED", "NOT_APPLICABLE", "INVALID"] },
+            "compression_atr_ratio": { "$ref": "#/$defs/nullableNonNegativeDecimal" },
+            "compression_width_atr": { "$ref": "#/$defs/nullableNonNegativeDecimal" },
+            "compression_status": { "enum": ["VALID", "UNCONFIRMED", "NOT_APPLICABLE", "INVALID"] },
+            "break_distance_atr": { "$ref": "#/$defs/nullableDecimal" },
+            "break_distance_bps": { "$ref": "#/$defs/nullableDecimal" },
+            "breakout_status": { "enum": ["CONFIRMED", "PENDING", "REJECTED", "NOT_APPLICABLE", "INVALID"] },
+            "pullback_depth_ratio": { "$ref": "#/$defs/nullableNonNegativeDecimal" },
+            "structure_anchor_distance_atr": { "$ref": "#/$defs/nullableNonNegativeDecimal" },
+            "pullback_status": { "enum": ["CONFIRMED", "PENDING", "REJECTED", "NOT_APPLICABLE", "INVALID"] },
+            "retest_distance_atr": { "$ref": "#/$defs/nullableDecimal" },
+            "retest_age_1m_bars": { "type": ["integer", "null"], "minimum": 0 },
+            "retest_status": { "enum": ["CONFIRMED", "PENDING", "REJECTED", "NOT_APPLICABLE", "INVALID"] },
+            "structure_stop": { "$ref": "#/$defs/nullablePositiveDecimal" },
+            "arm_expires_at": { "type": ["string", "null"], "format": "date-time" }
+          }
+        },
+        "order_flow": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["parameter_manifest_hash", "liquidity_bucket", "latest_book", "windows", "continuation", "absorption"],
+          "properties": {
+            "parameter_manifest_hash": { "$ref": "#/$defs/sha256" },
+            "liquidity_bucket": { "enum": ["LOW", "MEDIUM", "HIGH", "INVALID"] },
+            "latest_book": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["book_depth_levels", "book_imbalance", "microprice_mid_bps", "spread_bps"],
+              "properties": {
+                "book_depth_levels": { "type": "integer", "minimum": 5, "maximum": 50 },
+                "book_imbalance": { "$ref": "#/$defs/nullableDecimal" },
+                "microprice_mid_bps": { "$ref": "#/$defs/nullableDecimal" },
+                "spread_bps": { "$ref": "#/$defs/nullableNonNegativeDecimal" }
+              }
+            },
+            "windows": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["SHORT", "MEDIUM", "LONG"],
+              "properties": {
+                "SHORT": { "$ref": "#/$defs/ofWindow" },
+                "MEDIUM": { "$ref": "#/$defs/ofWindow" },
+                "LONG": { "$ref": "#/$defs/ofWindow" }
+              }
+            },
+            "continuation": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["status", "sweep_episode_id", "episode_start", "episode_end", "pre_event_book_hash", "cvd_slope_medium", "aggressive_notional_quantile_short", "sweep_intensity_short", "swept_levels", "maximum_retrace_ratio", "hold_ms", "passed_components"],
+              "properties": {
+                "status": { "enum": ["CONFIRMED", "PENDING", "REJECTED", "NOT_APPLICABLE", "INVALID"] },
+                "sweep_episode_id": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+                "episode_start": { "type": ["string", "null"], "format": "date-time" },
+                "episode_end": { "type": ["string", "null"], "format": "date-time" },
+                "pre_event_book_hash": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+                "cvd_slope_medium": { "$ref": "#/$defs/nullableDecimal" },
+                "aggressive_notional_quantile_short": { "$ref": "#/$defs/nullableNonNegativeDecimal" },
+                "sweep_intensity_short": { "$ref": "#/$defs/nullableNonNegativeDecimal" },
+                "swept_levels": { "type": ["integer", "null"], "minimum": 0 },
+                "maximum_retrace_ratio": { "$ref": "#/$defs/nullableNonNegativeDecimal" },
+                "hold_ms": { "type": ["integer", "null"], "minimum": 100, "maximum": 5000 },
+                "passed_components": { "type": "integer", "minimum": 0, "maximum": 6 }
+              }
+            },
+            "absorption": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["status", "score_medium", "mid_move_bps_medium", "refill_ratio", "refill_window_ms", "reversal_trade_imbalance_short", "passed_components"],
+              "properties": {
+                "status": { "enum": ["CONFIRMED", "PENDING", "REJECTED", "NOT_APPLICABLE", "INVALID"] },
+                "score_medium": { "$ref": "#/$defs/nullableNonNegativeDecimal" },
+                "mid_move_bps_medium": { "$ref": "#/$defs/nullableNonNegativeDecimal" },
+                "refill_ratio": { "$ref": "#/$defs/nullableNonNegativeDecimal" },
+                "refill_window_ms": { "type": ["integer", "null"], "minimum": 100, "maximum": 5000 },
+                "reversal_trade_imbalance_short": { "$ref": "#/$defs/nullableDecimal" },
+                "passed_components": { "type": "integer", "minimum": 0, "maximum": 6 }
+              }
+            }
+          }
+        },
+        "ready": { "type": "boolean" },
+        "reason_codes": {
+          "allOf": [
+            { "$ref": "#/$defs/reasonCodes" },
+            { "type": "array", "items": { "type": "string", "pattern": "^(DATA_|TIME_|UNIVERSE_|PA_|OF_)" } }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "ready": { "const": true } }, "required": ["ready"] },
+          "then": { "properties": { "reason_codes": { "type": "array", "maxItems": 0 } } },
+          "else": { "properties": { "reason_codes": { "type": "array", "minItems": 1 } } }
+        },
+        {
+          "if": {
+            "properties": {
+              "order_flow": {
+                "properties": { "liquidity_bucket": { "const": "INVALID" } },
+                "required": ["liquidity_bucket"]
+              }
+            },
+            "required": ["order_flow"]
+          },
+          "then": {
+            "properties": {
+              "ready": { "const": false },
+              "reason_codes": { "type": "array", "contains": { "const": "UNIVERSE_BUCKET_INVALID" } }
+            }
+          }
+        }
+      ]
+    },
+    "signalPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["signal_id", "decision", "side", "setup_type", "pa_direction", "of_direction", "conflict", "entry_reference", "structure_stop", "target_reference", "edge_horizon_seconds", "gross_edge_model_hash", "expected_gross_edge_bps", "expires_at", "reason_codes"],
+      "properties": {
+        "signal_id": { "$ref": "#/$defs/id" },
+        "decision": { "enum": ["CANDIDATE", "NO_TRADE"] },
+        "side": { "type": ["string", "null"], "enum": ["LONG", "SHORT", null] },
+        "setup_type": { "enum": ["T1_TREND_PULLBACK_CONTINUATION", "B1_BREAKOUT_FOLLOW_THROUGH", "B2_BREAK_RETEST", "R1_RANGE_EDGE_REJECTION", "NO_SETUP"] },
+        "pa_direction": { "enum": ["LONG", "SHORT", "NEUTRAL"] },
+        "of_direction": { "enum": ["LONG", "SHORT", "NEUTRAL"] },
+        "conflict": { "type": "boolean" },
+        "entry_reference": { "oneOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] },
+        "structure_stop": { "oneOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] },
+        "target_reference": { "oneOf": [{ "$ref": "#/$defs/positiveDecimal" }, { "type": "null" }] },
+        "edge_horizon_seconds": { "type": ["integer", "null"], "minimum": 30, "maximum": 900 },
+        "gross_edge_model_hash": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+        "expected_gross_edge_bps": { "oneOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] },
+        "expires_at": { "type": "string", "format": "date-time" },
+        "reason_codes": {
+          "allOf": [
+            { "$ref": "#/$defs/reasonCodes" },
+            { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^(DATA_|TIME_|UNIVERSE_|PA_|OF_|FUSION_|SIGNAL_|NET_EDGE_)" } }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "conflict": { "const": true } }, "required": ["conflict"] },
+          "then": { "properties": { "decision": { "const": "NO_TRADE" }, "side": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "decision": { "const": "CANDIDATE" } }, "required": ["decision"] },
+          "then": {
+            "properties": {
+              "conflict": { "const": false },
+              "side": { "enum": ["LONG", "SHORT"] },
+              "setup_type": { "enum": ["T1_TREND_PULLBACK_CONTINUATION", "B1_BREAKOUT_FOLLOW_THROUGH", "B2_BREAK_RETEST", "R1_RANGE_EDGE_REJECTION"] },
+              "entry_reference": { "$ref": "#/$defs/positiveDecimal" },
+              "structure_stop": { "$ref": "#/$defs/positiveDecimal" },
+              "target_reference": { "$ref": "#/$defs/positiveDecimal" },
+              "edge_horizon_seconds": { "type": "integer", "minimum": 30, "maximum": 900 },
+              "gross_edge_model_hash": { "$ref": "#/$defs/sha256" },
+              "expected_gross_edge_bps": { "$ref": "#/$defs/decimal" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "decision": { "const": "CANDIDATE" }, "side": { "const": "LONG" } }, "required": ["decision", "side"] },
+          "then": { "properties": { "pa_direction": { "const": "LONG" }, "of_direction": { "const": "LONG" } } }
+        },
+        {
+          "if": { "properties": { "decision": { "const": "CANDIDATE" }, "side": { "const": "SHORT" } }, "required": ["decision", "side"] },
+          "then": { "properties": { "pa_direction": { "const": "SHORT" }, "of_direction": { "const": "SHORT" } } }
+        },
+        {
+          "if": { "properties": { "decision": { "const": "NO_TRADE" } }, "required": ["decision"] },
+          "then": { "properties": { "side": { "type": "null" }, "entry_reference": { "type": "null" }, "structure_stop": { "type": "null" }, "target_reference": { "type": "null" }, "edge_horizon_seconds": { "type": "null" }, "gross_edge_model_hash": { "type": "null" }, "expected_gross_edge_bps": { "type": "null" } } }
+        }
+      ]
+    },
+    "riskPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["risk_decision_id", "decision_kind", "entry_mode", "signal_id", "position_id", "incident_id", "operator_command_id", "account_projection_version", "risk_config_hash", "edge_evaluation", "verdict", "requested_quantity", "approved_quantity", "risk_multiplier", "initial_stop_risk_pct", "total_open_risk_pct", "cluster_risk_pct", "daily_net_loss_pct", "intraday_drawdown_pct", "effective_leverage", "concurrent_positions", "primary_reason", "reason_codes"],
+      "properties": {
+        "risk_decision_id": { "$ref": "#/$defs/id" },
+        "decision_kind": { "enum": ["ENTRY", "STRATEGY_EXIT", "PROTECTIVE_EXIT", "RISK_EXIT", "OPERATOR_FLATTEN", "RECONCILIATION_REPAIR"] },
+        "entry_mode": { "type": ["string", "null"], "enum": ["NEW_POSITION", "SCALE_IN", null] },
+        "signal_id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+        "position_id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+        "incident_id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+        "operator_command_id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+        "account_projection_version": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "risk_config_hash": { "$ref": "#/$defs/sha256" },
+        "edge_evaluation": { "oneOf": [{ "$ref": "edge-decision.schema.json#/$defs/content" }, { "type": "null" }] },
+        "verdict": { "enum": ["APPROVE", "REJECT"] },
+        "requested_quantity": { "$ref": "#/$defs/positiveDecimal" },
+        "approved_quantity": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "risk_multiplier": { "type": "string", "enum": ["0.10", "0.50", "1.00"] },
+        "initial_stop_risk_pct": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "total_open_risk_pct": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "cluster_risk_pct": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "daily_net_loss_pct": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "intraday_drawdown_pct": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "effective_leverage": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "concurrent_positions": { "type": "integer", "minimum": 0 },
+        "primary_reason": { "$ref": "#/$defs/reasonCodes/items" },
+        "reason_codes": {
+          "allOf": [
+            { "$ref": "#/$defs/reasonCodes" },
+            { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^(RISK_|EXCHANGE_|DATABASE_|RESOURCE_|EXPERIMENTAL_|CONTROL_|EXEC_)" } }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "decision_kind": { "const": "ENTRY" } }, "required": ["decision_kind"] },
+          "then": { "properties": { "entry_mode": { "enum": ["NEW_POSITION", "SCALE_IN"] }, "signal_id": { "$ref": "#/$defs/id" }, "incident_id": { "type": "null" }, "operator_command_id": { "type": "null" }, "edge_evaluation": { "$ref": "edge-decision.schema.json#/$defs/content" } } },
+          "else": { "properties": { "entry_mode": { "type": "null" }, "signal_id": { "type": "null" }, "position_id": { "$ref": "#/$defs/id" }, "edge_evaluation": { "type": "null" }, "verdict": { "const": "APPROVE" }, "approved_quantity": { "$ref": "#/$defs/positiveDecimal" } } }
+        },
+        {
+          "if": { "properties": { "decision_kind": { "const": "ENTRY" }, "entry_mode": { "const": "NEW_POSITION" } }, "required": ["decision_kind", "entry_mode"] },
+          "then": { "properties": { "position_id": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "decision_kind": { "const": "ENTRY" }, "entry_mode": { "const": "SCALE_IN" } }, "required": ["decision_kind", "entry_mode"] },
+          "then": { "properties": { "position_id": { "$ref": "#/$defs/id" } } }
+        },
+        {
+          "if": { "properties": { "decision_kind": { "enum": ["STRATEGY_EXIT", "PROTECTIVE_EXIT"] } }, "required": ["decision_kind"] },
+          "then": { "properties": { "incident_id": { "type": "null" }, "operator_command_id": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "decision_kind": { "enum": ["RISK_EXIT", "RECONCILIATION_REPAIR"] } }, "required": ["decision_kind"] },
+          "then": { "properties": { "incident_id": { "$ref": "#/$defs/id" }, "operator_command_id": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "decision_kind": { "const": "OPERATOR_FLATTEN" } }, "required": ["decision_kind"] },
+          "then": { "properties": { "incident_id": { "type": "null" }, "operator_command_id": { "$ref": "#/$defs/id" } } }
+        },
+        {
+          "if": { "properties": { "verdict": { "const": "APPROVE" }, "decision_kind": { "const": "ENTRY" } }, "required": ["verdict", "decision_kind"] },
+          "then": {
+            "properties": {
+              "approved_quantity": { "$ref": "#/$defs/positiveDecimal" },
+              "initial_stop_risk_pct": { "$ref": "#/$defs/max050Decimal" },
+              "total_open_risk_pct": { "$ref": "#/$defs/max200Decimal" },
+              "cluster_risk_pct": { "$ref": "#/$defs/max100Decimal" },
+              "daily_net_loss_pct": { "$ref": "#/$defs/max400Decimal" },
+              "intraday_drawdown_pct": { "$ref": "#/$defs/max500Decimal" },
+              "effective_leverage": { "$ref": "#/$defs/max1000Decimal" },
+              "concurrent_positions": { "type": "integer", "maximum": 10 },
+              "edge_evaluation": { "type": "object", "properties": { "verdict": { "const": "PASS" }, "reason_code": { "const": "NET_EDGE_SUFFICIENT" } } },
+              "primary_reason": { "const": "RISK_APPROVED" },
+              "reason_codes": { "type": "array", "contains": { "const": "RISK_APPROVED" } }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "verdict": { "const": "APPROVE" }, "decision_kind": { "const": "ENTRY" }, "risk_multiplier": { "const": "0.10" } }, "required": ["verdict", "decision_kind", "risk_multiplier"] },
+          "then": {
+            "properties": {
+              "initial_stop_risk_pct": { "$ref": "#/$defs/max005Decimal" },
+              "total_open_risk_pct": { "$ref": "#/$defs/max020Decimal" },
+              "cluster_risk_pct": { "$ref": "#/$defs/max010Decimal" },
+              "daily_net_loss_pct": { "$ref": "#/$defs/max040Decimal" },
+              "intraday_drawdown_pct": { "$ref": "#/$defs/max050Decimal" },
+              "effective_leverage": { "$ref": "#/$defs/max100Decimal" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "verdict": { "const": "REJECT" } }, "required": ["verdict"] },
+          "then": { "properties": { "decision_kind": { "const": "ENTRY" }, "approved_quantity": { "const": "0" }, "primary_reason": { "not": { "const": "RISK_APPROVED" } }, "reason_codes": { "type": "array", "not": { "contains": { "const": "RISK_APPROVED" } } } } }
+        },
+        {
+          "if": { "properties": { "decision_kind": { "const": "STRATEGY_EXIT" } }, "required": ["decision_kind"] },
+          "then": { "properties": { "primary_reason": { "const": "RISK_STRATEGY_EXIT_APPROVED" }, "reason_codes": { "type": "array", "contains": { "const": "RISK_STRATEGY_EXIT_APPROVED" } } } }
+        },
+        {
+          "if": { "properties": { "decision_kind": { "const": "PROTECTIVE_EXIT" } }, "required": ["decision_kind"] },
+          "then": { "properties": { "primary_reason": { "const": "RISK_PROTECTIVE_EXIT_APPROVED" }, "reason_codes": { "type": "array", "contains": { "const": "RISK_PROTECTIVE_EXIT_APPROVED" } } } }
+        },
+        {
+          "if": { "properties": { "decision_kind": { "const": "RISK_EXIT" } }, "required": ["decision_kind"] },
+          "then": { "properties": { "primary_reason": { "const": "RISK_FORCED_EXIT_APPROVED" }, "reason_codes": { "type": "array", "contains": { "const": "RISK_FORCED_EXIT_APPROVED" } } } }
+        },
+        {
+          "if": { "properties": { "decision_kind": { "const": "OPERATOR_FLATTEN" } }, "required": ["decision_kind"] },
+          "then": { "properties": { "primary_reason": { "const": "RISK_OPERATOR_FLATTEN_APPROVED" }, "reason_codes": { "type": "array", "contains": { "const": "RISK_OPERATOR_FLATTEN_APPROVED" } } } }
+        },
+        {
+          "if": { "properties": { "decision_kind": { "const": "RECONCILIATION_REPAIR" } }, "required": ["decision_kind"] },
+          "then": { "properties": { "primary_reason": { "const": "RISK_RECONCILIATION_REPAIR_APPROVED" }, "reason_codes": { "type": "array", "contains": { "const": "RISK_RECONCILIATION_REPAIR_APPROVED" } } } }
+        }
+      ]
+    },
+    "orderIntentPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["intent_id", "intent_origin", "entry_mode", "order_role", "attempt_no", "risk_decision_id", "position_id", "incident_id", "operator_command_id", "transport", "client_order_id", "client_algo_id", "algo_type", "side", "position_side", "order_type", "time_in_force", "quantity", "price", "trigger_price", "working_type", "price_protect", "reduce_only", "close_position", "maker_first", "ttl_ms", "urgency", "edge_evaluation", "expected_gross_edge_bps", "estimated_total_cost_bps", "expected_net_edge_bps"],
+      "properties": {
+        "intent_id": { "$ref": "#/$defs/id" },
+        "intent_origin": { "enum": ["ENTRY", "STRATEGY_EXIT", "PROTECTIVE_EXIT", "RISK_EXIT", "OPERATOR_FLATTEN", "RECONCILIATION_REPAIR"] },
+        "entry_mode": { "type": ["string", "null"], "enum": ["NEW_POSITION", "SCALE_IN", null] },
+        "order_role": { "enum": ["ENTRY", "STRATEGY_EXIT", "STOP_LOSS", "TAKE_PROFIT", "RISK_EXIT", "OPERATOR_FLATTEN", "RECONCILIATION_REPAIR"] },
+        "attempt_no": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "risk_decision_id": { "$ref": "#/$defs/id" },
+        "position_id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+        "incident_id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+        "operator_command_id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+        "transport": { "enum": ["STANDARD", "ALGO"] },
+        "client_order_id": { "type": ["string", "null"], "pattern": "^[A-Za-z0-9._:-]{8,36}$" },
+        "client_algo_id": { "type": ["string", "null"], "pattern": "^[A-Za-z0-9._:-]{8,36}$" },
+        "algo_type": { "type": ["string", "null"], "enum": ["CONDITIONAL", null] },
+        "side": { "enum": ["BUY", "SELL"] },
+        "position_side": { "const": "BOTH" },
+        "order_type": { "enum": ["LIMIT", "MARKET", "STOP_MARKET", "TAKE_PROFIT_MARKET"] },
+        "time_in_force": { "type": ["string", "null"], "enum": ["GTX", "GTC", "IOC", null] },
+        "quantity": { "oneOf": [{ "$ref": "#/$defs/positiveDecimal" }, { "type": "null" }] },
+        "price": { "oneOf": [{ "$ref": "#/$defs/positiveDecimal" }, { "type": "null" }] },
+        "trigger_price": { "oneOf": [{ "$ref": "#/$defs/positiveDecimal" }, { "type": "null" }] },
+        "working_type": { "type": ["string", "null"], "enum": ["MARK_PRICE", "CONTRACT_PRICE", null] },
+        "price_protect": { "type": ["boolean", "null"] },
+        "reduce_only": { "type": "boolean" },
+        "close_position": { "type": "boolean" },
+        "maker_first": { "type": "boolean" },
+        "ttl_ms": { "type": "integer", "minimum": 0, "maximum": 10000 },
+        "urgency": { "enum": ["NORMAL", "ELEVATED", "PROTECTIVE", "EMERGENCY"] },
+        "edge_evaluation": { "oneOf": [{ "$ref": "edge-decision.schema.json#/$defs/content" }, { "type": "null" }] },
+        "expected_gross_edge_bps": { "oneOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] },
+        "estimated_total_cost_bps": { "oneOf": [{ "$ref": "#/$defs/nonNegativeDecimal" }, { "type": "null" }] },
+        "expected_net_edge_bps": { "oneOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "maker_first": { "const": true } }, "required": ["maker_first"] },
+          "then": { "properties": { "transport": { "const": "STANDARD" }, "order_type": { "const": "LIMIT" }, "time_in_force": { "const": "GTX" }, "price": { "$ref": "#/$defs/positiveDecimal" }, "close_position": { "const": false } } }
+        },
+        {
+          "if": { "properties": { "order_type": { "const": "MARKET" } }, "required": ["order_type"] },
+          "then": { "properties": { "transport": { "const": "STANDARD" }, "time_in_force": { "type": "null" }, "price": { "type": "null" }, "trigger_price": { "type": "null" }, "maker_first": { "const": false }, "quantity": { "$ref": "#/$defs/positiveDecimal" } } }
+        },
+        {
+          "if": { "properties": { "order_type": { "const": "LIMIT" } }, "required": ["order_type"] },
+          "then": { "properties": { "transport": { "const": "STANDARD" }, "time_in_force": { "enum": ["GTX", "GTC", "IOC"] }, "price": { "$ref": "#/$defs/positiveDecimal" }, "quantity": { "$ref": "#/$defs/positiveDecimal" }, "trigger_price": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "order_type": { "enum": ["STOP_MARKET", "TAKE_PROFIT_MARKET"] } }, "required": ["order_type"] },
+          "then": {
+            "properties": { "transport": { "const": "ALGO" }, "algo_type": { "const": "CONDITIONAL" }, "time_in_force": { "type": "null" }, "price": { "type": "null" }, "trigger_price": { "$ref": "#/$defs/positiveDecimal" }, "working_type": { "enum": ["MARK_PRICE", "CONTRACT_PRICE"] }, "price_protect": { "type": "boolean" }, "maker_first": { "const": false }, "urgency": { "enum": ["PROTECTIVE", "EMERGENCY"] } },
+            "oneOf": [
+              { "properties": { "close_position": { "const": true }, "quantity": { "type": "null" }, "reduce_only": { "const": false } } },
+              { "properties": { "close_position": { "const": false }, "quantity": { "$ref": "#/$defs/positiveDecimal" }, "reduce_only": { "const": true } } }
+            ]
+          }
+        },
+        {
+          "if": { "properties": { "transport": { "const": "STANDARD" } }, "required": ["transport"] },
+          "then": { "properties": { "client_order_id": { "type": "string" }, "client_algo_id": { "type": "null" }, "algo_type": { "type": "null" }, "trigger_price": { "type": "null" }, "working_type": { "type": "null" }, "price_protect": { "type": "null" }, "order_type": { "enum": ["LIMIT", "MARKET"] } } }
+        },
+        {
+          "if": { "properties": { "transport": { "const": "ALGO" } }, "required": ["transport"] },
+          "then": { "properties": { "client_order_id": { "type": "null" }, "client_algo_id": { "type": "string" }, "algo_type": { "const": "CONDITIONAL" }, "order_type": { "enum": ["STOP_MARKET", "TAKE_PROFIT_MARKET"] }, "trigger_price": { "$ref": "#/$defs/positiveDecimal" }, "working_type": { "enum": ["MARK_PRICE", "CONTRACT_PRICE"] }, "price_protect": { "type": "boolean" } } }
+        },
+        {
+          "if": { "properties": { "close_position": { "const": true } }, "required": ["close_position"] },
+          "then": { "properties": { "transport": { "const": "ALGO" }, "order_type": { "enum": ["STOP_MARKET", "TAKE_PROFIT_MARKET"] }, "quantity": { "type": "null" }, "reduce_only": { "const": false }, "maker_first": { "const": false } } },
+          "else": { "properties": { "quantity": { "$ref": "#/$defs/positiveDecimal" } } }
+        },
+        {
+          "if": { "properties": { "intent_origin": { "const": "ENTRY" } }, "required": ["intent_origin"] },
+          "then": { "properties": { "entry_mode": { "enum": ["NEW_POSITION", "SCALE_IN"] }, "order_role": { "const": "ENTRY" }, "incident_id": { "type": "null" }, "operator_command_id": { "type": "null" }, "transport": { "const": "STANDARD" }, "order_type": { "enum": ["LIMIT", "MARKET"] }, "reduce_only": { "const": false }, "close_position": { "const": false }, "urgency": { "enum": ["NORMAL", "ELEVATED"] }, "edge_evaluation": { "$ref": "edge-decision.schema.json#/$defs/content", "type": "object", "properties": { "verdict": { "const": "PASS" } } }, "expected_gross_edge_bps": { "$ref": "#/$defs/decimal" }, "estimated_total_cost_bps": { "$ref": "#/$defs/nonNegativeDecimal" }, "expected_net_edge_bps": { "$ref": "#/$defs/decimal" } } },
+          "else": { "properties": { "entry_mode": { "type": "null" }, "position_id": { "$ref": "#/$defs/id" }, "edge_evaluation": { "type": "null" }, "expected_gross_edge_bps": { "type": "null" }, "estimated_total_cost_bps": { "type": "null" }, "expected_net_edge_bps": { "type": "null" } }, "anyOf": [{ "properties": { "reduce_only": { "const": true } } }, { "properties": { "close_position": { "const": true } } }] }
+        },
+        {
+          "if": { "properties": { "intent_origin": { "const": "ENTRY" }, "entry_mode": { "const": "NEW_POSITION" } }, "required": ["intent_origin", "entry_mode"] },
+          "then": { "properties": { "position_id": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "intent_origin": { "const": "ENTRY" }, "entry_mode": { "const": "SCALE_IN" } }, "required": ["intent_origin", "entry_mode"] },
+          "then": { "properties": { "position_id": { "$ref": "#/$defs/id" } } }
+        },
+        {
+          "if": { "properties": { "intent_origin": { "const": "STRATEGY_EXIT" } }, "required": ["intent_origin"] },
+          "then": { "properties": { "order_role": { "const": "STRATEGY_EXIT" }, "incident_id": { "type": "null" }, "operator_command_id": { "type": "null" }, "transport": { "const": "STANDARD" }, "order_type": { "enum": ["LIMIT", "MARKET"] }, "reduce_only": { "const": true }, "close_position": { "const": false }, "urgency": { "enum": ["NORMAL", "ELEVATED"] } } }
+        },
+        {
+          "if": { "properties": { "intent_origin": { "const": "PROTECTIVE_EXIT" } }, "required": ["intent_origin"] },
+          "then": { "properties": { "order_role": { "enum": ["STOP_LOSS", "TAKE_PROFIT"] }, "incident_id": { "type": "null" }, "operator_command_id": { "type": "null" }, "transport": { "const": "ALGO" }, "algo_type": { "const": "CONDITIONAL" }, "order_type": { "enum": ["STOP_MARKET", "TAKE_PROFIT_MARKET"] }, "urgency": { "const": "PROTECTIVE" } } }
+        },
+        {
+          "if": { "properties": { "order_role": { "const": "STOP_LOSS" } }, "required": ["order_role"] },
+          "then": { "properties": { "intent_origin": { "const": "PROTECTIVE_EXIT" }, "order_type": { "const": "STOP_MARKET" } } }
+        },
+        {
+          "if": { "properties": { "order_role": { "const": "TAKE_PROFIT" } }, "required": ["order_role"] },
+          "then": { "properties": { "intent_origin": { "const": "PROTECTIVE_EXIT" }, "order_type": { "const": "TAKE_PROFIT_MARKET" } } }
+        },
+        {
+          "if": { "properties": { "intent_origin": { "const": "RISK_EXIT" } }, "required": ["intent_origin"] },
+          "then": { "properties": { "order_role": { "const": "RISK_EXIT" }, "incident_id": { "$ref": "#/$defs/id" }, "operator_command_id": { "type": "null" }, "transport": { "const": "STANDARD" }, "order_type": { "enum": ["LIMIT", "MARKET"] }, "reduce_only": { "const": true }, "close_position": { "const": false }, "maker_first": { "const": false }, "urgency": { "const": "EMERGENCY" } } }
+        },
+        {
+          "if": { "properties": { "intent_origin": { "const": "OPERATOR_FLATTEN" } }, "required": ["intent_origin"] },
+          "then": { "properties": { "order_role": { "const": "OPERATOR_FLATTEN" }, "incident_id": { "type": "null" }, "operator_command_id": { "$ref": "#/$defs/id" }, "transport": { "const": "STANDARD" }, "order_type": { "const": "MARKET" }, "reduce_only": { "const": true }, "close_position": { "const": false }, "maker_first": { "const": false }, "urgency": { "const": "EMERGENCY" } } }
+        },
+        {
+          "if": { "properties": { "intent_origin": { "const": "RECONCILIATION_REPAIR" } }, "required": ["intent_origin"] },
+          "then": { "properties": { "order_role": { "const": "RECONCILIATION_REPAIR" }, "incident_id": { "$ref": "#/$defs/id" }, "operator_command_id": { "type": "null" }, "transport": { "const": "STANDARD" }, "order_type": { "const": "MARKET" }, "reduce_only": { "const": true }, "close_position": { "const": false }, "maker_first": { "const": false }, "urgency": { "const": "EMERGENCY" } } }
+        }
+      ]
+    },
+    "orderPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["account_ref", "intent_id", "transport", "client_order_id", "client_algo_id", "exchange_order_id", "algo_id", "algo_status", "actual_order_id", "state", "execution_type", "source_event_key", "exchange_status", "exchange_trade_id", "exchange_update_time", "event_time", "original_quantity", "executed_quantity", "average_price", "last_fill_quantity", "commission", "commission_asset", "reduce_only", "close_position", "reconciliation_required", "raw_payload_hash", "reason_codes"],
+      "properties": {
+        "account_ref": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{3,64}$" },
+        "intent_id": { "$ref": "#/$defs/id" },
+        "transport": { "enum": ["STANDARD", "ALGO"] },
+        "client_order_id": { "type": ["string", "null"], "pattern": "^[A-Za-z0-9._:-]{8,36}$" },
+        "client_algo_id": { "type": ["string", "null"], "pattern": "^[A-Za-z0-9._:-]{8,36}$" },
+        "exchange_order_id": { "type": ["string", "null"], "maxLength": 64 },
+        "algo_id": { "type": ["string", "null"], "maxLength": 64 },
+        "algo_status": { "type": ["string", "null"], "enum": ["NEW", "CANCELED", "TRIGGERING", "TRIGGERED", "FINISHED", "REJECTED", "EXPIRED", "UNKNOWN", null] },
+        "actual_order_id": { "oneOf": [{ "type": "string", "minLength": 1, "maxLength": 64 }, { "type": "null" }] },
+        "state": { "enum": ["CREATED", "RISK_APPROVED", "SUBMITTING", "ACKNOWLEDGED", "TRIGGER_PENDING", "TRIGGERING", "TRIGGERED", "PARTIALLY_FILLED", "FILLED", "CANCEL_PENDING", "CANCELED", "REJECTED", "EXPIRED", "UNKNOWN", "RECONCILING", "NOT_FOUND_CONFIRMED"] },
+        "execution_type": { "enum": ["REST_RESPONSE", "ALGO_REST_RESPONSE", "ORDER_UPDATE", "ALGO_UPDATE", "TRADE_UPDATE", "RECONCILIATION_QUERY", "ALGO_RECONCILIATION_QUERY", "INTERNAL_TRANSITION"] },
+        "source_event_key": { "type": "string", "minLength": 1, "maxLength": 200, "pattern": "^[A-Za-z0-9._:-]+$" },
+        "exchange_status": { "type": ["string", "null"], "maxLength": 40 },
+        "exchange_trade_id": { "type": ["string", "null"], "maxLength": 80 },
+        "exchange_update_time": { "type": ["string", "null"], "format": "date-time" },
+        "event_time": { "type": "string", "format": "date-time" },
+        "original_quantity": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "executed_quantity": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "average_price": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "last_fill_quantity": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "commission": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "commission_asset": { "type": ["string", "null"], "pattern": "^[A-Z0-9]{2,12}$" },
+        "reduce_only": { "type": "boolean" },
+        "close_position": { "type": "boolean" },
+        "reconciliation_required": { "type": "boolean" },
+        "raw_payload_hash": { "$ref": "#/$defs/sha256" },
+        "reason_codes": {
+          "allOf": [
+            { "$ref": "#/$defs/reasonCodes" },
+            { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^EXEC_" } }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "transport": { "const": "STANDARD" } }, "required": ["transport"] },
+          "then": { "properties": { "client_order_id": { "type": "string" }, "client_algo_id": { "type": "null" }, "algo_id": { "type": "null" }, "algo_status": { "type": "null" }, "actual_order_id": { "type": "null" }, "execution_type": { "enum": ["REST_RESPONSE", "ORDER_UPDATE", "TRADE_UPDATE", "RECONCILIATION_QUERY", "INTERNAL_TRANSITION"] } } }
+        },
+        {
+          "if": { "properties": { "transport": { "const": "ALGO" } }, "required": ["transport"] },
+          "then": { "properties": { "client_order_id": { "type": "null" }, "client_algo_id": { "type": "string" }, "exchange_order_id": { "type": "null" }, "execution_type": { "enum": ["ALGO_REST_RESPONSE", "ALGO_UPDATE", "ORDER_UPDATE", "TRADE_UPDATE", "ALGO_RECONCILIATION_QUERY", "INTERNAL_TRANSITION"] } } }
+        },
+        {
+          "if": { "properties": { "execution_type": { "enum": ["ALGO_REST_RESPONSE", "ALGO_UPDATE", "ALGO_RECONCILIATION_QUERY"] } }, "required": ["execution_type"] },
+          "then": { "properties": { "transport": { "const": "ALGO" }, "client_algo_id": { "type": "string" }, "algo_id": { "type": "string", "minLength": 1 }, "algo_status": { "type": "string", "minLength": 1 }, "exchange_update_time": { "type": "string", "format": "date-time" } } }
+        },
+        {
+          "if": { "properties": { "state": { "enum": ["TRIGGER_PENDING", "TRIGGERING", "TRIGGERED"] } }, "required": ["state"] },
+          "then": { "properties": { "transport": { "const": "ALGO" }, "client_algo_id": { "type": "string" }, "algo_id": { "type": "string", "minLength": 1 } } }
+        },
+        {
+          "if": { "properties": { "algo_status": { "const": "NEW" } }, "required": ["algo_status"] },
+          "then": { "properties": { "state": { "const": "TRIGGER_PENDING" } } }
+        },
+        {
+          "if": { "properties": { "algo_status": { "const": "TRIGGERING" } }, "required": ["algo_status"] },
+          "then": { "properties": { "state": { "const": "TRIGGERING" } } }
+        },
+        {
+          "if": { "properties": { "algo_status": { "const": "TRIGGERED" } }, "required": ["algo_status"] },
+          "then": {
+            "oneOf": [
+              { "properties": { "actual_order_id": { "type": "string", "minLength": 1 }, "state": { "const": "TRIGGERED" } } },
+              { "properties": { "actual_order_id": { "type": "null" }, "state": { "const": "RECONCILING" }, "reconciliation_required": { "const": true }, "reason_codes": { "contains": { "const": "EXEC_ALGO_ACTUAL_ORDER_RECONCILING" } } } }
+            ]
+          }
+        },
+        {
+          "if": { "properties": { "algo_status": { "const": "FINISHED" } }, "required": ["algo_status"] },
+          "then": { "properties": { "state": { "const": "RECONCILING" }, "reconciliation_required": { "const": true }, "reason_codes": { "contains": { "const": "EXEC_ALGO_ACTUAL_ORDER_RECONCILING" } } } }
+        },
+        {
+          "if": { "properties": { "algo_status": { "const": "CANCELED" } }, "required": ["algo_status"] },
+          "then": { "properties": { "state": { "const": "CANCELED" } } }
+        },
+        {
+          "if": { "properties": { "algo_status": { "const": "REJECTED" } }, "required": ["algo_status"] },
+          "then": { "properties": { "state": { "const": "REJECTED" } } }
+        },
+        {
+          "if": { "properties": { "algo_status": { "const": "EXPIRED" } }, "required": ["algo_status"] },
+          "then": { "properties": { "state": { "const": "EXPIRED" } } }
+        },
+        {
+          "if": { "properties": { "algo_status": { "const": "UNKNOWN" } }, "required": ["algo_status"] },
+          "then": { "properties": { "state": { "const": "UNKNOWN" }, "reconciliation_required": { "const": true }, "reason_codes": { "contains": { "const": "EXEC_ALGO_STATUS_UNKNOWN" } } } }
+        },
+        {
+          "if": { "properties": { "transport": { "const": "ALGO" }, "state": { "enum": ["TRIGGERED", "ACKNOWLEDGED", "PARTIALLY_FILLED", "FILLED"] } }, "required": ["transport", "state"] },
+          "then": { "properties": { "actual_order_id": { "type": "string", "minLength": 1 } } }
+        },
+        {
+          "if": { "properties": { "transport": { "const": "ALGO" }, "execution_type": { "enum": ["ORDER_UPDATE", "TRADE_UPDATE"] } }, "required": ["transport", "execution_type"] },
+          "then": { "properties": { "state": { "enum": ["TRIGGERED", "ACKNOWLEDGED", "PARTIALLY_FILLED", "FILLED", "CANCELED", "EXPIRED", "UNKNOWN", "RECONCILING"] }, "actual_order_id": { "type": "string", "minLength": 1 } } }
+        },
+        {
+          "if": { "properties": { "transport": { "const": "STANDARD" }, "execution_type": { "enum": ["ORDER_UPDATE", "TRADE_UPDATE", "RECONCILIATION_QUERY"] } }, "required": ["transport", "execution_type"] },
+          "then": { "properties": { "exchange_order_id": { "type": "string", "minLength": 1 } } }
+        },
+        {
+          "if": { "properties": { "execution_type": { "const": "TRADE_UPDATE" } }, "required": ["execution_type"] },
+          "then": { "properties": { "exchange_trade_id": { "type": "string", "minLength": 1 }, "exchange_update_time": { "type": "string", "format": "date-time" } } },
+          "else": { "properties": { "exchange_trade_id": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "execution_type": { "enum": ["ORDER_UPDATE", "RECONCILIATION_QUERY"] } }, "required": ["execution_type"] },
+          "then": { "properties": { "exchange_update_time": { "type": "string", "format": "date-time" } } }
+        }
+      ]
+    },
+    "positionPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["position_id", "position_side", "quantity", "entry_price", "mark_price", "unrealized_pnl", "realized_pnl", "initial_stop_price", "protection_status", "owner_strategy_version", "membership", "account_snapshot_time"],
+      "properties": {
+        "position_id": { "$ref": "#/$defs/id" },
+        "position_side": { "const": "BOTH" },
+        "quantity": { "$ref": "#/$defs/decimal" },
+        "entry_price": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "mark_price": { "$ref": "#/$defs/positiveDecimal" },
+        "unrealized_pnl": { "$ref": "#/$defs/decimal" },
+        "realized_pnl": { "$ref": "#/$defs/decimal" },
+        "initial_stop_price": { "oneOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] },
+        "protection_status": { "enum": ["VERIFIED", "MISSING", "UNKNOWN", "NOT_REQUIRED_FLAT"] },
+        "owner_strategy_version": { "type": ["string", "null"], "minLength": 1, "maxLength": 128 },
+        "membership": { "enum": ["TOP10", "MANAGED_POSITION", "EXTERNAL_UNKNOWN"] },
+        "account_snapshot_time": { "type": "string", "format": "date-time" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "protection_status": { "const": "VERIFIED" } }, "required": ["protection_status"] },
+          "then": { "properties": { "initial_stop_price": { "$ref": "#/$defs/positiveDecimal" } } }
+        },
+        {
+          "if": { "properties": { "protection_status": { "const": "NOT_REQUIRED_FLAT" } }, "required": ["protection_status"] },
+          "then": { "properties": { "quantity": { "const": "0" }, "initial_stop_price": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "membership": { "const": "EXTERNAL_UNKNOWN" } }, "required": ["membership"] },
+          "then": { "properties": { "owner_strategy_version": { "type": "null" }, "protection_status": { "enum": ["MISSING", "UNKNOWN"] }, "quantity": { "not": { "type": "string", "pattern": "^-?0(?:\\.0+)?$" } } } },
+          "else": { "properties": { "owner_strategy_version": { "type": "string", "minLength": 1 } } }
+        }
+      ]
+    },
+    "incidentPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["incident_id", "severity", "state", "category", "summary", "detected_at", "new_entries_paused", "flatten_required", "runbook", "reason_codes"],
+      "properties": {
+        "incident_id": { "$ref": "#/$defs/id" },
+        "severity": { "enum": ["P0", "P1", "P2", "P3"] },
+        "state": { "enum": ["OPEN", "MITIGATING", "RESOLVED"] },
+        "category": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{2,79}$" },
+        "summary": { "type": "string", "minLength": 5, "maxLength": 1000 },
+        "detected_at": { "type": "string", "format": "date-time" },
+        "new_entries_paused": { "type": "boolean" },
+        "flatten_required": { "type": "boolean" },
+        "runbook": { "type": "string", "pattern": "^runbooks/[0-9]{2}[A-Z]?_[A-Z0-9_]+\\.md$" },
+        "reason_codes": { "allOf": [{ "$ref": "#/$defs/reasonCodes" }, { "type": "array", "minItems": 1 }] }
+      }
+    },
+    "operatorPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command_id", "action", "source", "actor_id", "reason", "request_body_hash", "authorized", "requested_at", "expires_at", "nonce", "confirmation_of", "result", "reason_codes"],
+      "properties": {
+        "command_id": { "$ref": "#/$defs/id" },
+        "action": { "enum": ["QUERY_STATUS", "PAUSE_NEW_ENTRIES", "CANCEL_OPEN_ORDERS", "PREPARE_EMERGENCY_FLATTEN", "CONFIRM_EMERGENCY_FLATTEN", "LIVE_ARM", "SET_RISK_MULTIPLIER", "RESUME_NEW_ENTRIES", "RISK_UNLOCK", "APPLY_RISK_CONFIG", "APPLY_STRATEGY_PACKAGE", "ROTATE_SECRET"] },
+        "source": { "enum": ["LOCAL_CLI", "INTERNAL_API", "SYSTEM"] },
+        "actor_id": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "reason": { "type": "string", "minLength": 5, "maxLength": 1000 },
+        "request_body_hash": { "$ref": "#/$defs/sha256" },
+        "authorized": { "type": "boolean" },
+        "requested_at": { "type": "string", "format": "date-time" },
+        "expires_at": { "type": "string", "format": "date-time" },
+        "nonce": { "type": "string", "minLength": 16, "maxLength": 128 },
+        "confirmation_of": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+        "result": { "enum": ["PENDING", "ACCEPTED", "REJECTED", "COMPLETED", "FAILED"] },
+        "reason_codes": { "$ref": "#/$defs/reasonCodes" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "action": { "enum": ["LIVE_ARM", "SET_RISK_MULTIPLIER", "RESUME_NEW_ENTRIES", "RISK_UNLOCK", "APPLY_RISK_CONFIG", "APPLY_STRATEGY_PACKAGE", "ROTATE_SECRET"] }, "authorized": { "const": true } }, "required": ["action", "authorized"] },
+          "then": { "properties": { "source": { "const": "LOCAL_CLI" } } }
+        },
+        {
+          "if": { "properties": { "action": { "enum": ["LIVE_ARM", "SET_RISK_MULTIPLIER", "RESUME_NEW_ENTRIES", "RISK_UNLOCK", "APPLY_RISK_CONFIG", "APPLY_STRATEGY_PACKAGE", "ROTATE_SECRET"] }, "source": { "not": { "const": "LOCAL_CLI" } } }, "required": ["action", "source"] },
+          "then": { "properties": { "authorized": { "const": false }, "result": { "const": "REJECTED" }, "reason_codes": { "type": "array", "contains": { "const": "CONTROL_NOT_AUTHORIZED" } } } }
+        },
+        {
+          "properties": { "reason_codes": { "allOf": [{ "$ref": "#/$defs/reasonCodes" }, { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^CONTROL_" } }] } }
+        },
+        {
+          "if": { "properties": { "authorized": { "const": false } }, "required": ["authorized"] },
+          "then": { "properties": { "result": { "const": "REJECTED" }, "reason_codes": { "type": "array", "contains": { "const": "CONTROL_NOT_AUTHORIZED" } } } }
+        },
+        {
+          "if": { "properties": { "action": { "const": "CONFIRM_EMERGENCY_FLATTEN" } }, "required": ["action"] },
+          "then": { "properties": { "confirmation_of": { "$ref": "#/$defs/id" } } },
+          "else": { "properties": { "confirmation_of": { "type": "null" } } }
+        }
+      ]
+    },
+    "strategyPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lifecycle_record_id", "package_id", "strategy_version", "stage", "package_hash", "approval_id", "approval_payload_hash", "activated_at"],
+      "properties": {
+        "lifecycle_record_id": { "$ref": "#/$defs/id" },
+        "package_id": { "$ref": "#/$defs/id" },
+        "strategy_version": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "stage": { "enum": ["DRAFT", "CHALLENGER", "SHADOW_APPROVED", "TESTNET_APPROVED", "EXPERIMENTAL_LIVE", "CHAMPION_FROZEN", "RETIRED", "REJECTED"] },
+        "package_hash": { "$ref": "#/$defs/sha256" },
+        "approval_id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+        "approval_payload_hash": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+        "activated_at": { "type": ["string", "null"], "format": "date-time" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "stage": { "enum": ["SHADOW_APPROVED", "TESTNET_APPROVED", "EXPERIMENTAL_LIVE", "CHAMPION_FROZEN", "RETIRED", "REJECTED"] } }, "required": ["stage"] },
+          "then": { "properties": { "approval_id": { "$ref": "#/$defs/id" }, "approval_payload_hash": { "$ref": "#/$defs/sha256" } } }
+        }
+      ]
+    },
+    "researchPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["proposal_id", "base_package_id", "proposal_hash", "review_status", "champion_oos_accessed", "auto_publish_allowed"],
+      "properties": {
+        "proposal_id": { "$ref": "#/$defs/id" },
+        "base_package_id": { "$ref": "#/$defs/id" },
+        "proposal_hash": { "$ref": "#/$defs/sha256" },
+        "review_status": { "const": "PENDING_HUMAN_REVIEW" },
+        "champion_oos_accessed": { "const": false },
+        "auto_publish_allowed": { "const": false }
+      }
+    },
+    "universeEvent": { "type": "object", "properties": { "event_type": { "const": "UniverseSnapshot" }, "payload": { "$ref": "#/$defs/universePayload" } } },
+    "marketHealthEvent": { "type": "object", "properties": { "event_type": { "const": "MarketDataHealth" }, "payload": { "$ref": "#/$defs/marketHealthPayload" } } },
+    "featureEvent": { "type": "object", "properties": { "event_type": { "const": "FeatureSnapshot" }, "payload": { "$ref": "#/$defs/featurePayload" } } },
+    "signalEvent": { "type": "object", "properties": { "event_type": { "const": "SignalCandidate" }, "payload": { "$ref": "#/$defs/signalPayload" } } },
+    "riskEvent": { "type": "object", "properties": { "event_type": { "const": "RiskDecision" }, "payload": { "$ref": "#/$defs/riskPayload" } } },
+    "orderIntentEvent": { "type": "object", "properties": { "event_type": { "const": "OrderIntent" }, "payload": { "$ref": "#/$defs/orderIntentPayload" } } },
+    "orderEvent": { "type": "object", "properties": { "event_type": { "const": "OrderEvent" }, "payload": { "$ref": "#/$defs/orderPayload" } } },
+    "positionEvent": { "type": "object", "properties": { "event_type": { "const": "PositionSnapshot" }, "payload": { "$ref": "#/$defs/positionPayload" } } },
+    "incidentEvent": { "type": "object", "properties": { "event_type": { "const": "Incident" }, "payload": { "$ref": "#/$defs/incidentPayload" } } },
+    "operatorEvent": { "type": "object", "properties": { "event_type": { "const": "OperatorCommand" }, "payload": { "$ref": "#/$defs/operatorPayload" } } },
+    "strategyEvent": { "type": "object", "properties": { "event_type": { "const": "StrategyPackage" }, "payload": { "$ref": "#/$defs/strategyPayload" } } },
+    "researchEvent": { "type": "object", "properties": { "event_type": { "const": "ResearchProposal" }, "payload": { "$ref": "#/$defs/researchPayload" } } },
+    "strategyAnalysisCycleEvent": { "type": "object", "properties": { "event_type": { "const": "StrategyAnalysisCycle" }, "payload": { "$ref": "strategy-analysis-cycle.schema.json" } } },
+    "decisionAuthorityChangedEvent": { "type": "object", "properties": { "event_type": { "const": "DecisionAuthorityChanged" }, "payload": { "$ref": "#/$defs/decisionAuthorityChangedPayload" } } },
+    "tradePlanEvent": { "type": "object", "properties": { "event_type": { "const": "TradePlan" }, "payload": { "$ref": "trade-plan.schema.json" } } },
+    "autoIterationReportEvent": { "type": "object", "properties": { "event_type": { "const": "AutoIterationReport" }, "payload": { "$ref": "auto-iteration-report.schema.json" } } },
+    "engineeringProposalEvent": { "type": "object", "properties": { "event_type": { "const": "EngineeringProposal" }, "payload": { "$ref": "engineering-proposal.schema.json" } } },
+    "modelSelectionDecisionEvent": { "type": "object", "properties": { "event_type": { "const": "ModelSelectionDecision" }, "payload": { "$ref": "model-selection-decision.schema.json" } } },
+    "decisionAuthorityChangedPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["change_id", "analysis_epoch", "previous_authority", "new_authority", "fencing_token", "changed_at", "reason", "trigger_cycle_id"],
+      "properties": {
+        "change_id": { "$ref": "#/$defs/id" },
+        "analysis_epoch": { "type": "string", "format": "date-time" },
+        "previous_authority": { "enum": ["CODEX_PRIMARY", "RULE_FALLBACK", "NONE"] },
+        "new_authority": { "enum": ["CODEX_PRIMARY", "RULE_FALLBACK", "NONE"] },
+        "fencing_token": { "type": "integer", "minimum": 1 },
+        "changed_at": { "type": "string", "format": "date-time" },
+        "reason": { "enum": ["SCHEDULED", "CODEX_TIMEOUT", "CODEX_QUOTA", "CODEX_AUTH", "CODEX_TOOL", "CODEX_SCHEMA", "CODEX_CONTEXT", "RESOURCE_PRESSURE", "RECOVERY_PROBES_PASSED", "RISK_LOCKED"] },
+        "trigger_cycle_id": { "$ref": "#/$defs/id" }
+      }
+    }
+  }
+}

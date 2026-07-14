@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0.0",
+  "keyring_hash": "ddb63dcda9118b8e4d9eb7692d78828e4845b9989783102064c21d4ee8e50d1c",
+  "content": {
+    "keyring_id": "host-control-config-root-2026q3",
+    "purpose": "HOST_CONTROL_CONFIG",
+    "provisioning": "ROOT_OWNED_0444_OUT_OF_BAND_PINNED_SHA256_NOT_RELEASE_WRITABLE",
+    "keys": [
+      {
+        "key_id": "host-config-signing-2026q3",
+        "public_key_base64": "IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII=",
+        "status": "CURRENT",
+        "not_before": "2026-07-13T00:00:00Z",
+        "not_after": "2026-10-01T00:00:00Z"
+      }
+    ],
+    "revoked_key_ids": [],
+    "unknown_key_action": "DENY_AND_OPEN_P0"
+  },
+  "rotation_proof": null
+}

@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "auto-iteration.schema.json",
+  "title": "Monthly Auto Iteration Policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "schedule", "model_selection", "quota_deferral", "initial_90d_policy", "whitelist", "forbidden", "offline_thresholds", "promotion_stages", "failure_policy"],
+  "properties": {
+    "schema_version": { "const": "2.0.0" },
+    "schedule": {
+      "type": "object", "additionalProperties": false,
+      "required": ["timezone", "cron", "cycle_id_format", "missed_run"],
+      "properties": {
+        "timezone": { "const": "UTC" },
+        "cron": { "const": "10 3 1 * *" },
+        "cycle_id_format": { "const": "YYYY-MM" },
+        "missed_run": { "const": "CATCH_UP_ONCE" }
+      }
+    },
+    "model_selection": {
+      "type": "object", "additionalProperties": false,
+      "required": ["provider", "mode", "environment", "catalog_command", "catalog_signature_required", "catalog_max_age_seconds", "catalog_failure_action", "allowed_models_source", "selector_model_resolution", "selector_reasoning_effort", "selector_output_schema", "analysis_output_schema", "fresh_selector_session", "fresh_analysis_session", "transcript_handoff_allowed", "third_party_provider_allowed", "silent_model_downgrade_allowed"],
+      "properties": {
+        "provider": { "const": "OPENAI_CODEX" },
+        "mode": { "const": "LLM_TWO_STAGE_FRESH" },
+        "environment": { "const": "INDEPENDENT_RESEARCH" },
+        "catalog_command": { "const": "codex debug models" },
+        "catalog_signature_required": { "const": true },
+        "catalog_max_age_seconds": { "const": 3600 },
+        "catalog_failure_action": { "const": "FAIL_CLOSED" },
+        "allowed_models_source": { "const": "CURRENT_ACCOUNT_CODEX_CATALOG" },
+        "selector_model_resolution": { "const": "CURRENT_RECOMMENDED_DEFAULT" },
+        "selector_reasoning_effort": { "const": "medium" },
+        "selector_output_schema": { "const": "/etc/ai-quant/contracts/model-selection-decision.schema.json" },
+        "analysis_output_schema": { "const": "/etc/ai-quant/contracts/auto-iteration-report.schema.json" },
+        "fresh_selector_session": { "const": true },
+        "fresh_analysis_session": { "const": true },
+        "transcript_handoff_allowed": { "const": false },
+        "third_party_provider_allowed": { "const": false },
+        "silent_model_downgrade_allowed": { "const": false }
+      }
+    },
+    "quota_deferral": {
+      "type": "object", "additionalProperties": false,
+      "required": ["selector_quota_action", "analysis_quota_action", "retry_timezone", "retry_cron", "deferred_state", "newer_cycle_state", "queue_order", "global_max_concurrency", "preserve_cycle_id", "preserve_scheduled_for", "preserve_data_cutoff", "resume_failed_session", "fallback_to_other_model", "retry_limit", "structured_quota_evidence_required"],
+      "properties": {
+        "selector_quota_action": { "const": "DEFER" },
+        "analysis_quota_action": { "const": "DEFER" },
+        "retry_timezone": { "const": "UTC" },
+        "retry_cron": { "const": "10 3 * * *" },
+        "deferred_state": { "const": "DEFERRED_QUOTA" },
+        "newer_cycle_state": { "const": "QUEUED_BEHIND_QUOTA" },
+        "queue_order": { "const": "FIFO" },
+        "global_max_concurrency": { "const": 1 },
+        "preserve_cycle_id": { "const": true },
+        "preserve_scheduled_for": { "const": true },
+        "preserve_data_cutoff": { "const": true },
+        "resume_failed_session": { "const": false },
+        "fallback_to_other_model": { "const": false },
+        "retry_limit": { "const": "NONE" },
+        "structured_quota_evidence_required": { "const": true }
+      }
+    },
+    "initial_90d_policy": { "const": "OBSERVE_ONLY" },
+    "whitelist": {
+      "type": "array", "minItems": 7, "uniqueItems": true,
+      "items": { "enum": ["price_action.bounded_parameters", "order_flow.bounded_parameters", "universe.weights", "universe.debounce", "codex.strategy_prompt", "knowledge.retrieval_weights", "knowledge.card_combinations", "entry.non_hard_risk", "cost.non_hard_risk", "position_management.non_hard_risk"] }
+    },
+    "forbidden": {
+      "type": "array", "minItems": 8, "uniqueItems": true,
+      "items": { "enum": ["hard_risk_caps", "accounts_or_secrets", "execution_code", "order_state_machine", "tool_allowlist", "network_infrastructure", "database_infrastructure", "container_infrastructure", "undefined_strategy_type"] }
+    },
+    "offline_thresholds": {
+      "type": "object", "additionalProperties": false,
+      "required": ["min_oos_trades", "net_expectancy_gt", "profit_factor_gte", "max_drawdown_pct_lte", "cost_stress_multiplier", "cost_stress_expectancy_gte", "parameter_perturbation_pct", "parameter_perturbation_expectancy_gt", "max_symbol_contribution_pct_lte", "without_top_symbol_expectancy_gte", "risk_adjusted_improvement_gt"],
+      "properties": {
+        "min_oos_trades": { "const": 500 },
+        "net_expectancy_gt": { "const": "0" },
+        "profit_factor_gte": { "const": "1.15" },
+        "max_drawdown_pct_lte": { "const": "5" },
+        "cost_stress_multiplier": { "const": "1.5" },
+        "cost_stress_expectancy_gte": { "const": "0" },
+        "parameter_perturbation_pct": { "const": "20" },
+        "parameter_perturbation_expectancy_gt": { "const": "0" },
+        "max_symbol_contribution_pct_lte": { "const": "40" },
+        "without_top_symbol_expectancy_gte": { "const": "0" },
+        "risk_adjusted_improvement_gt": { "type": "string", "pattern": "^(?:0\\.[0-9]{0,17}[1-9]|[1-9][0-9]{0,17}(?:\\.[0-9]{0,17}[1-9])?)$" }
+      }
+    },
+    "promotion_stages": {
+      "type": "array", "minItems": 4, "maxItems": 4,
+      "prefixItems": [
+        { "const": { "stage": "SHADOW", "risk_multiplier": "0", "minimum_hours": 72 } },
+        { "const": { "stage": "LIVE_0_10", "risk_multiplier": "0.10", "minimum_hours": 24 } },
+        { "const": { "stage": "LIVE_0_50", "risk_multiplier": "0.50", "minimum_hours": 24 } },
+        { "const": { "stage": "PROMOTE", "risk_multiplier": "1.00", "minimum_hours": 0 } }
+      ],
+      "items": false
+    },
+    "failure_policy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["automatic_rollback", "same_cycle_candidate_retry", "non_whitelist_action"],
+      "properties": {
+        "automatic_rollback": { "const": true },
+        "same_cycle_candidate_retry": { "const": "FORBIDDEN" },
+        "non_whitelist_action": { "const": "ENGINEERING_PROPOSAL_ONLY" }
+      }
+    }
+  }
+}

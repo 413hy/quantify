@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant.local/config/binance-endpoint-cost-catalog.schema.json",
+  "title": "Signed Binance Endpoint Cost Catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "catalog_hash", "content", "signature"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "catalog_hash": { "$ref": "#/$defs/sha256" },
+    "content": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["catalog_id", "catalog_status", "created_at", "checked_at", "valid_until", "source_documents", "endpoint_authorities", "bootstrap", "endpoint_contracts", "unknown_endpoint_policy"],
+      "properties": {
+        "catalog_id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{8,128}$" },
+        "catalog_status": { "enum": ["UNVALIDATED_ENGINEERING_BASELINE", "SIGNED_RUNTIME"] },
+        "created_at": { "type": "string", "format": "date-time" },
+        "checked_at": { "type": "string", "format": "date-time" },
+        "valid_until": { "type": "string", "format": "date-time" },
+        "source_documents": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["uri", "retrieved_at", "artifact_path", "canonicalization", "sha256"],
+            "properties": {
+              "uri": { "type": "string", "format": "uri", "pattern": "^https://developers\\.binance\\.com/" },
+              "retrieved_at": { "type": "string", "format": "date-time" },
+              "artifact_path": { "type": "string", "pattern": "^evidence/official-contracts/[A-Za-z0-9._/-]+\\.txt$" },
+              "canonicalization": { "const": "UTF8_LF_NORMALIZED_VISIBLE_DOCUMENT_TEXT_WITH_URI_AND_RETRIEVED_AT_SIDECAR" },
+              "sha256": { "$ref": "#/$defs/sha256" }
+            }
+          }
+        },
+        "endpoint_authorities": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/endpointAuthority" }
+        },
+        "bootstrap": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["allowed_endpoint_ids", "snapshot_limits", "snapshot_source", "snapshot_checked_at", "snapshot_valid_until", "missing_or_expired_action"],
+          "properties": {
+            "allowed_endpoint_ids": { "const": ["REST_SERVER_TIME", "REST_UM_EXCHANGE_INFO"] },
+            "snapshot_limits": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["endpoint_authority", "rate_limit_type", "interval_name", "interval_seconds", "conservative_limit"],
+                "properties": {
+                  "endpoint_authority": { "enum": ["BINANCE_PRODUCTION_FAPI", "BINANCE_TESTNET_FAPI"] },
+                  "rate_limit_type": { "const": "REQUEST_WEIGHT" },
+                  "interval_name": { "const": "MINUTE_1" },
+                  "interval_seconds": { "const": 60 },
+                  "conservative_limit": { "type": "integer", "minimum": 3 }
+                }
+              }
+            },
+            "snapshot_source": { "const": "SIGNED_CONSERVATIVE_BOOTSTRAP_FLOOR" },
+            "snapshot_checked_at": { "type": "string", "format": "date-time" },
+            "snapshot_valid_until": { "type": "string", "format": "date-time" },
+            "missing_or_expired_action": { "const": "BLOCK_ALL_BINANCE_EGRESS" }
+          }
+        },
+        "endpoint_contracts": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["endpoint_id", "endpoint_authorities", "transport", "method", "path", "market_stream_role", "control_frame_type", "allowed_operation_classes", "causal_role_class_map", "request_weight_rule", "order_count_rule", "websocket_control_rule", "connection_attempt_rule", "parameter_policy", "allowed_parameter_names", "required_parameter_names", "forbidden_parameter_names", "request_schema_ref", "request_schema_sha256", "source_document_sha256"],
+            "properties": {
+              "endpoint_id": { "type": "string", "pattern": "^[A-Z0-9_]{4,96}$" },
+              "endpoint_authorities": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/endpointAuthority" } },
+              "transport": { "enum": ["REST", "WS_API", "MARKET_STREAM_CONTROL"] },
+              "method": { "enum": ["GET", "POST", "PUT", "DELETE", "CONNECT", "SEND"] },
+              "path": { "type": "string", "pattern": "^/" },
+              "market_stream_role": { "enum": [null, "PUBLIC", "MARKET", "PRIVATE", "ANY_ROUTED_CONNECTION"] },
+              "control_frame_type": { "enum": [null, "JSON_SUBSCRIBE", "JSON_UNSUBSCRIBE", "PING", "PONG"] },
+              "allowed_operation_classes": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/operationClass" } },
+              "causal_role_class_map": {
+                "type": "object",
+                "minProperties": 1,
+                "propertyNames": { "enum": ["HOST_RATE_CONTROL", "MARKET_DATA_READ", "USER_STREAM_MAINTAIN", "ORDER_ENTRY", "ORDER_EXIT", "PROTECTION_CREATE_REPLACE", "CANCEL", "RECONCILE", "EMERGENCY_REDUCE_ONLY"] },
+                "additionalProperties": { "$ref": "#/$defs/operationClass" }
+              },
+              "request_weight_rule": { "$ref": "#/$defs/costRule" },
+              "order_count_rule": { "$ref": "#/$defs/costRule" },
+              "websocket_control_rule": { "$ref": "#/$defs/costRule" },
+              "connection_attempt_rule": { "$ref": "#/$defs/costRule" },
+              "parameter_policy": { "enum": ["EXACT_ALLOWLIST", "SIGNED_TIER_TABLE", "NO_PARAMETERS"] },
+              "allowed_parameter_names": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/parameterName" } },
+              "required_parameter_names": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/parameterName" } },
+              "forbidden_parameter_names": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/parameterName" } },
+              "request_schema_ref": { "const": "contracts/binance-gateway-request.schema.json" },
+              "request_schema_sha256": { "$ref": "#/$defs/sha256" },
+              "source_document_sha256": { "$ref": "#/$defs/sha256" }
+            }
+          }
+        },
+        "unknown_endpoint_policy": { "const": "DENY" }
+      }
+    },
+    "signature": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["algorithm", "key_id", "signed_at", "signature_base64"],
+          "properties": {
+            "algorithm": { "const": "Ed25519" },
+            "key_id": { "type": "string", "minLength": 8, "maxLength": 128 },
+            "signed_at": { "type": "string", "format": "date-time" },
+            "signature_base64": { "type": "string", "pattern": "^[A-Za-z0-9+/]{86}==$" }
+          }
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "content": { "properties": { "catalog_status": { "const": "SIGNED_RUNTIME" } }, "required": ["catalog_status"] } }, "required": ["content"] },
+      "then": { "properties": { "signature": { "type": "object" } } },
+      "else": { "properties": { "signature": { "type": "null" } } }
+    }
+  ],
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "endpointAuthority": { "enum": ["BINANCE_PRODUCTION_FAPI", "BINANCE_TESTNET_FAPI", "BINANCE_PRODUCTION_FSTREAM", "BINANCE_TESTNET_FSTREAM"] },
+    "parameterName": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$" },
+    "operationClass": { "enum": ["HOST_RATE_CONTROL", "EMERGENCY_REDUCE_ONLY", "PROTECTION_CREATE_REPLACE", "CANCEL", "RECONCILIATION", "USER_STREAM_MAINTENANCE", "NORMAL_EXIT", "NORMAL_ENTRY", "MARKET_DATA_SNAPSHOT"] },
+    "costRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "fixed_cost", "parameter_name", "tiers"],
+      "properties": {
+        "mode": { "enum": ["FIXED", "SIGNED_PARAMETER_TIERS", "NOT_APPLICABLE"] },
+        "fixed_cost": { "type": ["integer", "null"], "minimum": 0 },
+        "parameter_name": { "type": ["string", "null"], "pattern": "^[A-Za-z][A-Za-z0-9_]{0,31}$" },
+        "tiers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["min_inclusive", "max_inclusive", "cost"],
+            "properties": {
+              "min_inclusive": { "type": "integer", "minimum": 0 },
+              "max_inclusive": { "type": "integer", "minimum": 0 },
+              "cost": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "mode": { "const": "FIXED" } }, "required": ["mode"] },
+          "then": { "properties": { "fixed_cost": { "type": "integer", "minimum": 0 }, "parameter_name": { "type": "null" }, "tiers": { "maxItems": 0 } } }
+        },
+        {
+          "if": { "properties": { "mode": { "const": "NOT_APPLICABLE" } }, "required": ["mode"] },
+          "then": { "properties": { "fixed_cost": { "const": 0 }, "parameter_name": { "type": "null" }, "tiers": { "maxItems": 0 } } }
+        },
+        {
+          "if": { "properties": { "mode": { "const": "SIGNED_PARAMETER_TIERS" } }, "required": ["mode"] },
+          "then": { "properties": { "fixed_cost": { "type": "null" }, "parameter_name": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,31}$" }, "tiers": { "minItems": 1, "uniqueItems": true } } }
+        }
+      ],
+      "$comment": "SIGNED_PARAMETER_TIERS 还须由加载器验证每项 min_inclusive<=max_inclusive，按 min 升序、区间连续或显式声明 gap、且互不重叠；Schema 无跨数组数值比较能力。catalog loader 还必须验证 catalog_hash=SHA-256(RFC8785 JCS(content))、authority+transport+method+path+role+frame 唯一、bootstrap endpoint 存在、source_document_sha256 引用闭合且 source artifact 摘要可复现。"
+    }
+  }
+}

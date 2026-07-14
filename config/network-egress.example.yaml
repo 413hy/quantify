@@ -1,0 +1,120 @@
+schema_version: "1.0.0"
+policy_id: egress-template-v1
+mode: APP_AND_HOST
+default_deny: true
+deny_cross_host_redirects: true
+dns:
+  resolver_mode: APPROVED_RESOLVERS_ONLY
+  resolver_endpoints:
+    - <APPROVED_DNS_RESOLVER_IP>:53
+  ntp_hosts:
+    - <APPROVED_NTP_HOST_1>
+    - <APPROVED_NTP_HOST_2>
+dynamic_ip_policy:
+  mode: RESOLVER_TO_NFT_SET
+  permanent_static_business_ips_forbidden: true
+  root_only_updater: true
+  honor_dns_ttl: true
+  fail_closed: true
+runtime_destinations:
+  - id: binance-production-public
+    purpose: BINANCE_PRODUCTION_PUBLIC
+    environments: [shadow, production]
+    schemes: [https, wss]
+    hosts: [<BINANCE_PRODUCTION_REST_HOST>, <BINANCE_PRODUCTION_WS_HOST>]
+    ports: [443]
+    tls_verify: true
+    host_key_required: false
+    allowed_services: [binance-egress-gateway]
+  - id: binance-production-trading
+    purpose: BINANCE_PRODUCTION_TRADING
+    environments: [production]
+    schemes: [https, wss]
+    hosts: [<BINANCE_PRODUCTION_FUTURES_REST_HOST>, <BINANCE_PRODUCTION_USER_STREAM_HOST>]
+    ports: [443]
+    tls_verify: true
+    host_key_required: false
+    allowed_services: [binance-egress-gateway]
+  - id: binance-testnet
+    purpose: BINANCE_TESTNET
+    environments: [testnet]
+    schemes: [https, wss]
+    hosts: [<BINANCE_TESTNET_REST_HOST>, <BINANCE_TESTNET_WS_HOST>]
+    ports: [443]
+    tls_verify: true
+    host_key_required: false
+    allowed_services: [binance-egress-gateway]
+  - id: telegram-api
+    purpose: TELEGRAM
+    environments: [shadow, testnet, production]
+    schemes: [https]
+    hosts: [api.telegram.org]
+    ports: [443]
+    tls_verify: true
+    host_key_required: false
+    allowed_services: [control-service]
+  - id: openai-codex
+    purpose: OPENAI_CODEX
+    environments: [shadow, testnet, production]
+    schemes: [https]
+    hosts: [<OPENAI_CODEX_API_HOST>]
+    ports: [443]
+    tls_verify: true
+    host_key_required: false
+    allowed_services: [codex-orchestrator]
+  - id: feishu-api
+    purpose: FEISHU
+    environments: [shadow, testnet, production]
+    schemes: [https]
+    hosts: [<FEISHU_API_HOST>]
+    ports: [443]
+    tls_verify: true
+    host_key_required: false
+    allowed_services: [control-service]
+  - id: archive-sftp
+    purpose: ARCHIVE_SFTP
+    environments: [shadow, testnet, production]
+    schemes: [sftp]
+    hosts: [<ARCHIVE_SFTP_HOST>]
+    ports: [22]
+    tls_verify: false
+    host_key_required: true
+    allowed_services: [archive-service]
+  - id: external-heartbeat
+    purpose: EXTERNAL_HEARTBEAT
+    environments: [shadow, testnet, production]
+    schemes: [https]
+    hosts: [<EXTERNAL_HEARTBEAT_HOST>]
+    ports: [443]
+    tls_verify: true
+    host_key_required: false
+    allowed_services: [monitoring-service]
+maintenance_destinations:
+  - id: oci-registry
+    purpose: OCI_REGISTRY
+    environments: [maintenance]
+    schemes: [https]
+    hosts: [<OCI_REGISTRY_HOST>]
+    ports: [443]
+    tls_verify: true
+    host_key_required: false
+    allowed_services: [host-maintenance]
+  - id: os-package-repository
+    purpose: OS_PACKAGE_REPOSITORY
+    environments: [maintenance]
+    schemes: [https]
+    hosts: [<UBUNTU_MIRROR_HOST>, <DOCKER_APT_HOST>]
+    ports: [443]
+    tls_verify: true
+    host_key_required: false
+    allowed_services: [host-maintenance]
+  - id: security-feed
+    purpose: SECURITY_FEED
+    environments: [maintenance]
+    schemes: [https]
+    hosts: [<SECURITY_FEED_HOST>]
+    ports: [443]
+    tls_verify: true
+    host_key_required: false
+    allowed_services: [host-maintenance]
+maintenance_enabled_by_default: false

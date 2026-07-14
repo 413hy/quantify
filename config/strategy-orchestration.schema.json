@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "strategy-orchestration.schema.json",
+  "title": "Strategy Orchestration Configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "timezone", "codex_primary", "session_isolation", "rule_fallback", "authority", "validation", "knowledge", "notifications"],
+  "properties": {
+    "schema_version": { "const": "2.0.0" },
+    "timezone": { "const": "UTC" },
+    "codex_primary": {
+      "type": "object", "additionalProperties": false,
+      "required": ["enabled", "schedule", "model", "reasoning_effort", "timeout_seconds", "output_ttl_seconds", "max_concurrency", "codex_home", "sandbox", "structured_output_schema", "allowed_tools", "forbidden_capabilities"],
+      "properties": {
+        "enabled": { "const": true },
+        "schedule": { "const": "0,30 * * * *" },
+        "model": { "const": "gpt-5.6" },
+        "reasoning_effort": { "const": "medium" },
+        "timeout_seconds": { "const": 90 },
+        "output_ttl_seconds": { "const": 60 },
+        "max_concurrency": { "const": 1 },
+        "codex_home": { "type": "string", "pattern": "^/var/lib/ai-quant/codex-live$" },
+        "sandbox": { "const": "read-only" },
+        "structured_output_schema": { "const": "/etc/ai-quant/contracts/trade-plan.schema.json" },
+        "allowed_tools": {
+          "type": "array", "minItems": 7, "maxItems": 7, "uniqueItems": true,
+          "items": { "enum": ["get_market_context", "get_pa_features", "get_order_flow_features", "get_position_state", "get_risk_budget", "retrieve_strategy_knowledge", "estimate_trade_cost"] }
+        },
+        "forbidden_capabilities": {
+          "type": "array", "minItems": 8, "uniqueItems": true,
+          "contains": { "const": "BINANCE_SECRET" },
+          "items": { "enum": ["BINANCE_SECRET", "BINANCE_NETWORK", "EXECUTION_UDS", "DATABASE_WRITE", "ARBITRARY_SHELL", "BROWSER", "ARBITRARY_NETWORK", "CONTAINER_CONTROL", "SECRET_ENV_READ"] }
+        }
+      }
+    },
+    "session_isolation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["mode", "ephemeral", "new_process_per_run", "new_thread_per_run", "new_workspace_per_run", "resume_allowed", "thread_reuse_allowed", "conversation_history_allowed", "prior_transcript_allowed", "memory_allowed", "reasoning_reuse_allowed", "prior_context_policy", "workspace_root", "cleanup_after_run", "retain_audit_manifest"],
+      "properties": {
+        "mode": { "const": "FRESH_EPHEMERAL" },
+        "ephemeral": { "const": true },
+        "new_process_per_run": { "const": true },
+        "new_thread_per_run": { "const": true },
+        "new_workspace_per_run": { "const": true },
+        "resume_allowed": { "const": false },
+        "thread_reuse_allowed": { "const": false },
+        "conversation_history_allowed": { "const": false },
+        "prior_transcript_allowed": { "const": false },
+        "memory_allowed": { "const": false },
+        "reasoning_reuse_allowed": { "const": false },
+        "prior_context_policy": { "const": "STRUCTURED_SCHEMA_FACTS_ONLY" },
+        "workspace_root": { "const": "/var/lib/ai-quant/codex-runs/live" },
+        "cleanup_after_run": { "const": true },
+        "retain_audit_manifest": { "const": true }
+      }
+    },
+    "rule_fallback": {
+      "type": "object", "additionalProperties": false,
+      "required": ["enabled", "schedule", "immediate_on_codex_failure", "shadow_when_codex_authority"],
+      "properties": {
+        "enabled": { "const": true },
+        "schedule": { "const": "0,20,40 * * * *" },
+        "immediate_on_codex_failure": { "const": true },
+        "shadow_when_codex_authority": { "const": true }
+      }
+    },
+    "authority": {
+      "type": "object", "additionalProperties": false,
+      "required": ["single_holder_per_epoch", "persistent_fencing", "failure_mode", "recovery_cooldown_seconds", "recovery_dry_run_successes"],
+      "properties": {
+        "single_holder_per_epoch": { "const": true },
+        "persistent_fencing": { "const": true },
+        "failure_mode": { "const": "RULE_FALLBACK" },
+        "recovery_cooldown_seconds": { "type": "integer", "minimum": 60, "maximum": 3600 },
+        "recovery_dry_run_successes": { "const": 3 }
+      }
+    },
+    "validation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["require_context_hash", "require_knowledge_refs", "require_schema", "require_cost_pass", "require_exchange_filters", "require_risk_pass", "require_pre_submit_revalidation"],
+      "properties": {
+        "require_context_hash": { "const": true },
+        "require_knowledge_refs": { "const": true },
+        "require_schema": { "const": true },
+        "require_cost_pass": { "const": true },
+        "require_exchange_filters": { "const": true },
+        "require_risk_pass": { "const": true },
+        "require_pre_submit_revalidation": { "const": true }
+      }
+    },
+    "knowledge": {
+      "type": "object", "additionalProperties": false,
+      "required": ["mode", "sources", "require_signed_index", "allow_runtime_write"],
+      "properties": {
+        "mode": { "const": "READ_ONLY_CARDS" },
+        "sources": { "type": "array", "minItems": 2, "maxItems": 2, "uniqueItems": true, "items": { "enum": ["PYTA_ORDER_FLOW", "LOUIE_PRICE_ACTION"] } },
+        "require_signed_index": { "const": true },
+        "allow_runtime_write": { "const": false }
+      }
+    },
+    "notifications": {
+      "type": "object", "additionalProperties": false,
+      "required": ["telegram_outbound_only", "feishu_outbound_only", "inbound_handlers_enabled", "trade_confirmation_required"],
+      "properties": {
+        "telegram_outbound_only": { "const": true },
+        "feishu_outbound_only": { "const": true },
+        "inbound_handlers_enabled": { "const": false },
+        "trade_confirmation_required": { "const": false }
+      }
+    }
+  }
+}

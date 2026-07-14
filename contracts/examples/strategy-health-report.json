@@ -1,0 +1,122 @@
+{
+  "schema_version": "1.0.0",
+  "report_hash": "5cb6b4352e85b29d816de2c711f8d156699cfa9368b0a488e1bf45d082941c85",
+  "content": {
+    "report_id": "strategy-health-shadow-72h-0001",
+    "generated_at": "2026-07-19T00:05:00Z",
+    "environment": "shadow",
+    "release_id": "release-c0-20260716",
+    "strategy_package_hash": "194bcbe9d523428845f5b9db421fb818bed699b7faa59f89fb387f65fffd8fcf",
+    "window_start": "2026-07-16T00:00:00Z",
+    "window_end": "2026-07-19T00:00:00Z",
+    "source_manifest_hash": "24ff1dc62da2ac5f4113e2a0e32de618ba3ef29eb53312acb2b54ece667205a9",
+    "event_schema_hash": "8e7847a0bd47416c0bb37771981fa5ccc285eb69bedc860a697ecc310d8eef07",
+    "cost_model_hash": "8dcf8b3152925b6b96e79771b92f7687219010ae4c8d6533ce76c497ba33a864",
+    "execution_model_hash": "d581fe402814d4ec34fc992e5a7628681081a64484924b83c73664ab09815451",
+    "total_funnel": {
+      "feature_ready": 32400,
+      "pa_armed": 184,
+      "of_confirmed": 61,
+      "risk_approved": 43,
+      "order_accepted": 31,
+      "filled": 24,
+      "protected": 24,
+      "closed": 22
+    },
+    "breakdowns": [
+      {
+        "setup_type": "ALL",
+        "pa_regime": "ALL",
+        "side": "ALL",
+        "symbol": "ALL",
+        "liquidity_bucket": "ALL",
+        "entry_path": "ALL",
+        "utc_hour": null,
+        "funnel": {
+          "feature_ready": 32400,
+          "pa_armed": 184,
+          "of_confirmed": 61,
+          "risk_approved": 43,
+          "order_accepted": 31,
+          "filled": 24,
+          "protected": 24,
+          "closed": 22
+        }
+      },
+      {
+        "setup_type": "T1_TREND_PULLBACK_CONTINUATION",
+        "pa_regime": "TREND",
+        "side": "LONG",
+        "symbol": "BTCUSDT",
+        "liquidity_bucket": "HIGH",
+        "entry_path": "MAKER_ONLY",
+        "utc_hour": 1,
+        "funnel": {
+          "feature_ready": 4100,
+          "pa_armed": 22,
+          "of_confirmed": 8,
+          "risk_approved": 6,
+          "order_accepted": 5,
+          "filled": 4,
+          "protected": 4,
+          "closed": 4
+        }
+      }
+    ],
+    "setup_coverage": [
+      { "setup_type": "T1_TREND_PULLBACK_CONTINUATION", "synthetic_positive_cases": 50, "synthetic_negative_cases": 50, "synthetic_all_passed": true, "natural_pa_armed": 72, "natural_of_confirmed": 23, "coverage_status": "OBSERVED", "full_window_replay_hash": "50da55ed98449ad7322c77a93bbb5c1896b312d008f5d9c2d346f94b8fd9e4b1" },
+      { "setup_type": "B1_BREAKOUT_FOLLOW_THROUGH", "synthetic_positive_cases": 50, "synthetic_negative_cases": 50, "synthetic_all_passed": true, "natural_pa_armed": 51, "natural_of_confirmed": 19, "coverage_status": "OBSERVED", "full_window_replay_hash": "50da55ed98449ad7322c77a93bbb5c1896b312d008f5d9c2d346f94b8fd9e4b1" },
+      { "setup_type": "B2_BREAK_RETEST", "synthetic_positive_cases": 50, "synthetic_negative_cases": 50, "synthetic_all_passed": true, "natural_pa_armed": 37, "natural_of_confirmed": 12, "coverage_status": "OBSERVED", "full_window_replay_hash": "50da55ed98449ad7322c77a93bbb5c1896b312d008f5d9c2d346f94b8fd9e4b1" },
+      { "setup_type": "R1_RANGE_EDGE_REJECTION", "synthetic_positive_cases": 50, "synthetic_negative_cases": 50, "synthetic_all_passed": true, "natural_pa_armed": 24, "natural_of_confirmed": 7, "coverage_status": "OBSERVED", "full_window_replay_hash": "50da55ed98449ad7322c77a93bbb5c1896b312d008f5d9c2d346f94b8fd9e4b1" }
+    ],
+    "reason_code_distribution_hash": "7782868a7c11a9ff3680984e64fa54f3449eb6bde0c9156d78e049beb975c48e",
+    "signal_expiry_due_local_latency": 0,
+    "execution_quality": {
+      "maker_attempts": 31,
+      "maker_fills": 19,
+      "maker_to_taker": 5,
+      "partial_fills": 4,
+      "duplicate_orders": 0,
+      "unresolved_order_differences": 0,
+      "unprotected_positions": 0,
+      "ack_rtt_p95_ms": 238,
+      "ack_rtt_p99_ms": 481,
+      "slippage_p50_bps": "0.3",
+      "slippage_p95_bps": "1.4",
+      "post_fill_adverse_markout_1s_p75_bps": "0.8",
+      "post_fill_adverse_markout_5s_p75_bps": "1.6"
+    },
+    "cost_quality": {
+      "evaluations": 61,
+      "stale_rejections": 3,
+      "missing_component_rejections": 1,
+      "arithmetic_mismatches": 0,
+      "evidence_hash": "e0f7004137c548a8cb9cf489e7edc5d39177e98f61cefd6936b93db1b4b807a6"
+    },
+    "live_replay_parity": {
+      "sample_count": 1000,
+      "sampling_rule": "ALL_IF_LE_1000_ELSE_DETERMINISTIC_1000_BY_EVENT_ID_HASH",
+      "semantic_mismatches": 0,
+      "live_decision_root_hash": "b7e48a60ca6aeffd897baa5a8c2f76c82a021ac144837f8a25b3a52f9468e3f2",
+      "replay_decision_root_hash": "b7e48a60ca6aeffd897baa5a8c2f76c82a021ac144837f8a25b3a52f9468e3f2"
+    },
+    "drift": {
+      "baseline_hash": "b96cbc6c3198bbdd3cbb215956119af11fecdf3c6ab6e39d2a497e18ffadec8c",
+      "maximum_reason_code_psi": "0.08",
+      "maximum_feature_psi": "0.11",
+      "warning_threshold": "0.2",
+      "blocking_threshold": "0.4",
+      "blocking_dimension_count": 0
+    },
+    "gate_thresholds": {
+      "minimum_feature_ready": 20000,
+      "minimum_pa_armed": 100,
+      "minimum_of_confirmed": 30,
+      "minimum_risk_approved": 20,
+      "minimum_order_accepted": 10,
+      "minimum_naturally_observed_setups": 2
+    },
+    "gate_decision": "PASS",
+    "blocking_reasons": []
+  }
+}

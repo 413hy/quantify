@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "edge-decision.schema.json",
+  "title": "Auditable Net Edge Decision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "edge_evaluation_hash", "content"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "edge_evaluation_hash": { "$ref": "#/$defs/sha256" },
+    "content": { "$ref": "#/$defs/content" }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|[0-9A-HJKMNP-TV-Z]{26})$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "dateTime": { "type": "string", "format": "date-time" },
+    "decimal": { "type": "string", "pattern": "^(?:0|-?(?:0\\.[0-9]{0,17}[1-9]|[1-9][0-9]{0,19}(?:\\.[0-9]{0,17}[1-9])?))$" },
+    "nonNegativeDecimal": { "type": "string", "pattern": "^(?:0|0\\.[0-9]{0,17}[1-9]|[1-9][0-9]{0,19}(?:\\.[0-9]{0,17}[1-9])?)$" },
+    "positiveDecimal": { "type": "string", "pattern": "^(?:0\\.[0-9]{0,17}[1-9]|[1-9][0-9]{0,19}(?:\\.[0-9]{0,17}[1-9])?)$" },
+    "content": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evaluation_id", "signal_id", "evaluated_at", "valid_until", "cost_model_hash", "execution_model_hash", "gross_edge_source_hash", "target_reference", "horizon_seconds", "entry_path", "gross_edge_bps", "maker_fee_bps", "taker_fee_bps", "maker_fill_probability", "entry_expected_fee_bps", "expected_exit_fee_bps", "expected_fee_bps", "slippage_bps", "adverse_selection_bps", "funding_bps", "failure_cancel_bps", "total_cost_bps", "net_edge_bps", "minimum_net_edge_bps", "formula_version", "component_evidence_hash", "stale_components", "verdict", "reason_code"],
+      "properties": {
+        "evaluation_id": { "$ref": "#/$defs/id" },
+        "signal_id": { "$ref": "#/$defs/id" },
+        "evaluated_at": { "$ref": "#/$defs/dateTime" },
+        "valid_until": { "$ref": "#/$defs/dateTime" },
+        "cost_model_hash": { "$ref": "#/$defs/sha256" },
+        "execution_model_hash": { "$ref": "#/$defs/sha256" },
+        "gross_edge_source_hash": { "$ref": "#/$defs/sha256" },
+        "target_reference": { "$ref": "#/$defs/positiveDecimal" },
+        "horizon_seconds": { "type": "integer", "minimum": 30, "maximum": 900 },
+        "entry_path": { "enum": ["MAKER_ONLY", "MAKER_THEN_TAKER", "TAKER_EMERGENCY_EXIT_ONLY"] },
+        "gross_edge_bps": { "$ref": "#/$defs/decimal" },
+        "maker_fee_bps": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "taker_fee_bps": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "maker_fill_probability": { "type": "string", "pattern": "^(?:0|0\\.[0-9]{0,17}[1-9]|1)$" },
+        "entry_expected_fee_bps": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "expected_exit_fee_bps": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "expected_fee_bps": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "slippage_bps": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "adverse_selection_bps": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "funding_bps": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "failure_cancel_bps": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "total_cost_bps": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "net_edge_bps": { "$ref": "#/$defs/decimal" },
+        "minimum_net_edge_bps": { "$ref": "#/$defs/positiveDecimal" },
+        "formula_version": { "const": "NET_EDGE_V1" },
+        "component_evidence_hash": { "$ref": "#/$defs/sha256" },
+        "stale_components": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["GROSS_EDGE", "FEE", "SLIPPAGE", "ADVERSE_SELECTION", "FUNDING", "FAILURE_CANCEL", "EXCHANGE_FILTER", "CLOCK"] }
+        },
+        "verdict": { "enum": ["PASS", "REJECT"] },
+        "reason_code": { "enum": ["NET_EDGE_SUFFICIENT", "NET_EDGE_INSUFFICIENT", "NET_EDGE_COMPONENT_STALE", "NET_EDGE_EVIDENCE_INCOMPLETE"] }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "verdict": { "const": "PASS" } }, "required": ["verdict"] },
+          "then": { "properties": { "stale_components": { "maxItems": 0 }, "reason_code": { "const": "NET_EDGE_SUFFICIENT" }, "entry_path": { "enum": ["MAKER_ONLY", "MAKER_THEN_TAKER"] } } }
+        },
+        {
+          "if": { "properties": { "stale_components": { "minItems": 1 } }, "required": ["stale_components"] },
+          "then": { "properties": { "verdict": { "const": "REJECT" }, "reason_code": { "const": "NET_EDGE_COMPONENT_STALE" } } }
+        }
+      ]
+    }
+  }
+}

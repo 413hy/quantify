@@ -1,0 +1,36 @@
+uv run ruff check src tests tools scripts
+All checks passed!
+uv run mypy src
+Success: no issues found in 12 source files
+uv run python scripts/validate/contracts.py
+contracts PASS schemas=42 instances=39 jcs=26 openapi=1
+uv run python scripts/validate/config.py
+config PASS examples=14 secrets=not-embedded
+uv run python scripts/validate/provenance.py
+provenance PASS copied_files=123
+uv run python scripts/validate/compose.py
+compose policy PASS files=4 gateway_definitions=1
+TEST_BUSINESS_DB_PASSWORD_FILE=/tmp/not-used-business \
+TEST_HOST_DB_PASSWORD_FILE=/tmp/not-used-host \
+	docker compose -f deploy/compose.test.yaml config --quiet
+AIQ_APP_IMAGE=registry.invalid/aiq-app@sha256:0000000000000000000000000000000000000000000000000000000000000000 \
+	docker compose -f deploy/host-control.compose.yaml config --quiet
+AIQ_APP_IMAGE=registry.invalid/aiq-app@sha256:0000000000000000000000000000000000000000000000000000000000000000 \
+	docker compose -f deploy/binance-egress.compose.yaml config --quiet
+AIQ_APP_IMAGE=registry.invalid/aiq-app@sha256:0000000000000000000000000000000000000000000000000000000000000000 \
+	docker compose -f deploy/compose.yaml config --quiet
+uv run pytest -q tests/unit
+..............                                                           [100%]
+14 passed in 1.47s
+uv run pytest -q tests/property
+...                                                                      [100%]
+3 passed in 0.42s
+uv run pytest -q tests/contract
+..                                                                       [100%]
+2 passed in 3.00s
+uv run pytest -q tests/security
+..                                                                       [100%]
+2 passed in 0.22s
+uv run bandit -q -r src
+uv run python scripts/validate/secret_scan.py
+secret scan PASS

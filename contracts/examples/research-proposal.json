@@ -1,0 +1,95 @@
+{
+  "schema_version": "1.0.0",
+  "proposal_hash": "1dfd8e4975b2914109c06509d4d5d3e82c1dcbaf869bcca2d6b1f5f668464435",
+  "content": {
+    "proposal_id": "44444444-4444-4444-8444-444444444441",
+    "created_at": "2026-08-01T00:00:00Z",
+    "author_agent": "offline-codex-research",
+    "base_strategy_package_id": "33333333-3333-4333-8333-333333333331",
+    "base_strategy_package_hash": "194bcbe9d523428845f5b9db421fb818bed699b7faa59f89fb387f65fffd8fcf",
+    "hypothesis": "在不读取 champion 后续样本外数据的前提下，调整候选策略的订单流确认窗口可能改善成本后的稳定性。",
+    "evidence_sources": [
+      {
+        "source_id": "method-pyta-v0.1.0",
+        "kind": "REFERENCE_METHOD",
+        "uri": "local://reference/PYTA_OrderFlow_Quant_System_Spec_v0.1.0",
+        "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+        "accessed_at": "2026-08-01T00:00:00Z",
+        "evidence_grade": "REFERENCE_ONLY"
+      }
+    ],
+    "change_set": [
+      {
+        "path": "config/strategy/challenger/order-flow.yaml",
+        "before_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+        "after_hash": "3333333333333333333333333333333333333333333333333333333333333333",
+        "rationale": "只在隔离的 challenger 训练分区比较多尺度确认窗口，不修改 champion。"
+      }
+    ],
+    "data_boundaries": {
+      "seen_until": "2026-07-16T00:00:00Z",
+      "champion_oos_start": "2026-07-16T01:30:00Z",
+      "champion_oos_end": "2026-10-11T01:30:00Z",
+      "champion_oos_accessed": false,
+      "manifest_hashes": [
+        "4444444444444444444444444444444444444444444444444444444444444444"
+      ]
+    },
+    "evaluation_stage": "CHALLENGER",
+    "evaluation_plan": {
+      "runs": [
+        {
+          "run_id": "44444444-4444-4444-8444-444444444442",
+          "scenario": "BASELINE_COST_1_0",
+          "run_manifest_hash": "5555555555555555555555555555555555555555555555555555555555555555",
+          "replay_hash": "6666666666666666666666666666666666666666666666666666666666666666",
+          "metrics_hash": "7777777777777777777777777777777777777777777777777777777777777777"
+        },
+        {
+          "run_id": "44444444-4444-4444-8444-444444444443",
+          "scenario": "COST_STRESS_1_5",
+          "run_manifest_hash": "8888888888888888888888888888888888888888888888888888888888888888",
+          "replay_hash": "9999999999999999999999999999999999999999999999999999999999999999",
+          "metrics_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        {
+          "run_id": "44444444-4444-4444-8444-444444444444",
+          "scenario": "PARAMETER_PERTURBATION_20",
+          "run_manifest_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "replay_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "metrics_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        }
+      ],
+      "parameter_perturbation_pct": 20,
+      "minimum_trades": 100,
+      "promotion_metrics": [
+        "NET_EXPECTANCY",
+        "PROFIT_FACTOR",
+        "MAX_DRAWDOWN",
+        "COST_STRESS",
+        "PARAMETER_STABILITY",
+        "SYMBOL_CONCENTRATION"
+      ]
+    },
+    "results": {
+      "available": true,
+      "metrics": {
+        "trade_count": 120,
+        "net_expectancy": "1.25",
+        "profit_factor_defined": true,
+        "profit_factor": "1.20",
+        "max_drawdown_pct": "4.50",
+        "stressed_net_expectancy_1_5x": "0.10",
+        "parameter_stability_pass": true,
+        "symbol_concentration_pass": true,
+        "max_positive_contribution_share_pct": "35.00"
+      },
+      "report_hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    },
+    "risks": [
+      "短样本可能产生参数选择偏差；该提案不得读取或污染 champion 的 87 天样本外窗口。"
+    ],
+    "review_status": "PENDING_HUMAN_REVIEW",
+    "auto_publish_allowed": false
+  }
+}

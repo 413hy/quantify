@@ -1,0 +1,1295 @@
+openapi: 3.1.0
+info:
+  title: AI Quant Internal Control API
+  version: 1.2.0
+  description: >-
+    仅绑定 loopback 或受控私网的内部控制面。它不提供 LIVE_ARM、RESUME_NEW_ENTRIES、RISK_UNLOCK、
+    风险/策略/密钥修改接口；这些动作只能由本机受控 CLI 验证人工签名后执行。
+    opaque session 在服务端绑定 principal、role 与 channel；请求体中的 actor_id/source
+    必须逐字匹配认证上下文，不能作为授权依据。Telegram/飞书仅为出站通知目标，
+    不调用本 API，也没有入站命令身份。
+servers:
+  - url: http://127.0.0.1:8080
+    description: VPS loopback；远程运维只能使用 SSH 隧道
+tags:
+  - name: health
+    description: 进程存活与控制面就绪探针。
+  - name: read
+    description: 只读运行状态、交易事实投影与事故查询。
+  - name: command
+    description: 受角色与幂等约束的有限运行命令。
+security:
+  - localSession: []
+paths:
+  /health/live:
+    get:
+      tags: [health]
+      summary: 查询进程存活状态
+      operationId: getLiveness
+      x-required-roles: [health_probe]
+      security: []
+      responses:
+        '200':
+          description: 进程存活；不代表可交易
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+  /health/ready:
+    get:
+      tags: [health]
+      summary: 查询控制面就绪状态
+      operationId: getReadiness
+      x-required-roles: [health_probe]
+      security: []
+      responses:
+        '200':
+          description: 控制面可响应，响应体说明是否具备开新仓资格
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /v1/status:
+    get:
+      tags: [read]
+      summary: 查询系统运行状态
+      operationId: getSystemStatus
+      x-required-roles: [viewer, operator_limited, operator_local]
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: 运行状态、健康和风险锁摘要
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /v1/universe:
+    get:
+      tags: [read]
+      summary: 查询当前动态标的池
+      operationId: getUniverse
+      x-required-roles: [viewer, operator_limited, operator_local]
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: 当前 Top 10、候补 11–15 和持仓管理集
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Universe'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /v1/positions:
+    get:
+      tags: [read]
+      summary: 查询持仓投影
+      operationId: listPositions
+      x-required-roles: [viewer, operator_limited, operator_local]
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - name: open_only
+          in: query
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: 本地投影与最近一次交易所对账时间
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [as_of, exchange_reconciled_at, reconciliation_state, staleness_seconds, items]
+                properties:
+                  as_of:
+                    type: string
+                    format: date-time
+                  exchange_reconciled_at:
+                    type: [string, 'null']
+                    format: date-time
+                  reconciliation_state:
+                    type: string
+                    enum: [NEVER_RECONCILED, RECONCILING, RECONCILED, STALE, FAILED]
+                  staleness_seconds:
+                    type: [integer, 'null']
+                    minimum: 0
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Position'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /v1/orders:
+    get:
+      tags: [read]
+      summary: 查询订单投影
+      operationId: listOrders
+      x-required-roles: [viewer, operator_limited, operator_local]
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - name: state
+          in: query
+          schema:
+            $ref: '#/components/schemas/OrderState'
+        - name: symbol
+          in: query
+          schema:
+            $ref: '#/components/schemas/Symbol'
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: 订单事件投影；事实仍为追加式订单账本
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [as_of, items, next_cursor]
+                properties:
+                  as_of:
+                    type: string
+                    format: date-time
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Order'
+                  next_cursor:
+                    type: [string, 'null']
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /v1/risk:
+    get:
+      tags: [read]
+      summary: 查询风险状态
+      operationId: getRiskStatus
+      x-required-roles: [viewer, operator_limited, operator_local]
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: 当前用量、硬上限、风险倍率与锁原因
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RiskStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /v1/incidents:
+    get:
+      tags: [read]
+      summary: 查询事故记录
+      operationId: listIncidents
+      x-required-roles: [viewer, operator_limited, operator_local]
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - name: state
+          in: query
+          schema:
+            type: string
+            enum: [OPEN, MITIGATING, RESOLVED]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: 事故列表
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Incident'
+                  next_cursor:
+                    type: [string, 'null']
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /v1/strategies/current:
+    get:
+      tags: [read]
+      summary: 查询当前策略版本
+      operationId: getCurrentStrategy
+      x-required-roles: [viewer, operator_limited, operator_local]
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: 当前策略包与批准状态，只读
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StrategySummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /v1/ai/authority:
+    get:
+      tags: [read]
+      summary: 查询当前策略分析权威与 Codex 健康状态
+      operationId: getDecisionAuthority
+      x-required-roles: [viewer, operator_limited, operator_local]
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: 当前 epoch 的唯一 authority、fencing token、AI 失败和恢复探针
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DecisionAuthorityStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/iterations/current:
+    get:
+      tags: [read]
+      summary: 查询当前或最近一次月度自动迭代状态
+      operationId: getCurrentAutoIteration
+      x-required-roles: [viewer, operator_limited, operator_local]
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: 当前 cycle、attempt、模型选择、额度延期/FIFO、候选与 attempt 级裁决摘要
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutoIterationStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/commands/{command_id}:
+    get:
+      tags: [read]
+      summary: 查询命令执行状态
+      operationId: getCommandStatus
+      x-required-roles: [viewer, operator_limited, operator_local]
+      x-authorization-rule: owner-or-operator-local
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - name: command_id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Id'
+      responses:
+        '200':
+          description: 命令当前状态及其审计事件引用；结果未知时不得推断已完成
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: 未找到命令或调用方无权查看
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /v1/commands/pause-new-entries:
+    post:
+      tags: [command]
+      summary: 暂停新开仓
+      operationId: pauseNewEntries
+      x-required-roles: [operator_limited, operator_local]
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommandRequest'
+      responses:
+        '202':
+          description: 命令已持久化，结果需按 command_id 查询命令状态
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandReceipt'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /v1/commands/cancel-open-orders:
+    post:
+      tags: [command]
+      summary: 取消未成交挂单
+      operationId: cancelOpenOrders
+      x-required-roles: [operator_limited, operator_local]
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelOrdersRequest'
+      responses:
+        '202':
+          description: 撤单命令已接受；保护单默认不得取消
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandReceipt'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /v1/commands/emergency-flatten/prepare:
+    post:
+      tags: [command]
+      summary: 准备紧急平仓二次确认
+      operationId: prepareEmergencyFlatten
+      x-required-roles: [operator_limited, operator_local]
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FlattenPrepareRequest'
+      responses:
+        '200':
+          description: 返回短时有效的确认挑战；此步骤不会平仓
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlattenChallenge'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /v1/commands/emergency-flatten/confirm:
+    post:
+      tags: [command]
+      summary: 确认并执行紧急平仓
+      operationId: confirmEmergencyFlatten
+      x-required-roles: [operator_limited, operator_local]
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FlattenConfirmRequest'
+      responses:
+        '202':
+          description: 有效挑战已消费，reduce-only 紧急平仓已进入执行队列
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandReceipt'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '410':
+          description: 挑战已过期或已消费
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+components:
+  securitySchemes:
+    localSession:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque-short-lived-session
+      description: 服务端保存 principal、role、channel 与过期时间的短时 opaque session；API 仍只绑定 loopback/私网并通过 SSH 隧道访问
+  parameters:
+    CorrelationId:
+      name: X-Correlation-ID
+      in: header
+      required: true
+      schema:
+        $ref: '#/components/schemas/Id'
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 200
+        pattern: '^[A-Za-z0-9._:-]+$'
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: 服务签发的不透明游标；调用方不得解析或修改
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 512
+  responses:
+    Unauthorized:
+      description: 身份、来源或权限校验失败
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Forbidden:
+      description: 已认证，但角色、命令所有权或认证上下文绑定不允许该动作
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Conflict:
+      description: 幂等冲突、状态冲突或命令与当前风险锁不兼容
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unavailable:
+      description: 依赖或安全前置条件未满足
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    Id:
+      type: string
+      pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|[0-9A-HJKMNP-TV-Z]{26})$'
+    Decimal:
+      type: string
+      pattern: '^-?(?:0|[1-9][0-9]{0,19})(?:\.[0-9]{1,18})?$'
+    NonNegativeDecimal:
+      type: string
+      pattern: '^(?:0|[1-9][0-9]{0,19})(?:\.[0-9]{1,18})?$'
+    Sha256:
+      type: string
+      pattern: '^[0-9a-f]{64}$'
+    Symbol:
+      type: string
+      pattern: '^[A-Z0-9_]{2,30}$'
+    RuntimeState:
+      type: string
+      enum: [BOOTSTRAP, RISK_LOCKED, RECONCILING, SHADOW, PAPER, TESTNET, EXPERIMENTAL_LIVE, PAUSED_NEW_ENTRIES, EMERGENCY_FLATTENING, STOPPED]
+    Environment:
+      type: string
+      enum: [shadow, paper, testnet, production]
+    DependencyState:
+      type: string
+      enum: [HEALTHY, DEGRADED, UNAVAILABLE]
+    OrderState:
+      type: string
+      enum: [CREATED, RISK_APPROVED, SUBMITTING, ACKNOWLEDGED, TRIGGER_PENDING, TRIGGERING, TRIGGERED, PARTIALLY_FILLED, FILLED, CANCEL_PENDING, CANCELED, REJECTED, EXPIRED, UNKNOWN, RECONCILING, NOT_FOUND_CONFIRMED]
+    OrderExecutionType:
+      type: string
+      enum: [REST_RESPONSE, ALGO_REST_RESPONSE, ORDER_UPDATE, ALGO_UPDATE, TRADE_UPDATE, RECONCILIATION_QUERY, ALGO_RECONCILIATION_QUERY, INTERNAL_TRANSITION]
+    ApiProblemCode:
+      type: string
+      enum: [AUTHENTICATION_FAILED, AUTHORIZATION_FAILED, AUTH_CONTEXT_MISMATCH, COMMAND_NOT_ALLOWED, IDEMPOTENCY_CONFLICT, STATE_VERSION_CONFLICT, RISK_LOCKED, CONFIRMATION_REQUIRED, CONFIRMATION_EXPIRED, CONFIRMATION_USED, DATABASE_UNWRITABLE, SERVICE_NOT_READY, MARKET_DATA_UNHEALTHY, ORDER_STATE_UNKNOWN, PROTECTION_UNHEALTHY]
+    Health:
+      type: object
+      additionalProperties: false
+      required: [status, observed_at, can_open_new_positions, reasons]
+      properties:
+        status:
+          type: string
+          enum: [UP, DEGRADED, DOWN]
+        observed_at:
+          type: string
+          format: date-time
+        can_open_new_positions:
+          type: boolean
+        reasons:
+          type: array
+          items:
+            type: string
+    SystemStatus:
+      type: object
+      additionalProperties: false
+      required: [release_id, runtime_state, strategy_version, environment, experimental_live, risk_multiplier, risk_locked, new_entries_allowed, decision_authority, codex_state, reconciled_at, dependencies]
+      properties:
+        release_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        runtime_state:
+          $ref: '#/components/schemas/RuntimeState'
+        strategy_version:
+          type: [string, 'null']
+        environment:
+          $ref: '#/components/schemas/Environment'
+        experimental_live:
+          type: boolean
+        risk_multiplier:
+          type: string
+          enum: ['0.10', '0.50', '1.00']
+        risk_locked:
+          type: boolean
+        new_entries_allowed:
+          type: boolean
+        decision_authority:
+          type: string
+          enum: [CODEX_PRIMARY, RULE_FALLBACK, NONE]
+        codex_state:
+          type: string
+          enum: [HEALTHY, COOLDOWN, DRY_RUN_RECOVERY, UNAVAILABLE]
+        reconciled_at:
+          type: [string, 'null']
+          format: date-time
+        dependencies:
+          type: object
+          additionalProperties: false
+          required: [postgres, host_rate_control, binance_egress_gateway, market_data, codex_orchestrator, execution_api, user_data_stream, clock, disk, native_protection, external_heartbeat, redis, archive_sync]
+          properties:
+            postgres:
+              $ref: '#/components/schemas/DependencyStatus'
+            host_rate_control:
+              $ref: '#/components/schemas/DependencyStatus'
+            binance_egress_gateway:
+              $ref: '#/components/schemas/DependencyStatus'
+            market_data:
+              $ref: '#/components/schemas/DependencyStatus'
+            codex_orchestrator:
+              $ref: '#/components/schemas/DependencyStatus'
+            execution_api:
+              $ref: '#/components/schemas/DependencyStatus'
+            user_data_stream:
+              $ref: '#/components/schemas/DependencyStatus'
+            clock:
+              $ref: '#/components/schemas/DependencyStatus'
+            disk:
+              $ref: '#/components/schemas/DependencyStatus'
+            native_protection:
+              $ref: '#/components/schemas/DependencyStatus'
+            external_heartbeat:
+              $ref: '#/components/schemas/DependencyStatus'
+            redis:
+              $ref: '#/components/schemas/DependencyStatus'
+            archive_sync:
+              $ref: '#/components/schemas/DependencyStatus'
+    DependencyStatus:
+      type: object
+      additionalProperties: false
+      required: [state, observed_at, stale_for_ms, blocks_new_entries, reason_codes]
+      properties:
+        state:
+          $ref: '#/components/schemas/DependencyState'
+        observed_at:
+          type: string
+          format: date-time
+        stale_for_ms:
+          type: integer
+          minimum: 0
+        blocks_new_entries:
+          type: boolean
+        reason_codes:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+    Universe:
+      type: object
+      additionalProperties: false
+      required: [snapshot_id, computed_at, effective_from, next_refresh_at, ranking_window_start, ranking_window_end, score_model_version, source_manifest_hash, scoring_input_hash, exchange_rules_version, active, standby, managed_positions, members, eligible_count, reduced_pool_alert]
+      properties:
+        snapshot_id:
+          $ref: '#/components/schemas/Id'
+        computed_at:
+          type: string
+          format: date-time
+        effective_from:
+          type: string
+          format: date-time
+        next_refresh_at:
+          type: string
+          format: date-time
+        ranking_window_start:
+          type: string
+          format: date-time
+        ranking_window_end:
+          type: string
+          format: date-time
+        score_model_version:
+          type: string
+          minLength: 1
+          maxLength: 128
+        source_manifest_hash:
+          $ref: '#/components/schemas/Sha256'
+        scoring_input_hash:
+          $ref: '#/components/schemas/Sha256'
+        exchange_rules_version:
+          type: string
+          minLength: 1
+          maxLength: 128
+        active:
+          type: array
+          maxItems: 10
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/Symbol'
+        standby:
+          type: array
+          maxItems: 5
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/Symbol'
+        managed_positions:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/Symbol'
+        members:
+          type: array
+          description: active、standby 与 managed_positions 的逐标的资格、预热和健康投影
+          items:
+            $ref: '#/components/schemas/UniverseMember'
+        eligible_count:
+          type: integer
+          minimum: 0
+        reduced_pool_alert:
+          type: boolean
+    UniverseMember:
+      type: object
+      additionalProperties: false
+      required: [symbol, rank, membership, eligible, raw_inputs, normalized_components, weighted_components, score, data_health_status, warmed_up, tradable, reason_codes]
+      properties:
+        symbol:
+          $ref: '#/components/schemas/Symbol'
+        rank:
+          type: integer
+          minimum: 1
+        membership:
+          type: string
+          enum: [TOP10, STANDBY_11_15, MANAGED_POSITION]
+        eligible:
+          type: boolean
+        raw_inputs:
+          $ref: '#/components/schemas/UniverseRawInputs'
+        normalized_components:
+          $ref: '#/components/schemas/UniverseNormalizedComponents'
+        weighted_components:
+          $ref: '#/components/schemas/UniverseWeightedComponents'
+        score:
+          $ref: '#/components/schemas/NonNegativeDecimal'
+        data_health_status:
+          type: string
+          enum: [HEALTHY, WARMING_UP, STALE, GAP_DETECTED, CLOCK_UNSAFE, INVALID]
+        warmed_up:
+          type: boolean
+        tradable:
+          type: boolean
+        reason_codes:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+    UniverseRawInputs:
+      type: object
+      additionalProperties: false
+      required: [trading_liquidity_quote_notional, book_depth_quote_notional, spread_bps, trade_event_count, data_healthy_ratio]
+      properties:
+        trading_liquidity_quote_notional:
+          $ref: '#/components/schemas/NonNegativeDecimal'
+        book_depth_quote_notional:
+          $ref: '#/components/schemas/NonNegativeDecimal'
+        spread_bps:
+          $ref: '#/components/schemas/NonNegativeDecimal'
+        trade_event_count:
+          type: integer
+          minimum: 0
+        data_healthy_ratio:
+          $ref: '#/components/schemas/NonNegativeDecimal'
+    UniverseNormalizedComponents:
+      type: object
+      additionalProperties: false
+      required: [trading_liquidity, book_depth, inverse_spread, activity, data_health]
+      properties:
+        trading_liquidity: { $ref: '#/components/schemas/NonNegativeDecimal' }
+        book_depth: { $ref: '#/components/schemas/NonNegativeDecimal' }
+        inverse_spread: { $ref: '#/components/schemas/NonNegativeDecimal' }
+        activity: { $ref: '#/components/schemas/NonNegativeDecimal' }
+        data_health: { $ref: '#/components/schemas/NonNegativeDecimal' }
+    UniverseWeightedComponents:
+      type: object
+      additionalProperties: false
+      required: [trading_liquidity, book_depth, inverse_spread, activity, data_health]
+      properties:
+        trading_liquidity: { $ref: '#/components/schemas/NonNegativeDecimal' }
+        book_depth: { $ref: '#/components/schemas/NonNegativeDecimal' }
+        inverse_spread: { $ref: '#/components/schemas/NonNegativeDecimal' }
+        activity: { $ref: '#/components/schemas/NonNegativeDecimal' }
+        data_health: { $ref: '#/components/schemas/NonNegativeDecimal' }
+    Position:
+      type: object
+      additionalProperties: false
+      required: [position_id, symbol, position_side, quantity, entry_price, mark_price, unrealized_pnl, protection_status, owner_strategy_version, membership]
+      properties:
+        position_id:
+          $ref: '#/components/schemas/Id'
+        symbol:
+          $ref: '#/components/schemas/Symbol'
+        position_side:
+          type: string
+          const: BOTH
+        quantity:
+          $ref: '#/components/schemas/Decimal'
+        entry_price:
+          $ref: '#/components/schemas/NonNegativeDecimal'
+        mark_price:
+          $ref: '#/components/schemas/NonNegativeDecimal'
+        unrealized_pnl:
+          $ref: '#/components/schemas/Decimal'
+        protection_status:
+          type: string
+          enum: [VERIFIED, MISSING, UNKNOWN, NOT_REQUIRED_FLAT]
+        owner_strategy_version:
+          type: [string, 'null']
+        membership:
+          type: string
+          enum: [TOP10, MANAGED_POSITION, EXTERNAL_UNKNOWN]
+    Order:
+      type: object
+      additionalProperties: false
+      required: [intent_id, transport, client_order_id, client_algo_id, exchange_order_id, algo_id, algo_status, actual_order_id, symbol, state, execution_type, source_event_key, order_role, order_type, side, original_quantity, executed_quantity, average_price, reduce_only, close_position, updated_at, reconciliation_required]
+      properties:
+        intent_id:
+          $ref: '#/components/schemas/Id'
+        transport:
+          type: string
+          enum: [STANDARD, ALGO]
+        client_order_id:
+          type: [string, 'null']
+          pattern: '^[A-Za-z0-9._:-]{8,36}$'
+        client_algo_id:
+          type: [string, 'null']
+          pattern: '^[A-Za-z0-9._:-]{8,36}$'
+        exchange_order_id:
+          type: [string, 'null']
+        algo_id:
+          type: [string, 'null']
+        algo_status:
+          type: [string, 'null']
+          enum: [NEW, CANCELED, TRIGGERING, TRIGGERED, FINISHED, REJECTED, EXPIRED, UNKNOWN, null]
+        actual_order_id:
+          type: [string, 'null']
+        symbol:
+          $ref: '#/components/schemas/Symbol'
+        state:
+          $ref: '#/components/schemas/OrderState'
+        execution_type:
+          $ref: '#/components/schemas/OrderExecutionType'
+        source_event_key:
+          type: string
+          minLength: 1
+          maxLength: 200
+          pattern: '^[A-Za-z0-9._:-]+$'
+        order_role:
+          type: string
+          enum: [ENTRY, STRATEGY_EXIT, STOP_LOSS, TAKE_PROFIT, RISK_EXIT, OPERATOR_FLATTEN, RECONCILIATION_REPAIR]
+        order_type:
+          type: string
+          enum: [LIMIT, MARKET, STOP_MARKET, TAKE_PROFIT_MARKET]
+        side:
+          type: string
+          enum: [BUY, SELL]
+        original_quantity:
+          $ref: '#/components/schemas/NonNegativeDecimal'
+        executed_quantity:
+          $ref: '#/components/schemas/NonNegativeDecimal'
+        average_price:
+          $ref: '#/components/schemas/NonNegativeDecimal'
+        reduce_only:
+          type: boolean
+        close_position:
+          type: boolean
+        updated_at:
+          type: string
+          format: date-time
+        reconciliation_required:
+          type: boolean
+    RiskStatus:
+      type: object
+      additionalProperties: false
+      required: [as_of, risk_multiplier, risk_locked, lock_reasons, configured_limits, effective_limits, current]
+      properties:
+        as_of:
+          type: string
+          format: date-time
+        risk_multiplier:
+          type: string
+          enum: ['0.10', '0.50', '1.00']
+        risk_locked:
+          type: boolean
+        lock_reasons:
+          type: array
+          items:
+            type: string
+        configured_limits:
+          description: 人工批准且不超过硬上限的完整风险配置，尚未应用启动倍率
+          $ref: '#/components/schemas/RiskValues'
+        effective_limits:
+          description: 当前 risk_multiplier 应用后的真实准入阈值；并发持仓上限不缩放
+          $ref: '#/components/schemas/RiskValues'
+        current:
+          description: 当前观测占用；事故状态可高于 effective_limits，因此只要求非负
+          $ref: '#/components/schemas/RiskValues'
+    RiskValues:
+      type: object
+      additionalProperties: false
+      required: [per_trade_pct, total_open_pct, cluster_pct, daily_net_loss_pct, intraday_drawdown_pct, effective_leverage, concurrent_positions]
+      properties:
+        per_trade_pct:
+          $ref: '#/components/schemas/NonNegativeDecimal'
+        total_open_pct:
+          $ref: '#/components/schemas/NonNegativeDecimal'
+        cluster_pct:
+          $ref: '#/components/schemas/NonNegativeDecimal'
+        daily_net_loss_pct:
+          $ref: '#/components/schemas/NonNegativeDecimal'
+        intraday_drawdown_pct:
+          $ref: '#/components/schemas/NonNegativeDecimal'
+        effective_leverage:
+          $ref: '#/components/schemas/NonNegativeDecimal'
+        concurrent_positions:
+          type: integer
+          minimum: 0
+    Incident:
+      type: object
+      additionalProperties: false
+      required: [incident_id, severity, state, category, summary, detected_at, runbook]
+      properties:
+        incident_id:
+          $ref: '#/components/schemas/Id'
+        severity:
+          type: string
+          enum: [P0, P1, P2, P3]
+        state:
+          type: string
+          enum: [OPEN, MITIGATING, RESOLVED]
+        category:
+          type: string
+        summary:
+          type: string
+        detected_at:
+          type: string
+          format: date-time
+        runbook:
+          type: string
+    StrategySummary:
+      type: object
+      additionalProperties: false
+      required: [package_id, strategy_version, stage, package_hash, activated_at, experimental_live, human_approval_id]
+      properties:
+        package_id:
+          $ref: '#/components/schemas/Id'
+        strategy_version:
+          type: string
+        stage:
+          type: string
+          enum: [DRAFT, CHALLENGER, SHADOW_APPROVED, TESTNET_APPROVED, EXPERIMENTAL_LIVE, CHAMPION_FROZEN, RETIRED, REJECTED]
+        package_hash:
+          $ref: '#/components/schemas/Sha256'
+        activated_at:
+          type: [string, 'null']
+          format: date-time
+        experimental_live:
+          type: boolean
+        human_approval_id:
+          oneOf:
+            - $ref: '#/components/schemas/Id'
+            - type: 'null'
+    DecisionAuthorityStatus:
+      type: object
+      additionalProperties: false
+      required: [analysis_epoch, authority, holder_cycle_id, fencing_token, lease_expires_at, codex_state, last_codex_success_at, last_analysis_run_id, last_thread_id, session_isolation_status, consecutive_dry_run_successes, required_dry_run_successes, fallback_reason]
+      properties:
+        analysis_epoch:
+          type: string
+          format: date-time
+        authority:
+          type: string
+          enum: [CODEX_PRIMARY, RULE_FALLBACK, NONE]
+        holder_cycle_id:
+          oneOf:
+            - $ref: '#/components/schemas/Id'
+            - type: 'null'
+        fencing_token:
+          type: integer
+          minimum: 1
+        lease_expires_at:
+          type: [string, 'null']
+          format: date-time
+        codex_state:
+          type: string
+          enum: [HEALTHY, COOLDOWN, DRY_RUN_RECOVERY, UNAVAILABLE]
+        last_codex_success_at:
+          type: [string, 'null']
+          format: date-time
+        last_analysis_run_id:
+          oneOf:
+            - $ref: '#/components/schemas/Id'
+            - type: 'null'
+        last_thread_id:
+          oneOf:
+            - $ref: '#/components/schemas/Id'
+            - type: 'null'
+        session_isolation_status:
+          type: string
+          enum: [FRESH_EPHEMERAL_VERIFIED, NOT_APPLICABLE, VIOLATION]
+        consecutive_dry_run_successes:
+          type: integer
+          minimum: 0
+          maximum: 3
+        required_dry_run_successes:
+          type: integer
+          const: 3
+        fallback_reason:
+          type: [string, 'null']
+    AutoIterationStatus:
+      type: object
+      additionalProperties: false
+      required: [iteration_cycle_id, attempt_id, attempt_number, scheduled_for, data_cutoff_at, mode, stage, queue_position, model_selection_decision_id, selected_model, selected_reasoning_effort, quota_deferral_category, next_retry_at, started_at, updated_at, champion_package_hash, challenger_package_hash, final_decision, same_cycle_candidate_retry_forbidden]
+      properties:
+        iteration_cycle_id:
+          type: string
+          pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$'
+        attempt_id:
+          oneOf:
+            - $ref: '#/components/schemas/Id'
+            - type: 'null'
+        attempt_number:
+          type: integer
+          minimum: 0
+        scheduled_for:
+          type: string
+          format: date-time
+        data_cutoff_at:
+          type: string
+          format: date-time
+        mode:
+          type: string
+          enum: [OBSERVE_ONLY, AUTO_VALIDATION]
+        stage:
+          type: string
+          enum: [QUEUED, QUEUED_BEHIND_QUOTA, MODEL_SELECTION, MONTHLY_ANALYSIS, DEFERRED_QUOTA, AUDIT, OFFLINE_VALIDATION, SHADOW, LIVE_0_10, LIVE_0_50, PROMOTION, ROLLBACK, COMPLETE]
+        queue_position:
+          type: [integer, 'null']
+          minimum: 1
+        model_selection_decision_id:
+          oneOf:
+            - $ref: '#/components/schemas/Id'
+            - type: 'null'
+        selected_model:
+          type: [string, 'null']
+          pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]{1,127}$'
+        selected_reasoning_effort:
+          type: [string, 'null']
+          enum: [low, medium, high, xhigh, null]
+        quota_deferral_category:
+          type: [string, 'null']
+          enum: [SELECTOR_QUOTA, ANALYSIS_QUOTA, null]
+        next_retry_at:
+          type: [string, 'null']
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        champion_package_hash:
+          $ref: '#/components/schemas/Sha256'
+        challenger_package_hash:
+          oneOf:
+            - $ref: '#/components/schemas/Sha256'
+            - type: 'null'
+        final_decision:
+          type: [string, 'null']
+          enum: [DEFERRED_QUOTA, OBSERVE_ONLY, NO_CHANGE, REJECTED, PROMOTED, ROLLED_BACK, ENGINEERING_PROPOSAL_ONLY, null]
+        same_cycle_candidate_retry_forbidden:
+          type: boolean
+    CommandRequest:
+      type: object
+      additionalProperties: false
+      required: [actor_id, source, reason, requested_at, expires_at, nonce]
+      properties:
+        actor_id:
+          type: string
+          minLength: 1
+          maxLength: 120
+          description: 必须逐字匹配 opaque session 绑定的 principal；不匹配返回 403 AUTH_CONTEXT_MISMATCH
+        source:
+          type: string
+          enum: [LOCAL_CLI, INTERNAL_API, SYSTEM]
+          description: 必须逐字匹配 opaque session 绑定的 channel；客户端自报值不授予权限
+        reason:
+          type: string
+          minLength: 5
+          maxLength: 1000
+        requested_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        nonce:
+          type: string
+          minLength: 16
+          maxLength: 128
+    CommandReceipt:
+      type: object
+      additionalProperties: false
+      required: [command_id, accepted, state, accepted_at, audit_event_id]
+      properties:
+        command_id:
+          $ref: '#/components/schemas/Id'
+        accepted:
+          type: boolean
+        state:
+          type: string
+          enum: [PENDING, ACCEPTED, REJECTED, COMPLETED, FAILED]
+        accepted_at:
+          type: string
+          format: date-time
+        audit_event_id:
+          $ref: '#/components/schemas/Id'
+    CommandStatus:
+      type: object
+      additionalProperties: false
+      required: [command_id, state, accepted_at, updated_at, completed_at, reason_codes, incident_id, audit_event_id]
+      properties:
+        command_id:
+          $ref: '#/components/schemas/Id'
+        state:
+          type: string
+          enum: [PENDING, ACCEPTED, REJECTED, COMPLETED, FAILED]
+        accepted_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: [string, 'null']
+          format: date-time
+        reason_codes:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+        incident_id:
+          oneOf:
+            - $ref: '#/components/schemas/Id'
+            - type: 'null'
+        audit_event_id:
+          $ref: '#/components/schemas/Id'
+    CancelOrdersRequest:
+      type: object
+      additionalProperties: false
+      required: [actor_id, source, reason, requested_at, expires_at, nonce, symbol]
+      properties:
+        actor_id:
+          type: string
+          minLength: 1
+          maxLength: 120
+          description: 必须匹配已认证 session principal
+        source:
+          type: string
+          enum: [LOCAL_CLI, INTERNAL_API, SYSTEM]
+          description: 必须匹配已认证 session channel
+        reason:
+          type: string
+          minLength: 5
+          maxLength: 1000
+        requested_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        nonce:
+          type: string
+          minLength: 16
+          maxLength: 128
+        symbol:
+          oneOf:
+            - $ref: '#/components/schemas/Symbol'
+            - type: 'null'
+    FlattenPrepareRequest:
+      type: object
+      additionalProperties: false
+      required: [actor_id, source, reason, requested_at, expires_at, nonce, scope]
+      properties:
+        actor_id:
+          type: string
+          minLength: 1
+          maxLength: 120
+          description: 必须匹配已认证 session principal
+        source:
+          type: string
+          enum: [LOCAL_CLI, INTERNAL_API]
+          description: 必须匹配已认证 session channel
+        reason:
+          type: string
+          minLength: 5
+          maxLength: 1000
+        requested_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        nonce:
+          type: string
+          minLength: 16
+          maxLength: 128
+        scope:
+          type: string
+          enum: [ALL_POSITIONS]
+    FlattenChallenge:
+      type: object
+      additionalProperties: false
+      required: [challenge_id, expires_at, summary, positions_digest, confirmation_phrase]
+      properties:
+        challenge_id:
+          $ref: '#/components/schemas/Id'
+        expires_at:
+          type: string
+          format: date-time
+        summary:
+          type: string
+        positions_digest:
+          $ref: '#/components/schemas/Sha256'
+        confirmation_phrase:
+          type: string
+          minLength: 8
+          maxLength: 64
+    FlattenConfirmRequest:
+      type: object
+      additionalProperties: false
+      required: [actor_id, source, reason, challenge_id, positions_digest, confirmation_phrase, requested_at, expires_at, nonce]
+      properties:
+        actor_id:
+          type: string
+          minLength: 1
+          description: 必须匹配已认证 session principal
+        source:
+          type: string
+          enum: [LOCAL_CLI, INTERNAL_API]
+          description: 必须匹配已认证 session channel
+        reason:
+          type: string
+          minLength: 5
+          maxLength: 1000
+        challenge_id:
+          $ref: '#/components/schemas/Id'
+        positions_digest:
+          $ref: '#/components/schemas/Sha256'
+        confirmation_phrase:
+          type: string
+          minLength: 8
+          maxLength: 64
+        requested_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        nonce:
+          type: string
+          minLength: 16
+          maxLength: 128
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [type, title, status, detail, instance, correlation_id, reason_code]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        detail:
+          type: string
+        instance:
+          type: string
+        correlation_id:
+          $ref: '#/components/schemas/Id'
+        reason_code:
+          $ref: '#/components/schemas/ApiProblemCode'

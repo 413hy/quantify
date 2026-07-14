@@ -1,0 +1,257 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant.local/config/price-action.schema.json",
+  "title": "Price Action v1 Immutable Engineering Baseline",
+  "description": "首版 PA 的封闭确定性参数。baseline_origin 是来源标签，不随验证晋升改写；生产可用性由同一 config hash 的外部签名门禁证据裁决。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "parameter_set_version",
+    "baseline_origin",
+    "reference_policy",
+    "evaluation",
+    "atr",
+    "swings",
+    "trend",
+    "range",
+    "compression",
+    "vwap",
+    "breakout",
+    "pullback",
+    "retest",
+    "setups",
+    "invalidation",
+    "algorithm_semantics",
+    "numeric_semantics"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "parameter_set_version": { "const": "pa-v1" },
+    "baseline_origin": { "const": "UNVALIDATED_ENGINEERING_BASELINE" },
+    "reference_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["binance_normalized_units_only", "copied_reference_market_parameters", "optimized_in_calibration_3d", "mutable_after_oos_start"],
+      "properties": {
+        "binance_normalized_units_only": { "const": true },
+        "copied_reference_market_parameters": { "const": false },
+        "optimized_in_calibration_3d": { "const": false },
+        "mutable_after_oos_start": { "const": false }
+      }
+    },
+    "evaluation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["context_timeframe", "structure_timeframe", "closed_bars_only", "regime_precedence", "conflict_result"],
+      "properties": {
+        "context_timeframe": { "const": "5m" },
+        "structure_timeframe": { "const": "1m" },
+        "closed_bars_only": { "const": true },
+        "regime_precedence": { "const": ["INVALID", "TREND", "RANGE", "TRANSITION"] },
+        "conflict_result": { "const": "NO_TRADE" }
+      }
+    },
+    "atr": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["period_1m_bars", "period_5m_bars", "smoothing"],
+      "properties": {
+        "period_1m_bars": { "type": "integer", "minimum": 5, "maximum": 100 },
+        "period_5m_bars": { "type": "integer", "minimum": 5, "maximum": 100 },
+        "smoothing": { "const": "SMA_TRUE_RANGE" }
+      }
+    },
+    "swings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["left_1m_bars", "right_1m_bars", "left_5m_bars", "right_5m_bars", "minimum_confirmed_swings_for_structure", "equal_price_tolerance_atr"],
+      "properties": {
+        "left_1m_bars": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "right_1m_bars": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "left_5m_bars": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "right_5m_bars": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "minimum_confirmed_swings_for_structure": { "type": "integer", "minimum": 4, "maximum": 12 },
+        "equal_price_tolerance_atr": { "$ref": "#/$defs/decimal0to1" }
+      }
+    },
+    "trend": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["efficiency_lookback_1m_bars", "efficiency_lookback_5m_bars", "minimum_efficiency_ratio_1m", "minimum_efficiency_ratio_5m", "slope_lookback_1m_bars", "slope_lookback_5m_bars", "minimum_abs_slope_atr_per_bar_1m", "minimum_abs_slope_atr_per_bar_5m", "required_confirmed_swing_pairs"],
+      "properties": {
+        "efficiency_lookback_1m_bars": { "type": "integer", "minimum": 5, "maximum": 120 },
+        "efficiency_lookback_5m_bars": { "type": "integer", "minimum": 5, "maximum": 120 },
+        "minimum_efficiency_ratio_1m": { "$ref": "#/$defs/decimal0to1" },
+        "minimum_efficiency_ratio_5m": { "$ref": "#/$defs/decimal0to1" },
+        "slope_lookback_1m_bars": { "type": "integer", "minimum": 2, "maximum": 60 },
+        "slope_lookback_5m_bars": { "type": "integer", "minimum": 2, "maximum": 60 },
+        "minimum_abs_slope_atr_per_bar_1m": { "$ref": "#/$defs/nonNegativeDecimalMax2" },
+        "minimum_abs_slope_atr_per_bar_5m": { "$ref": "#/$defs/nonNegativeDecimalMax2" },
+        "required_confirmed_swing_pairs": { "type": "integer", "minimum": 1, "maximum": 4 }
+      }
+    },
+    "range": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lookback_1m_bars", "lookback_5m_bars", "minimum_touches_per_side", "boundary_tolerance_atr", "boundary_tolerance_bps_cap", "minimum_width_atr", "maximum_efficiency_ratio", "middle_band_fraction"],
+      "properties": {
+        "lookback_1m_bars": { "type": "integer", "minimum": 20, "maximum": 480 },
+        "lookback_5m_bars": { "type": "integer", "minimum": 12, "maximum": 240 },
+        "minimum_touches_per_side": { "type": "integer", "minimum": 2, "maximum": 8 },
+        "boundary_tolerance_atr": { "$ref": "#/$defs/decimal0to1" },
+        "boundary_tolerance_bps_cap": { "$ref": "#/$defs/nonNegativeDecimalMax50" },
+        "minimum_width_atr": { "$ref": "#/$defs/positiveDecimalMax20" },
+        "maximum_efficiency_ratio": { "$ref": "#/$defs/decimal0to1" },
+        "middle_band_fraction": { "$ref": "#/$defs/decimal0to1" }
+      }
+    },
+    "compression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["short_atr_period_bars", "long_atr_period_bars", "maximum_short_to_long_atr_ratio", "width_lookback_bars", "maximum_width_atr"],
+      "properties": {
+        "short_atr_period_bars": { "type": "integer", "minimum": 3, "maximum": 30 },
+        "long_atr_period_bars": { "type": "integer", "minimum": 10, "maximum": 120 },
+        "maximum_short_to_long_atr_ratio": { "$ref": "#/$defs/decimal0to1" },
+        "width_lookback_bars": { "type": "integer", "minimum": 5, "maximum": 120 },
+        "maximum_width_atr": { "$ref": "#/$defs/positiveDecimalMax20" }
+      }
+    },
+    "vwap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["anchor", "price_source", "reset_timezone"],
+      "properties": {
+        "anchor": { "const": "UTC_SESSION" },
+        "price_source": { "const": "HLC3" },
+        "reset_timezone": { "const": "UTC" }
+      }
+    },
+    "breakout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minimum_close_distance_atr", "minimum_close_distance_bps", "confirmation_closed_bars", "maximum_close_back_inside_atr", "maximum_confirmation_bars"],
+      "properties": {
+        "minimum_close_distance_atr": { "$ref": "#/$defs/decimal0to1" },
+        "minimum_close_distance_bps": { "$ref": "#/$defs/nonNegativeDecimalMax50" },
+        "confirmation_closed_bars": { "type": "integer", "minimum": 1, "maximum": 3 },
+        "maximum_close_back_inside_atr": { "$ref": "#/$defs/decimal0to1" },
+        "maximum_confirmation_bars": { "type": "integer", "minimum": 1, "maximum": 10 }
+      }
+    },
+    "pullback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minimum_impulse_retrace_ratio", "maximum_impulse_retrace_ratio", "value_zone_tolerance_atr", "maximum_structure_anchor_distance_atr", "minimum_rejection_wick_to_body_ratio", "confirmation_closed_bars"],
+      "properties": {
+        "minimum_impulse_retrace_ratio": { "$ref": "#/$defs/decimal0to1" },
+        "maximum_impulse_retrace_ratio": { "$ref": "#/$defs/decimal0to1" },
+        "value_zone_tolerance_atr": { "$ref": "#/$defs/decimal0to1" },
+        "maximum_structure_anchor_distance_atr": { "$ref": "#/$defs/positiveDecimalMax5" },
+        "minimum_rejection_wick_to_body_ratio": { "$ref": "#/$defs/nonNegativeDecimalMax10" },
+        "confirmation_closed_bars": { "type": "integer", "minimum": 1, "maximum": 3 }
+      }
+    },
+    "retest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["boundary_tolerance_atr", "maximum_age_1m_bars", "rejection_closed_bars", "minimum_close_reclaim_atr"],
+      "properties": {
+        "boundary_tolerance_atr": { "$ref": "#/$defs/decimal0to1" },
+        "maximum_age_1m_bars": { "type": "integer", "minimum": 1, "maximum": 30 },
+        "rejection_closed_bars": { "type": "integer", "minimum": 1, "maximum": 3 },
+        "minimum_close_reclaim_atr": { "$ref": "#/$defs/decimal0to1" }
+      }
+    },
+    "setups": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "arm_expiry_1m_bars", "signal_validity_ms", "maximum_holding_seconds", "maximum_scale_in_count", "minimum_range_width_to_total_cost_ratio"],
+      "properties": {
+        "enabled": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": { "enum": ["T1_TREND_PULLBACK_CONTINUATION", "B1_BREAKOUT_FOLLOW_THROUGH", "B2_BREAK_RETEST", "R1_RANGE_EDGE_REJECTION"] },
+          "allOf": [
+            { "contains": { "const": "T1_TREND_PULLBACK_CONTINUATION" } },
+            { "contains": { "const": "B1_BREAKOUT_FOLLOW_THROUGH" } },
+            { "contains": { "const": "B2_BREAK_RETEST" } },
+            { "contains": { "const": "R1_RANGE_EDGE_REJECTION" } }
+          ]
+        },
+        "arm_expiry_1m_bars": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "signal_validity_ms": { "type": "integer", "minimum": 100, "maximum": 2000 },
+        "maximum_holding_seconds": { "type": "integer", "minimum": 30, "maximum": 900 },
+        "maximum_scale_in_count": { "const": 2 },
+        "minimum_range_width_to_total_cost_ratio": { "$ref": "#/$defs/positiveDecimalMax10" }
+      }
+    },
+    "invalidation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["closed_bar_structure_break", "context_bias_reversal", "arm_expiry", "data_unhealthy", "pa_of_direction_conflict"],
+      "properties": {
+        "closed_bar_structure_break": { "const": true },
+        "context_bias_reversal": { "const": true },
+        "arm_expiry": { "const": true },
+        "data_unhealthy": { "const": true },
+        "pa_of_direction_conflict": { "const": true }
+      }
+    },
+    "algorithm_semantics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["swing_tie_break", "dual_swing_resolution", "structure_pairing", "range_clustering", "compression_timeframe", "breakout_count_origin", "value_zone_match", "setup_conflict", "fusion_table_version"],
+      "properties": {
+        "swing_tie_break": { "const": "STRICT_LEFT_NONSTRICT_RIGHT_LEFTMOST" },
+        "dual_swing_resolution": { "const": "LARGER_ATR_NORMALIZED_PROMINENCE_ELSE_NONE" },
+        "structure_pairing": { "const": "CHRONOLOGICAL_ALTERNATION_KEEP_MORE_EXTREME" },
+        "range_clustering": { "const": "CHRONOLOGICAL_FIRST_ANCHOR_GREEDY_THEN_MEDIAN" },
+        "compression_timeframe": { "const": "1m" },
+        "breakout_count_origin": { "const": "INCLUDE_FIRST_BREAK_BAR" },
+        "value_zone_match": { "const": "OR_NEAREST_SWING_THEN_VWAP" },
+        "setup_conflict": { "const": "NO_TRADE" },
+        "fusion_table_version": { "const": "PA_FUSION_TABLE_V1" }
+      }
+    },
+    "numeric_semantics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["numeric_type", "decimal_context_precision", "rounding", "intermediate_quantization", "output_decimal_places", "comparison_uses_unrounded", "comparison_boundary", "invalid_feature_result", "division_by_zero_result", "tie_break"],
+      "properties": {
+        "numeric_type": { "const": "DECIMAL" },
+        "decimal_context_precision": { "const": 34 },
+        "rounding": { "const": "ROUND_HALF_EVEN" },
+        "intermediate_quantization": { "const": "NONE" },
+        "output_decimal_places": { "const": 18 },
+        "comparison_uses_unrounded": { "const": true },
+        "comparison_boundary": { "const": "INCLUSIVE" },
+        "invalid_feature_result": { "const": "NO_TRADE" },
+        "division_by_zero_result": { "const": "INVALID" },
+        "tie_break": { "const": "NO_TRADE" }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "description": "跨字段语义由配置验证器强制：compression short < long；pullback minimum < maximum；range maximum_efficiency < trend minimum_efficiency；实际 lookback 足以覆盖所有依赖。",
+      "x-quant-cross-field-rules": [
+        "compression.short_atr_period_bars < compression.long_atr_period_bars",
+        "pullback.minimum_impulse_retrace_ratio < pullback.maximum_impulse_retrace_ratio",
+        "range.maximum_efficiency_ratio < min(trend.minimum_efficiency_ratio_1m, trend.minimum_efficiency_ratio_5m)"
+      ]
+    }
+  ],
+  "$defs": {
+    "decimal0to1": { "type": "string", "pattern": "^(?:0(?:\\.[0-9]{1,4})?|1(?:\\.0{1,4})?)$" },
+    "nonNegativeDecimalMax2": { "type": "string", "pattern": "^(?:[01](?:\\.[0-9]{1,4})?|2(?:\\.0{1,4})?)$", "x-quant-decimalMaximum": "2.0000" },
+    "nonNegativeDecimalMax10": { "type": "string", "pattern": "^(?:[0-9](?:\\.[0-9]{1,4})?|10(?:\\.0{1,4})?)$", "x-quant-decimalMaximum": "10.0000" },
+    "nonNegativeDecimalMax50": { "type": "string", "pattern": "^(?:(?:[0-9]|[1-4][0-9])(?:\\.[0-9]{1,4})?|50(?:\\.0{1,4})?)$", "x-quant-decimalMaximum": "50.0000" },
+    "positiveDecimalMax5": { "type": "string", "pattern": "^(?=.*[1-9])(?:[0-4](?:\\.[0-9]{1,4})?|5(?:\\.0{1,4})?)$", "x-quant-decimalMaximum": "5.0000" },
+    "positiveDecimalMax10": { "type": "string", "pattern": "^(?=.*[1-9])(?:[0-9](?:\\.[0-9]{1,4})?|10(?:\\.0{1,4})?)$", "x-quant-decimalMaximum": "10.0000" },
+    "positiveDecimalMax20": { "type": "string", "pattern": "^(?=.*[1-9])(?:(?:[0-9]|1[0-9])(?:\\.[0-9]{1,4})?|20(?:\\.0{1,4})?)$", "x-quant-decimalMaximum": "20.0000" }
+  }
+}

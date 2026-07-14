@@ -1,0 +1,83 @@
+schema_version: 2.0.0
+schedule:
+  timezone: UTC
+  cron: "10 3 1 * *"
+  cycle_id_format: YYYY-MM
+  missed_run: CATCH_UP_ONCE
+model_selection:
+  provider: OPENAI_CODEX
+  mode: LLM_TWO_STAGE_FRESH
+  environment: INDEPENDENT_RESEARCH
+  catalog_command: codex debug models
+  catalog_signature_required: true
+  catalog_max_age_seconds: 3600
+  catalog_failure_action: FAIL_CLOSED
+  allowed_models_source: CURRENT_ACCOUNT_CODEX_CATALOG
+  selector_model_resolution: CURRENT_RECOMMENDED_DEFAULT
+  selector_reasoning_effort: medium
+  selector_output_schema: /etc/ai-quant/contracts/model-selection-decision.schema.json
+  analysis_output_schema: /etc/ai-quant/contracts/auto-iteration-report.schema.json
+  fresh_selector_session: true
+  fresh_analysis_session: true
+  transcript_handoff_allowed: false
+  third_party_provider_allowed: false
+  silent_model_downgrade_allowed: false
+quota_deferral:
+  selector_quota_action: DEFER
+  analysis_quota_action: DEFER
+  retry_timezone: UTC
+  retry_cron: "10 3 * * *"
+  deferred_state: DEFERRED_QUOTA
+  newer_cycle_state: QUEUED_BEHIND_QUOTA
+  queue_order: FIFO
+  global_max_concurrency: 1
+  preserve_cycle_id: true
+  preserve_scheduled_for: true
+  preserve_data_cutoff: true
+  resume_failed_session: false
+  fallback_to_other_model: false
+  retry_limit: NONE
+  structured_quota_evidence_required: true
+initial_90d_policy: OBSERVE_ONLY
+whitelist:
+  - price_action.bounded_parameters
+  - order_flow.bounded_parameters
+  - universe.weights
+  - universe.debounce
+  - codex.strategy_prompt
+  - knowledge.retrieval_weights
+  - knowledge.card_combinations
+  - entry.non_hard_risk
+  - cost.non_hard_risk
+  - position_management.non_hard_risk
+forbidden:
+  - hard_risk_caps
+  - accounts_or_secrets
+  - execution_code
+  - order_state_machine
+  - tool_allowlist
+  - network_infrastructure
+  - database_infrastructure
+  - container_infrastructure
+  - undefined_strategy_type
+offline_thresholds:
+  min_oos_trades: 500
+  net_expectancy_gt: "0"
+  profit_factor_gte: "1.15"
+  max_drawdown_pct_lte: "5"
+  cost_stress_multiplier: "1.5"
+  cost_stress_expectancy_gte: "0"
+  parameter_perturbation_pct: "20"
+  parameter_perturbation_expectancy_gt: "0"
+  max_symbol_contribution_pct_lte: "40"
+  without_top_symbol_expectancy_gte: "0"
+  risk_adjusted_improvement_gt: "0.05"
+promotion_stages:
+  - {stage: SHADOW, risk_multiplier: "0", minimum_hours: 72}
+  - {stage: LIVE_0_10, risk_multiplier: "0.10", minimum_hours: 24}
+  - {stage: LIVE_0_50, risk_multiplier: "0.50", minimum_hours: 24}
+  - {stage: PROMOTE, risk_multiplier: "1.00", minimum_hours: 0}
+failure_policy:
+  automatic_rollback: true
+  same_cycle_candidate_retry: FORBIDDEN
+  non_whitelist_action: ENGINEERING_PROPOSAL_ONLY

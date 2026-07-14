@@ -1,0 +1,440 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant.local/config/system.schema.json",
+  "title": "System Configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "config_status", "environment", "runtime", "account", "services", "storage", "market_data", "research", "network", "observability", "config_files"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "config_status": { "enum": ["APPROVED_BASELINE", "SIGNED_OVERRIDE"] },
+    "environment": { "enum": ["shadow", "paper", "testnet", "production"] },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["timezone", "default_state", "graceful_shutdown_seconds"],
+      "properties": {
+        "timezone": { "const": "UTC" },
+        "default_state": { "const": "RISK_LOCKED" },
+        "graceful_shutdown_seconds": { "type": "integer", "minimum": 10, "maximum": 120 }
+      }
+    },
+    "account": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["exchange", "product", "owner_mode", "account_count", "position_mode", "margin_type"],
+      "properties": {
+        "exchange": { "const": "BINANCE" },
+        "product": { "const": "USD_M_FUTURES" },
+        "owner_mode": { "const": "SINGLE_USER" },
+        "account_count": { "const": 1 },
+        "position_mode": { "const": "ONE_WAY" },
+        "margin_type": { "const": "CROSSED" }
+      }
+    },
+    "services": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["control_api", "prometheus", "alertmanager"],
+      "properties": {
+        "control_api": { "$ref": "#/$defs/hostLoopbackPublishedService" },
+        "prometheus": { "$ref": "#/$defs/retainedHostLoopbackPublishedService" },
+        "alertmanager": { "$ref": "#/$defs/hostLoopbackPublishedService" }
+      }
+    },
+    "storage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["l2_root", "parquet_compression", "slice_seconds", "max_local_age_hours", "max_local_bytes", "delete_requires_remote_ack", "postgres_is_fact_source", "redis_is_fact_source", "disk_thresholds", "archive_encryption"],
+      "properties": {
+        "l2_root": { "type": "string", "pattern": "^/" },
+        "parquet_compression": { "const": "zstd" },
+        "slice_seconds": { "const": 3600 },
+        "max_local_age_hours": { "const": 72 },
+        "max_local_bytes": { "const": 80000000000 },
+        "delete_requires_remote_ack": { "const": true },
+        "postgres_is_fact_source": { "const": true },
+        "redis_is_fact_source": { "const": false },
+        "disk_thresholds": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["combine_rule", "raw_warning_bytes", "raw_pause_new_entries_bytes", "raw_high_incident_bytes", "filesystem_warning_pct", "filesystem_pause_new_entries_pct", "filesystem_critical_pct", "free_space_warning_bytes", "free_space_pause_new_entries_bytes", "free_space_p0_bytes"],
+          "properties": {
+            "combine_rule": { "const": "ANY" },
+            "raw_warning_bytes": { "const": 60000000000 },
+            "raw_pause_new_entries_bytes": { "const": 72000000000 },
+            "raw_high_incident_bytes": { "const": 80000000000 },
+            "filesystem_warning_pct": { "const": 85 },
+            "filesystem_pause_new_entries_pct": { "const": 90 },
+            "filesystem_critical_pct": { "const": 95 },
+            "free_space_warning_bytes": { "const": 30000000000 },
+            "free_space_pause_new_entries_bytes": { "const": 20000000000 },
+            "free_space_p0_bytes": { "const": 10000000000 }
+          }
+        },
+        "archive_encryption": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["algorithm", "format_version", "recipient_fingerprint", "receipt_signature_algorithm", "receipt_verify_key_fingerprint", "private_key_present_on_vps", "roundtrip_decrypt_sample_required"],
+          "properties": {
+            "algorithm": { "const": "age-x25519" },
+            "format_version": { "const": 1 },
+            "recipient_fingerprint": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "receipt_signature_algorithm": { "const": "Ed25519" },
+            "receipt_verify_key_fingerprint": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "private_key_present_on_vps": { "const": false },
+            "roundtrip_decrypt_sample_required": { "const": true }
+          }
+        }
+      }
+    },
+    "market_data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["order_book_sequence_fields", "invalid_book_blocks_new_entries", "reconnect_requires_snapshot_and_warmup", "exchange_rules_refresh_seconds", "lightweight_market_scope", "rest_base", "websocket_api", "official_connection_contract", "websocket_routes", "merged_um_cm_universe", "universe_l1_collection", "order_flow_trade_semantics", "user_data_stream"],
+      "properties": {
+        "order_book_sequence_fields": { "const": ["U", "u", "pu"] },
+        "invalid_book_blocks_new_entries": { "const": true },
+        "reconnect_requires_snapshot_and_warmup": { "const": true },
+        "exchange_rules_refresh_seconds": { "type": "integer", "minimum": 60, "maximum": 3600 },
+        "lightweight_market_scope": { "const": "ALL_ELIGIBLE_USDT_PERPETUALS" },
+        "rest_base": { "enum": ["https://fapi.binance.com", "https://demo-fapi.binance.com"] },
+        "websocket_api": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "base_url", "independent_connection"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "base_url": { "enum": ["wss://ws-fapi.binance.com/ws-fapi/v1", "wss://testnet.binancefuture.com/ws-fapi/v1"] },
+            "independent_connection": { "const": true }
+          }
+        },
+        "official_connection_contract": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "schema_version", "content_hash", "checked_at", "valid_until", "exact_value_match_required", "expired_or_mismatch_action"],
+          "properties": {
+            "path": { "const": "/etc/ai-quant/host-control/binance-connection-contract.json" },
+            "schema_version": { "const": "1.0.0" },
+            "content_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "checked_at": { "type": "string", "format": "date-time" },
+            "valid_until": { "type": "string", "format": "date-time" },
+            "exact_value_match_required": { "const": true },
+            "expired_or_mismatch_action": { "const": "BLOCK_ALL_NEW_BINANCE_EGRESS_AND_OPEN_P0" }
+          }
+        },
+        "websocket_routes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["public", "market", "private", "unrouted_paths_allowed", "independent_health_and_reconnect", "connection_lifetime_seconds", "rotate_no_later_than_seconds", "minimum_overlap_seconds", "ping_interval_seconds", "pong_deadline_seconds", "control_messages_per_second", "max_streams_per_connection", "url_and_role_in_signed_config", "probe_required"],
+          "properties": {
+            "public": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["base_url", "stream_role", "stream_families"],
+              "properties": {
+                "base_url": { "type": "string", "pattern": "^wss://[A-Za-z0-9.-]+(?::443)?/public$" },
+                "stream_role": { "const": "PUBLIC_HIGH_FREQUENCY" },
+                "stream_families": { "const": ["depth", "bookTicker"] }
+              }
+            },
+            "market": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["base_url", "stream_role", "stream_families"],
+              "properties": {
+                "base_url": { "type": "string", "pattern": "^wss://[A-Za-z0-9.-]+(?::443)?/market$" },
+                "stream_role": { "const": "MARKET_REGULAR" },
+                "stream_families": { "const": ["aggTrade", "markPrice", "kline"] }
+              }
+            },
+            "private": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["base_url", "stream_role", "stream_families"],
+              "properties": {
+                "base_url": { "type": "string", "pattern": "^wss://[A-Za-z0-9.-]+(?::443)?/private$" },
+                "stream_role": { "const": "PRIVATE_USER_DATA" },
+                "stream_families": { "const": ["userData"] }
+              }
+            },
+            "unrouted_paths_allowed": { "const": false },
+            "independent_health_and_reconnect": { "const": true },
+            "connection_lifetime_seconds": { "type": "integer", "minimum": 300, "maximum": 172800 },
+            "rotate_no_later_than_seconds": { "type": "integer", "minimum": 60, "maximum": 172799 },
+            "minimum_overlap_seconds": { "type": "integer", "minimum": 1, "maximum": 3600 },
+            "ping_interval_seconds": { "type": "integer", "minimum": 1, "maximum": 3600 },
+            "pong_deadline_seconds": { "type": "integer", "minimum": 1, "maximum": 3600 },
+            "control_messages_per_second": { "type": "integer", "minimum": 1, "maximum": 1000 },
+            "max_streams_per_connection": { "type": "integer", "minimum": 1, "maximum": 100000 },
+            "url_and_role_in_signed_config": { "const": true },
+            "probe_required": { "const": true }
+          }
+        },
+        "merged_um_cm_universe": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["all_market_streams", "required_payload_fields", "archive_raw_fields", "um_symbol_type", "whitelist_source", "selection_rule", "missing_or_unknown_st_action", "missing_or_invalid_ps_action"],
+          "properties": {
+            "all_market_streams": { "const": ["!miniTicker@arr", "!bookTicker"] },
+            "required_payload_fields": { "const": ["st", "ps"] },
+            "archive_raw_fields": { "const": ["st", "ps"] },
+            "um_symbol_type": { "const": 1 },
+            "whitelist_source": { "const": "CURRENT_UM_EXCHANGE_INFO" },
+            "selection_rule": { "const": "ST_EQUALS_1_INTERSECT_CURRENT_UM_EXCHANGE_INFO" },
+            "missing_or_unknown_st_action": { "const": "FAIL_CLOSED" },
+            "missing_or_invalid_ps_action": { "const": "FAIL_CLOSED" }
+          }
+        },
+        "universe_l1_collection": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["eligible_scope", "turnover_activity_source", "turnover_activity_route", "kline_interval", "quote_notional_field", "trade_count_field", "closed_bars_required", "allow_24h_rolling_ticker_delta", "spread_source", "spread_route", "spread_sample_interval_seconds", "spread_statistic", "depth_primary_source", "depth_primary_levels", "depth_route", "depth_update_interval_ms", "deep_fallback_source", "deep_fallback_snapshot_endpoint", "deep_fallback_snapshot_limit", "deep_fallback_max_symbols", "deep_fallback_priority", "depth_band_bps", "depth_sample_interval_seconds", "depth_statistic", "window_slots", "required_complete_slots", "depth_band_coverage_rule", "partial_band_failure_action", "insufficient_depth_action", "valid_snapshot_insufficient_candidates_action", "globally_invalid_snapshot_action", "archive_rank_samples", "archive_all_universe_raw_depth_diffs", "public_stream_shard_max", "rate_budget_authority", "rate_budget_config_hash_required", "request_priority", "universe_subcap_pct_of_total_limit", "subcap_within_normal_admission_bucket", "reserve_borrow_forbidden", "hardcoded_absolute_weight_limits", "stream_budget_rule", "capacity_gate_required", "independent_collector_required_for_all_eligible_exact_depth"],
+          "properties": {
+            "eligible_scope": { "const": "CURRENT_UM_USDT_PERPETUAL_WHITELIST" },
+            "turnover_activity_source": { "const": "SYMBOL_KLINE_1M_CLOSED" },
+            "turnover_activity_route": { "const": "/market" },
+            "kline_interval": { "const": "1m" },
+            "quote_notional_field": { "const": "k.q" },
+            "trade_count_field": { "const": "k.n" },
+            "closed_bars_required": { "const": 15 },
+            "allow_24h_rolling_ticker_delta": { "const": false },
+            "spread_source": { "const": "ALL_MARKET_BOOK_TICKER" },
+            "spread_route": { "const": "/public" },
+            "spread_sample_interval_seconds": { "const": 1 },
+            "spread_statistic": { "const": "MEDIAN_OF_900_UTC_ALIGNED_SAMPLES" },
+            "depth_primary_source": { "const": "SYMBOL_PARTIAL_DEPTH20" },
+            "depth_primary_levels": { "const": 20 },
+            "depth_route": { "const": "/public" },
+            "depth_update_interval_ms": { "const": 500 },
+            "deep_fallback_source": { "const": "SYMBOL_DIFF_DEPTH" },
+            "deep_fallback_snapshot_endpoint": { "const": "/fapi/v1/depth" },
+            "deep_fallback_snapshot_limit": { "const": 1000 },
+            "deep_fallback_max_symbols": { "const": 40 },
+            "deep_fallback_priority": { "const": ["MANAGED_POSITION_SET", "CURRENT_TOP10", "CURRENT_RANK_11_15", "CHEAP_PREFILTER_SCORE_DESC_SYMBOL_ASC"] },
+            "depth_band_bps": { "const": 10 },
+            "depth_sample_interval_seconds": { "const": 1 },
+            "depth_statistic": { "const": "TWAP_OF_900_UTC_ALIGNED_SAMPLES" },
+            "window_slots": { "const": 900 },
+            "required_complete_slots": { "const": 896 },
+            "depth_band_coverage_rule": { "const": "BOTH_SIDES_REACH_10BPS_FROM_SLOT_MID" },
+            "partial_band_failure_action": { "const": "ENTER_H40_DEEP_FALLBACK_OR_INVALID" },
+            "insufficient_depth_action": { "const": "SYMBOL_WINDOW_INVALID_NO_ZERO_NO_EXTRAPOLATION" },
+            "valid_snapshot_insufficient_candidates_action": { "const": "PUBLISH_REDUCED_POOL_AND_ALERT" },
+            "globally_invalid_snapshot_action": { "const": "FREEZE_LAST_GOOD_MEMBERSHIP_MANAGEMENT_ONLY_BLOCK_NEW_ENTRIES_AND_ALERT" },
+            "archive_rank_samples": { "const": true },
+            "archive_all_universe_raw_depth_diffs": { "const": false },
+            "public_stream_shard_max": { "const": 250 },
+            "rate_budget_authority": { "const": "SIGNED_RATE_BUDGET_CONFIG_AND_ENDPOINT_COST_CATALOG" },
+            "rate_budget_config_hash_required": { "const": true },
+            "request_priority": { "const": "MARKET_DATA_SNAPSHOT" },
+            "universe_subcap_pct_of_total_limit": { "const": "60.00" },
+            "subcap_within_normal_admission_bucket": { "const": true },
+            "reserve_borrow_forbidden": { "const": true },
+            "hardcoded_absolute_weight_limits": { "const": false },
+            "stream_budget_rule": { "const": "PUBLIC_ONE_DEPTH20_OR_DEEP_DIFF_PER_UM_SYMBOL_PLUS_ALL_BOOK_TICKER_MARKET_ONE_KLINE1M_PER_UM_SYMBOL_EACH_CONNECTION_WITHIN_SIGNED_CONNECTION_CONTRACT_LIMIT" },
+            "capacity_gate_required": { "const": true },
+            "independent_collector_required_for_all_eligible_exact_depth": { "const": true }
+          }
+        },
+        "order_flow_trade_semantics": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["standard_depth_includes_rpi", "subscribe_rpi_depth", "aggregate_trade_raw_fields", "feature_quantity_field", "q_includes_rpi", "nq_normal_only", "allow_q_fallback", "missing_or_invalid_nq_action", "absent_ps_archival"],
+          "properties": {
+            "standard_depth_includes_rpi": { "const": false },
+            "subscribe_rpi_depth": { "const": false },
+            "aggregate_trade_raw_fields": { "const": ["q", "nq", "st", "ps"] },
+            "feature_quantity_field": { "const": "nq" },
+            "q_includes_rpi": { "const": true },
+            "nq_normal_only": { "const": true },
+            "allow_q_fallback": { "const": false },
+            "missing_or_invalid_nq_action": { "const": "FRAME_INVALID" },
+            "absent_ps_archival": { "const": "EXPLICIT_NULL_DO_NOT_SYNTHESIZE" }
+          }
+        },
+        "user_data_stream": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "rest_endpoint", "create_method", "keepalive_method", "close_method", "validity_seconds", "keepalive_interval_seconds", "invalid_listen_key_error", "expired_event", "websocket_route", "connection_url_template", "subscribed_events", "events_query_value", "event_separator", "replacement_requires_new_listen_key", "connection_lifetime_seconds", "rotate_no_later_than_seconds", "minimum_overlap_seconds", "cross_type_ordering_primary_field", "dedup_identity_fields", "delivery_audit_field", "rotation_watermark_required"],
+          "properties": {
+            "mode": { "const": "REST_LISTEN_KEY" },
+            "rest_endpoint": { "const": "/fapi/v1/listenKey" },
+            "create_method": { "const": "POST" },
+            "keepalive_method": { "const": "PUT" },
+            "close_method": { "const": "DELETE" },
+            "validity_seconds": { "type": "integer", "minimum": 60, "maximum": 86400 },
+            "keepalive_interval_seconds": { "type": "integer", "minimum": 30, "maximum": 86399 },
+            "invalid_listen_key_error": { "const": -1125 },
+            "expired_event": { "const": "listenKeyExpired" },
+            "websocket_route": { "const": "/private" },
+            "connection_url_template": { "const": "{private_base}/ws?listenKey={listenKey}&events={events}" },
+            "subscribed_events": { "const": ["ORDER_TRADE_UPDATE", "ACCOUNT_UPDATE", "ALGO_UPDATE"] },
+            "events_query_value": { "const": "ORDER_TRADE_UPDATE/ACCOUNT_UPDATE/ALGO_UPDATE" },
+            "event_separator": { "const": "/" },
+            "replacement_requires_new_listen_key": { "const": true },
+            "connection_lifetime_seconds": { "type": "integer", "minimum": 300, "maximum": 172800 },
+            "rotate_no_later_than_seconds": { "type": "integer", "minimum": 60, "maximum": 172799 },
+            "minimum_overlap_seconds": { "type": "integer", "minimum": 1, "maximum": 3600 },
+            "cross_type_ordering_primary_field": { "const": "E" },
+            "dedup_identity_fields": { "const": ["raw_event_type", "stable_event_id"] },
+            "delivery_audit_field": { "const": "received_at" },
+            "rotation_watermark_required": { "const": true }
+          }
+        }
+      }
+    },
+    "research": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled_on_production_vps", "codex_strategy_enabled_on_production_vps", "openai_codex_required_for_primary", "monthly_research_enabled_on_production_vps"],
+      "properties": {
+        "enabled_on_production_vps": { "const": false },
+        "codex_strategy_enabled_on_production_vps": { "const": true },
+        "openai_codex_required_for_primary": { "const": true },
+        "monthly_research_enabled_on_production_vps": { "const": false }
+      }
+    },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outbound_allowlist_mode", "egress_policy_schema_version", "egress_enforcement", "deny_cross_host_redirects", "maintenance_egress_default_enabled", "remote_admin_requires_ssh_tunnel", "static_source_ip_required_for_live"],
+      "properties": {
+        "outbound_allowlist_mode": { "const": true },
+        "egress_policy_schema_version": { "const": "1.0.0" },
+        "egress_enforcement": { "const": "APP_AND_HOST" },
+        "deny_cross_host_redirects": { "const": true },
+        "maintenance_egress_default_enabled": { "const": false },
+        "remote_admin_requires_ssh_tunnel": { "const": true },
+        "static_source_ip_required_for_live": { "const": true }
+      }
+    },
+    "observability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metrics_include_symbol_labels", "structured_log_format", "redact_secrets", "external_heartbeat_required_for_live", "resource_thresholds", "external_heartbeat"],
+      "properties": {
+        "metrics_include_symbol_labels": { "const": false },
+        "structured_log_format": { "const": "json" },
+        "redact_secrets": { "const": true },
+        "external_heartbeat_required_for_live": { "const": true },
+        "resource_thresholds": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["combine_rule", "cpu_defer_noncritical_pct", "cpu_defer_duration_seconds", "cpu_pause_new_entries_pct", "cpu_pause_duration_seconds", "memory_warning_bytes", "memory_pause_new_entries_bytes", "swap_thrashing_pauses_new_entries"],
+          "properties": {
+            "combine_rule": { "const": "ANY" },
+            "cpu_defer_noncritical_pct": { "const": 70 },
+            "cpu_defer_duration_seconds": { "const": 300 },
+            "cpu_pause_new_entries_pct": { "const": 85 },
+            "cpu_pause_duration_seconds": { "const": 180 },
+            "memory_warning_bytes": { "const": 9663676416 },
+            "memory_pause_new_entries_bytes": { "const": 11274289152 },
+            "swap_thrashing_pauses_new_entries": { "const": true }
+          }
+        },
+        "external_heartbeat": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "signature_algorithm", "canonicalization", "receiver_id", "interval_seconds", "request_timeout_seconds", "missing_intervals_alert", "replay_window_seconds"],
+          "properties": {
+            "mode": { "const": "SIGNED_OUTBOUND_PUSH" },
+            "signature_algorithm": { "const": "Ed25519" },
+            "canonicalization": { "const": "RFC8785_JCS" },
+            "receiver_id": { "type": "string", "minLength": 8, "maxLength": 128 },
+            "interval_seconds": { "const": 30 },
+            "request_timeout_seconds": { "const": 5 },
+            "missing_intervals_alert": { "const": 3 },
+            "replay_window_seconds": { "const": 120 }
+          }
+        }
+      }
+    },
+    "config_files": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["risk", "universe", "price_action", "strategy_orchestration", "auto_iteration", "rate_budget", "endpoint_cost_catalog", "mandatory_endpoint_inventory", "connection_contract", "capability_trust_bundle", "network_egress"],
+      "properties": {
+        "risk": { "type": "string", "pattern": "^/" },
+        "universe": { "type": "string", "pattern": "^/" },
+        "price_action": { "type": "string", "pattern": "^/" },
+        "strategy_orchestration": { "type": "string", "pattern": "^/" },
+        "auto_iteration": { "type": "string", "pattern": "^/" },
+        "rate_budget": { "type": "string", "pattern": "^/" },
+        "endpoint_cost_catalog": { "type": "string", "pattern": "^/" },
+        "mandatory_endpoint_inventory": { "type": "string", "pattern": "^/" },
+        "connection_contract": { "type": "string", "pattern": "^/" },
+        "capability_trust_bundle": { "type": "string", "pattern": "^/" },
+        "network_egress": { "type": "string", "pattern": "^/" }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "environment": { "enum": ["shadow", "paper", "production"] } }, "required": ["environment"] },
+      "then": {
+        "properties": {
+          "market_data": {
+            "properties": {
+              "rest_base": { "const": "https://fapi.binance.com" },
+              "websocket_api": { "properties": { "base_url": { "const": "wss://ws-fapi.binance.com/ws-fapi/v1" } } },
+              "websocket_routes": {
+                "properties": {
+                  "public": { "properties": { "base_url": { "const": "wss://fstream.binance.com/public" } } },
+                  "market": { "properties": { "base_url": { "const": "wss://fstream.binance.com/market" } } },
+                  "private": { "properties": { "base_url": { "const": "wss://fstream.binance.com/private" } } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "environment": { "const": "testnet" } }, "required": ["environment"] },
+      "then": {
+        "properties": {
+          "market_data": {
+            "properties": {
+              "rest_base": { "const": "https://demo-fapi.binance.com" },
+              "websocket_api": { "properties": { "base_url": { "const": "wss://testnet.binancefuture.com/ws-fapi/v1" } } },
+              "websocket_routes": {
+                "properties": {
+                  "public": { "properties": { "base_url": { "const": "wss://fstream.binancefuture.com/public" } } },
+                  "market": { "properties": { "base_url": { "const": "wss://fstream.binancefuture.com/market" } } },
+                  "private": { "properties": { "base_url": { "const": "wss://fstream.binancefuture.com/private" } } }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "hostLoopbackPublishedService": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["container_bind_host", "container_port", "host_publish_host", "host_publish_port"],
+      "properties": {
+        "container_bind_host": { "const": "0.0.0.0" },
+        "container_port": { "type": "integer", "minimum": 1024, "maximum": 65535 },
+        "host_publish_host": { "enum": ["127.0.0.1", "::1"] },
+        "host_publish_port": { "type": "integer", "minimum": 1024, "maximum": 65535 }
+      }
+    },
+    "retainedHostLoopbackPublishedService": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["container_bind_host", "container_port", "host_publish_host", "host_publish_port", "retention_days", "retention_max_bytes"],
+      "properties": {
+        "container_bind_host": { "const": "0.0.0.0" },
+        "container_port": { "type": "integer", "minimum": 1024, "maximum": 65535 },
+        "host_publish_host": { "enum": ["127.0.0.1", "::1"] },
+        "host_publish_port": { "type": "integer", "minimum": 1024, "maximum": 65535 },
+        "retention_days": { "const": 7 },
+        "retention_max_bytes": { "const": 8000000000 }
+      }
+    }
+  }
+}

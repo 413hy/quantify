@@ -1,0 +1,1 @@
+"""Host rate authority primitives."""

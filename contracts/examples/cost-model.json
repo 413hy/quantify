@@ -1,0 +1,84 @@
+{
+  "schema_version": "1.0.0",
+  "model_hash": "8dcf8b3152925b6b96e79771b92f7687219010ae4c8d6533ce76c497ba33a864",
+  "content": {
+    "model_id": "cost-model-experimental-v1",
+    "created_at": "2026-07-16T00:00:00Z",
+    "status": "EXPERIMENTAL_LIVE",
+    "currency": "USDT",
+    "training_manifest_hash": "33a970662c257c5bc70994b844279cd1a9821e2a1a2fa29ca2a6ec7ffaed3826",
+    "training_window": {
+      "start": "2026-07-13T00:00:00Z",
+      "end": "2026-07-16T00:00:00Z",
+      "purpose": "CALIBRATION_3D"
+    },
+    "gross_edge_estimator": {
+      "method": "SHRUNK_MARKOUT_CELL_MEAN_V1",
+      "dimensions": ["setup_type", "pa_regime", "liquidity_bucket", "side", "entry_path"],
+      "horizon_seconds_by_setup": {
+        "T1_TREND_PULLBACK_CONTINUATION": 300,
+        "B1_BREAKOUT_FOLLOW_THROUGH": 180,
+        "B2_BREAK_RETEST": 300,
+        "R1_RANGE_EDGE_REJECTION": 180
+      },
+      "label": "DIRECTIONAL_MID_MARKOUT_GROSS_BPS",
+      "path_rule": "FIRST_TOUCH_TARGET_OR_STOP_ELSE_HORIZON_MARK",
+      "winsorize_lower_quantile": "0.05",
+      "winsorize_upper_quantile": "0.95",
+      "shrinkage_parent_order": ["drop_entry_path", "drop_side", "drop_liquidity_bucket", "setup_only", "global"],
+      "shrinkage_strength_observations": 50,
+      "minimum_cell_observations": 20,
+      "minimum_parent_observations": 50,
+      "lookup_table_hash": "6f408d86cabe8722d2e9f03f5bfd1b2ce5538a11c950c4c9cb661d7dd1b3fd6b",
+      "insufficient_observations_action": "REJECT_ENTRY"
+    },
+    "fees": {
+      "source": "BINANCE_ACCOUNT_COMMISSION_SNAPSHOT",
+      "maker_and_taker_required": true,
+      "maximum_snapshot_age_seconds": 3600,
+      "missing_or_stale_action": "REJECT_ENTRY",
+      "formula": "entry_expected_fee_bps=p_maker*maker_fee_bps+(1-p_maker)*taker_fee_bps;expected_fee_bps=entry_expected_fee_bps+expected_exit_fee_bps"
+    },
+    "slippage": {
+      "method": "L2_REPLAY_ADVERSE_SLIPPAGE_QUANTILE_V1",
+      "quantile": "0.9",
+      "dimensions": ["entry_path", "liquidity_bucket", "notional_bucket", "side"],
+      "minimum_observations": 50,
+      "snapshot_hash": "1faec4eab76b6055384cd5c86e5bc46ef24fc88ca0f41012c4ade4b72c1e86f4",
+      "fallback": "MAX_PARENT_QUANTILE_OR_REJECT"
+    },
+    "adverse_selection": {
+      "method": "POST_FILL_NEGATIVE_MARKOUT_QUANTILE_V1",
+      "markout_horizons_ms": [1000, 5000],
+      "quantile": "0.75",
+      "dimensions": ["setup_type", "entry_path", "liquidity_bucket", "side"],
+      "minimum_observations": 50,
+      "snapshot_hash": "82c4b57939ea9038a919ee6429c3d9b766ff498fa426ad1512bf13b49a0410b8",
+      "fallback": "MAX_PARENT_QUANTILE_OR_REJECT"
+    },
+    "funding": {
+      "source": "CURRENT_MARK_PRICE_FUNDING_SNAPSHOT",
+      "apply_rule": "APPLY_ONLY_IF_POSITION_INTERVAL_CAN_CROSS_FUNDING_TIMESTAMP",
+      "missing_or_stale_action": "REJECT_ENTRY_IF_CROSSING_POSSIBLE"
+    },
+    "failure_and_cancel": {
+      "include_maker_nonfill": true,
+      "include_cancel_race": true,
+      "include_maker_to_taker": true,
+      "method": "EMPIRICAL_EXPECTED_OPPORTUNITY_COST_V1",
+      "snapshot_hash": "d7cd8d9001b13afd80fe340ff698c6ec8514554e9d3f392d09cfa7a68496142f"
+    },
+    "total_cost_formula": "total_cost_bps=expected_fee_bps+slippage_bps+adverse_selection_bps+funding_bps+failure_cancel_bps",
+    "staleness_policy": {
+      "decision_max_age_ms": 1000,
+      "market_snapshot_max_age_ms": 500,
+      "exchange_filter_snapshot_max_age_seconds": 900,
+      "funding_snapshot_max_age_seconds": 5,
+      "clock_source": "UTC_SYNCHRONIZED_EVENT_TIME",
+      "stale_action": "REJECT_ENTRY",
+      "frozen_artifact_policy": "MODEL_AND_EMPIRICAL_TABLES_CHANGE_ONLY_BY_SIGNED_STRATEGY_RELEASE"
+    },
+    "fallback_policy": "NO_ZERO_COST_OR_MISSING_COMPONENT_FALLBACK",
+    "automatic_update_forbidden": true
+  }
+}

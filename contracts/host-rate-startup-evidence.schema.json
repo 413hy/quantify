@@ -1,0 +1,221 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant.local/contracts/host-rate-startup-evidence.schema.json",
+  "title": "Host Rate Control And Binance Egress Startup Evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "evidence_hash", "content", "signature"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "evidence_hash": { "$ref": "#/$defs/sha256" },
+    "content": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidence_id", "evidence_status", "stage", "enabled_environments", "enabled_authorities", "host_boot_id", "issued_at", "expires_at", "release_binding", "artifact_binding", "database_authority", "sockets", "network_boundary", "authority_observations", "nonce_permit_integrity", "bootstrap_chain", "readiness"],
+      "properties": {
+        "evidence_id": { "$ref": "#/$defs/id" },
+        "evidence_status": { "enum": ["UNVALIDATED_ENGINEERING_BASELINE", "SIGNED_READY"] },
+        "stage": { "enum": ["testnet", "calibration", "validation", "live", "recovery", "upgrade"] },
+        "enabled_environments": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": ["testnet", "shadow", "paper", "production"] } },
+        "enabled_authorities": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/authority" } },
+        "host_boot_id": { "$ref": "#/$defs/id" },
+        "issued_at": { "type": "string", "format": "date-time" },
+        "expires_at": { "type": "string", "format": "date-time" },
+        "release_binding": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["host_control_release_manifest_hash", "rate_allocator_image_digest", "rate_allocator_compose_hash", "gateway_image_digest", "gateway_compose_hash", "gateway_config_hash"],
+          "properties": {
+            "host_control_release_manifest_hash": { "$ref": "#/$defs/sha256" },
+            "rate_allocator_image_digest": { "$ref": "#/$defs/imageDigest" },
+            "rate_allocator_compose_hash": { "$ref": "#/$defs/sha256" },
+            "gateway_image_digest": { "$ref": "#/$defs/imageDigest" },
+            "gateway_compose_hash": { "$ref": "#/$defs/sha256" },
+            "gateway_config_hash": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "artifact_binding": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["verification_keyring_schema_hash", "host_config_trust_root_hash", "release_signing_trust_root_hash", "rate_budget_schema_hash", "rate_budget_content_hash", "endpoint_catalog_schema_hash", "endpoint_catalog_content_hash", "mandatory_inventory_schema_hash", "mandatory_inventory_content_hash", "connection_contract_schema_hash", "connection_contract_content_hash", "trust_bundle_schema_hash", "trust_bundle_content_hash", "network_egress_schema_hash", "network_egress_content_hash", "rate_uds_schema_hash", "gateway_request_schema_hash", "gateway_ipc_schema_hash", "startup_evidence_schema_hash"],
+          "properties": {
+            "verification_keyring_schema_hash": { "$ref": "#/$defs/sha256" },
+            "host_config_trust_root_hash": { "$ref": "#/$defs/sha256" },
+            "release_signing_trust_root_hash": { "$ref": "#/$defs/sha256" },
+            "rate_budget_schema_hash": { "$ref": "#/$defs/sha256" },
+            "rate_budget_content_hash": { "$ref": "#/$defs/sha256" },
+            "endpoint_catalog_schema_hash": { "$ref": "#/$defs/sha256" },
+            "endpoint_catalog_content_hash": { "$ref": "#/$defs/sha256" },
+            "mandatory_inventory_schema_hash": { "$ref": "#/$defs/sha256" },
+            "mandatory_inventory_content_hash": { "$ref": "#/$defs/sha256" },
+            "connection_contract_schema_hash": { "$ref": "#/$defs/sha256" },
+            "connection_contract_content_hash": { "$ref": "#/$defs/sha256" },
+            "trust_bundle_schema_hash": { "$ref": "#/$defs/sha256" },
+            "trust_bundle_content_hash": { "$ref": "#/$defs/sha256" },
+            "network_egress_schema_hash": { "$ref": "#/$defs/sha256" },
+            "network_egress_content_hash": { "$ref": "#/$defs/sha256" },
+            "rate_uds_schema_hash": { "$ref": "#/$defs/sha256" },
+            "gateway_request_schema_hash": { "$ref": "#/$defs/sha256" },
+            "gateway_ipc_schema_hash": { "$ref": "#/$defs/sha256" },
+            "startup_evidence_schema_hash": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "database_authority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["database", "migration_head", "wal_recovery_point", "fencing_epoch", "fencing_owner_instance_id", "read_write", "independent_business_database"],
+          "properties": {
+            "database": { "const": "aiq_host_rate_control" },
+            "migration_head": { "$ref": "#/$defs/id" },
+            "wal_recovery_point": { "$ref": "#/$defs/id" },
+            "fencing_epoch": { "type": "integer", "minimum": 1 },
+            "fencing_owner_instance_id": { "$ref": "#/$defs/id" },
+            "read_write": { "const": true },
+            "independent_business_database": { "const": true }
+          }
+        },
+        "sockets": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["rate_allocator", "binance_gateway"],
+          "properties": {
+            "rate_allocator": { "$ref": "#/$defs/socketEvidence" },
+            "binance_gateway": { "$ref": "#/$defs/socketEvidence" }
+          }
+        },
+        "network_boundary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["binance_gateway_instance_count", "business_container_binance_route_count", "gateway_is_only_binance_socket_creator", "gateway_has_api_secret", "gateway_has_capability_signing_key", "tcp_ipc_fallback_enabled", "effective_policy_hash"],
+          "properties": {
+            "binance_gateway_instance_count": { "const": 1 },
+            "business_container_binance_route_count": { "const": 0 },
+            "gateway_is_only_binance_socket_creator": { "const": true },
+            "gateway_has_api_secret": { "const": false },
+            "gateway_has_capability_signing_key": { "const": false },
+            "tcp_ipc_fallback_enabled": { "const": false },
+            "effective_policy_hash": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "authority_observations": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/authorityObservation" }
+        },
+        "nonce_permit_integrity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["outstanding_reserved_permit_count", "duplicate_capability_nonce_count", "consumed_without_gateway_count", "outcome_missing_past_deadline_count", "integrity_query_hash"],
+          "properties": {
+            "outstanding_reserved_permit_count": { "type": "integer", "minimum": 0 },
+            "duplicate_capability_nonce_count": { "const": 0 },
+            "consumed_without_gateway_count": { "const": 0 },
+            "outcome_missing_past_deadline_count": { "const": 0 },
+            "integrity_query_hash": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "bootstrap_chain": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["reserve_request_hashes", "reserve_decision_hashes", "gateway_request_hashes", "consume_request_hashes", "consume_decision_hashes", "send_outcome_hashes", "observation_hashes"],
+              "properties": {
+                "reserve_request_hashes": { "$ref": "#/$defs/hashPair" },
+                "reserve_decision_hashes": { "$ref": "#/$defs/hashPair" },
+                "gateway_request_hashes": { "$ref": "#/$defs/hashPair" },
+                "consume_request_hashes": { "$ref": "#/$defs/hashPair" },
+                "consume_decision_hashes": { "$ref": "#/$defs/hashPair" },
+                "send_outcome_hashes": { "$ref": "#/$defs/hashPair" },
+                "observation_hashes": { "$ref": "#/$defs/hashPair" }
+              }
+            }
+          ]
+        },
+        "readiness": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["rate_allocator_ready", "gateway_ready", "catalog_runtime_signed", "artifacts_not_expired", "blocked_authority_count", "result"],
+          "properties": {
+            "rate_allocator_ready": { "const": true },
+            "gateway_ready": { "const": true },
+            "catalog_runtime_signed": { "const": true },
+            "artifacts_not_expired": { "const": true },
+            "blocked_authority_count": { "const": 0, "$comment": "只统计 enabled_authorities；任何 enabled authority 被阻断都不能 READY。" },
+            "result": { "const": "READY" }
+          }
+        }
+      }
+    },
+    "signature": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["algorithm", "key_id", "signed_at", "nonce", "signature_base64"],
+          "properties": {
+            "algorithm": { "const": "Ed25519" },
+            "key_id": { "$ref": "#/$defs/id" },
+            "signed_at": { "type": "string", "format": "date-time" },
+            "nonce": { "$ref": "#/$defs/id" },
+            "signature_base64": { "type": "string", "pattern": "^[A-Za-z0-9+/]{86}==$" }
+          }
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "content": { "properties": { "evidence_status": { "const": "SIGNED_READY" } }, "required": ["evidence_status"] } }, "required": ["content"] },
+      "then": { "properties": { "signature": { "type": "object" } } },
+      "else": { "properties": { "signature": { "type": "null" } } }
+    }
+  ],
+  "$comment": "evidence_hash=SHA-256(RFC8785 JCS(content))。SIGNED_READY 最长300秒。loader 必须验证 stage/environment/authority 合法组合；validation 必须同时启用 shadow+testnet、production FAPI/FSTREAM 与 Testnet FAPI/FSTREAM。authority_observations 必须与 enabled_authorities 一一对应：每个 FAPI 有 fresh server time/rate limit，每个 FSTREAM 有未过期 connection profile。任一绑定变化立即失效。",
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{8,128}$" },
+    "authority": { "enum": ["BINANCE_PRODUCTION_FAPI", "BINANCE_PRODUCTION_FSTREAM", "BINANCE_TESTNET_FAPI", "BINANCE_TESTNET_FSTREAM"] },
+    "imageDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "hashPair": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "$ref": "#/$defs/sha256" } },
+    "socketEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "inode", "mode", "owner_uid", "owner_gid", "peer_acl_hash", "so_peercred_enforced"],
+      "properties": {
+        "path": { "enum": ["/run/ai-quant-rate/rate.sock", "/run/ai-quant-egress/gateway.sock"] },
+        "inode": { "type": "integer", "minimum": 1 },
+        "mode": { "const": "0660" },
+        "owner_uid": { "type": "integer", "minimum": 0 },
+        "owner_gid": { "type": "integer", "minimum": 1 },
+        "peer_acl_hash": { "$ref": "#/$defs/sha256" },
+        "so_peercred_enforced": { "const": true }
+      }
+    },
+    "authorityObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["endpoint_authority", "observed_at", "server_time_observation_id", "server_time_observation_hash", "exchange_rate_limit_observation_id", "exchange_rate_limit_observation_hash", "connection_profile_id", "connection_contract_hash"],
+      "properties": {
+        "endpoint_authority": { "$ref": "#/$defs/authority" },
+        "observed_at": { "type": "string", "format": "date-time" },
+        "server_time_observation_id": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/id" }] },
+        "server_time_observation_hash": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/sha256" }] },
+        "exchange_rate_limit_observation_id": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/id" }] },
+        "exchange_rate_limit_observation_hash": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/sha256" }] },
+        "connection_profile_id": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/id" }] },
+        "connection_contract_hash": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/sha256" }] }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "endpoint_authority": { "enum": ["BINANCE_PRODUCTION_FAPI", "BINANCE_TESTNET_FAPI"] } }, "required": ["endpoint_authority"] },
+          "then": { "properties": { "server_time_observation_id": { "$ref": "#/$defs/id" }, "server_time_observation_hash": { "$ref": "#/$defs/sha256" }, "exchange_rate_limit_observation_id": { "$ref": "#/$defs/id" }, "exchange_rate_limit_observation_hash": { "$ref": "#/$defs/sha256" }, "connection_profile_id": { "type": "null" }, "connection_contract_hash": { "type": "null" } } },
+          "else": { "properties": { "server_time_observation_id": { "type": "null" }, "server_time_observation_hash": { "type": "null" }, "exchange_rate_limit_observation_id": { "type": "null" }, "exchange_rate_limit_observation_hash": { "type": "null" }, "connection_profile_id": { "$ref": "#/$defs/id" }, "connection_contract_hash": { "$ref": "#/$defs/sha256" } } }
+        }
+      ]
+    }
+  }
+}

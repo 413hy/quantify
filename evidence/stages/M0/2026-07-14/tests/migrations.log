@@ -1,0 +1,165 @@
+docker build --pull=false --provenance=false -f docker/app.Dockerfile -t aiq-app:m0 .
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from app.Dockerfile
+#1 transferring dockerfile: 897B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/python@sha256:a5d9a95a366e9cb09c32e2623ae98320433f169b2974b451969459ca585e009a
+#2 DONE 1.0s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 109B done
+#3 DONE 0.0s
+
+#4 [internal] load build context
+#4 transferring context: 11.18kB 0.0s done
+#4 DONE 0.0s
+
+#5 [1/9] FROM docker.io/library/python@sha256:a5d9a95a366e9cb09c32e2623ae98320433f169b2974b451969459ca585e009a
+#5 resolve docker.io/library/python@sha256:a5d9a95a366e9cb09c32e2623ae98320433f169b2974b451969459ca585e009a 0.0s done
+#5 DONE 0.0s
+
+#6 [2/9] RUN python -m pip install --no-cache-dir "uv==0.11.28"     && groupadd --system --gid 65532 aiq     && useradd --system --uid 65532 --gid 65532 --home-dir /nonexistent --shell /usr/sbin/nologin aiq
+#6 CACHED
+
+#7 [3/9] WORKDIR /app
+#7 CACHED
+
+#8 [4/9] COPY --chown=65532:65532 pyproject.toml uv.lock README.md ./
+#8 DONE 0.1s
+
+#9 [5/9] COPY --chown=65532:65532 src ./src
+#9 DONE 0.0s
+
+#10 [6/9] RUN uv sync --frozen --no-dev --no-editable
+#10 0.356 Using CPython 3.12.13 interpreter at: /usr/local/bin/python3
+#10 0.356 Creating virtual environment at: .venv
+#10 0.372    Building ai-quant-system @ file:///app
+#10 0.478 Downloading sqlalchemy (3.2MiB)
+#10 0.479 Downloading polars-runtime-32 (49.0MiB)
+#10 0.479 Downloading pydantic-core (1.9MiB)
+#10 0.480 Downloading pyarrow (44.7MiB)
+#10 0.481 Downloading psycopg-binary (6.4MiB)
+#10 0.481 Downloading zstandard (4.8MiB)
+#10 0.890  Downloaded pydantic-core
+#10 1.054  Downloaded zstandard
+#10 1.488  Downloaded psycopg-binary
+#10 1.733  Downloaded sqlalchemy
+#10 2.511  Downloaded polars-runtime-32
+#10 2.638  Downloaded pyarrow
+#10 2.787       Built ai-quant-system @ file:///app
+#10 2.789 Prepared 43 packages in 2.42s
+#10 3.175 Installed 43 packages in 385ms
+#10 5.528 Bytecode compiled 1456 files in 2.35s
+#10 5.528  + ai-quant-system==0.1.0 (from file:///app)
+#10 5.528  + alembic==1.18.5
+#10 5.528  + annotated-doc==0.0.4
+#10 5.528  + annotated-types==0.7.0
+#10 5.528  + anyio==4.14.2
+#10 5.528  + attrs==26.1.0
+#10 5.528  + click==8.4.2
+#10 5.528  + fastapi==0.139.0
+#10 5.528  + greenlet==3.5.3
+#10 5.528  + h11==0.16.0
+#10 5.528  + idna==3.18
+#10 5.528  + jsonschema==4.26.0
+#10 5.528  + jsonschema-path==0.5.0
+#10 5.528  + jsonschema-specifications==2025.9.1
+#10 5.528  + lazy-object-proxy==1.12.0
+#10 5.528  + mako==1.3.12
+#10 5.528  + markupsafe==3.0.3
+#10 5.528  + openapi-schema-validator==0.9.0
+#10 5.528  + openapi-spec-validator==0.9.0
+#10 5.528  + pathable==0.6.0
+#10 5.528  + polars==1.42.1
+#10 5.528  + polars-runtime-32==1.42.1
+#10 5.528  + psycopg==3.3.4
+#10 5.528  + psycopg-binary==3.3.4
+#10 5.528  + pyarrow==25.0.0
+#10 5.528  + pydantic==2.13.4
+#10 5.528  + pydantic-core==2.46.4
+#10 5.528  + pydantic-settings==2.14.2
+#10 5.528  + python-dotenv==1.2.2
+#10 5.528  + pyyaml==6.0.3
+#10 5.528  + redis==8.0.1
+#10 5.528  + referencing==0.37.0
+#10 5.528  + rfc3339-validator==0.1.4
+#10 5.528  + rfc8785==0.1.4
+#10 5.528  + rpds-py==2026.6.3
+#10 5.528  + six==1.17.0
+#10 5.528  + sqlalchemy==2.0.51
+#10 5.528  + starlette==1.3.1
+#10 5.529  + structlog==26.1.0
+#10 5.529  + typing-extensions==4.16.0
+#10 5.529  + typing-inspection==0.4.2
+#10 5.529  + uvicorn==0.51.0
+#10 5.529  + zstandard==0.25.0
+#10 DONE 9.1s
+
+#11 [7/9] COPY --chown=65532:65532 contracts ./contracts
+#11 DONE 0.1s
+
+#12 [8/9] COPY --chown=65532:65532 config ./config
+#12 DONE 0.0s
+
+#13 [9/9] COPY --chown=65532:65532 migrations ./migrations
+#13 DONE 0.0s
+
+#14 exporting to image
+#14 exporting layers
+#14 exporting layers 25.8s done
+#14 exporting manifest sha256:d7142f45cc135c768ddb3f7f256c392cf510d2f49bf662deef743f7df47c6408
+#14 exporting manifest sha256:d7142f45cc135c768ddb3f7f256c392cf510d2f49bf662deef743f7df47c6408 0.0s done
+#14 exporting config sha256:109eedaf9c039cd3a579a22cd9bc9bc95628f5273060ff4c8d02831710e36f41 0.0s done
+#14 naming to docker.io/library/aiq-app:m0 done
+#14 unpacking to docker.io/library/aiq-app:m0
+#14 unpacking to docker.io/library/aiq-app:m0 4.5s done
+#14 DONE 30.3s
+uv run pytest -q tests/integration/test_migration_shape.py
+.                                                                        [100%]
+1 passed in 0.14s
+./scripts/test-migrations.sh
+ Network aiq-m0-migrations-44582_test_db_net Creating
+ Network aiq-m0-migrations-44582_test_db_net Created
+ Container aiq-m0-migrations-44582-redis-1 Creating
+ Container aiq-m0-migrations-44582-business-postgres-1 Creating
+ Container aiq-m0-migrations-44582-host-postgres-1 Creating
+ Container aiq-m0-migrations-44582-host-postgres-1 Created
+ Container aiq-m0-migrations-44582-redis-1 Created
+ Container aiq-m0-migrations-44582-business-postgres-1 Created
+ Container aiq-m0-migrations-44582-host-postgres-1 Starting
+ Container aiq-m0-migrations-44582-redis-1 Starting
+ Container aiq-m0-migrations-44582-business-postgres-1 Starting
+ Container aiq-m0-migrations-44582-business-postgres-1 Started
+ Container aiq-m0-migrations-44582-redis-1 Started
+ Container aiq-m0-migrations-44582-host-postgres-1 Started
+ Container aiq-m0-migrations-44582-redis-1 Waiting
+ Container aiq-m0-migrations-44582-business-postgres-1 Waiting
+ Container aiq-m0-migrations-44582-host-postgres-1 Waiting
+ Container aiq-m0-migrations-44582-redis-1 Healthy
+ Container aiq-m0-migrations-44582-host-postgres-1 Healthy
+ Container aiq-m0-migrations-44582-business-postgres-1 Healthy
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001_business_core, Create independent business schemas and append-only foundations.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001_host_rate_control, Create independent host rate-control authority.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0001_business_core -> , Create independent business schemas and append-only foundations.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0001_host_rate_control -> , Create independent host rate-control authority.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001_business_core, Create independent business schemas and append-only foundations.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001_host_rate_control, Create independent host rate-control authority.
+migration round-trip PASS
+database invariants PASS
+permit consume decisions first=CONSUME_GRANTED:RATE_PERMIT_CONSUMED second=CONSUME_DENIED:PERMIT_NOT_RESERVED
+permit and nonce terminal states PASS
+migration integration PASS project=aiq-m0-migrations-44582

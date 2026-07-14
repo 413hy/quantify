@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant.local/contracts/calibration-dataset-plan.schema.json",
+  "title": "Preregistered Calibration Dataset Plan",
+  "description": "T0 前签署并登记的三日校准计划。plan_hash=SHA-256(RFC 8785 JCS(content))；registration.payload_hash=SHA-256(RFC 8785 JCS(registration.signed_payload))。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "plan_hash", "content", "plan_signature", "registration"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "plan_hash": { "$ref": "#/$defs/sha256" },
+    "content": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "plan_id", "dataset_id", "created_at", "purpose", "market_source", "earliest_t0",
+        "t0_resolution", "duration_hours", "collector_release_manifest_hash", "quality_profile_hash",
+        "of_search_plan_hash", "price_action_schema_hash", "price_action_config_hash",
+        "universe_config_hash", "selection_controls", "failure_policy"
+      ],
+      "properties": {
+        "plan_id": { "$ref": "#/$defs/id" },
+        "dataset_id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{8,128}$" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "purpose": { "const": "CALIBRATION_3D" },
+        "market_source": { "const": "BINANCE_PRODUCTION_PUBLIC" },
+        "earliest_t0": { "type": "string", "format": "date-time" },
+        "t0_resolution": { "const": "FIRST_CONTINUOUS_QUALIFIED_INSTANT_AT_OR_AFTER_EARLIEST_T0" },
+        "duration_hours": { "const": 72 },
+        "collector_release_manifest_hash": { "$ref": "#/$defs/sha256" },
+        "quality_profile_hash": { "$ref": "#/$defs/sha256" },
+        "of_search_plan_hash": { "$ref": "#/$defs/sha256" },
+        "price_action_schema_hash": { "$ref": "#/$defs/sha256" },
+        "price_action_config_hash": { "$ref": "#/$defs/sha256" },
+        "universe_config_hash": { "$ref": "#/$defs/sha256" },
+        "selection_controls": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["performance_based_selection", "manual_t0_override", "post_t0_rule_relaxation", "future_data_access", "retain_all_attempted_windows"],
+          "properties": {
+            "performance_based_selection": { "const": false },
+            "manual_t0_override": { "const": false },
+            "post_t0_rule_relaxation": { "const": false },
+            "future_data_access": { "const": false },
+            "retain_all_attempted_windows": { "const": true }
+          }
+        },
+        "failure_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["failed_window_disposition", "next_attempt", "dataset_id_reuse", "partial_window_reuse"],
+          "properties": {
+            "failed_window_disposition": { "const": "RETAIN_WITH_FAILURE_EVIDENCE" },
+            "next_attempt": { "const": "NEW_PLAN_AND_NEW_DATASET_ID" },
+            "dataset_id_reuse": { "const": false },
+            "partial_window_reuse": { "const": false }
+          }
+        }
+      }
+    },
+    "plan_signature": { "$ref": "#/$defs/signature" },
+    "registration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["payload_hash", "signed_payload", "signature"],
+      "properties": {
+        "payload_hash": { "$ref": "#/$defs/sha256" },
+        "signed_payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["receipt_id", "plan_hash", "registered_at", "registrar_id", "nonce"],
+          "properties": {
+            "receipt_id": { "$ref": "#/$defs/id" },
+            "plan_hash": { "$ref": "#/$defs/sha256" },
+            "registered_at": { "type": "string", "format": "date-time" },
+            "registrar_id": { "type": "string", "minLength": 3, "maxLength": 128 },
+            "nonce": { "type": "string", "minLength": 16, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$" }
+          }
+        },
+        "signature": { "$ref": "#/$defs/signature" }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|[0-9A-HJKMNP-TV-Z]{26})$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "key_id", "signed_at", "signature_ref"],
+      "properties": {
+        "algorithm": { "const": "Ed25519" },
+        "key_id": { "type": "string", "minLength": 3, "maxLength": 128 },
+        "signed_at": { "type": "string", "format": "date-time" },
+        "signature_ref": { "type": "string", "maxLength": 300, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*\\.sig$" }
+      }
+    }
+  }
+}

@@ -1,0 +1,229 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant.local/config/rate-budget.schema.json",
+  "title": "Binance Shared Rate Budget Configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "authority", "allocator", "scope", "limit_sources", "authorization", "reservation_policy", "accounting", "window_clock", "backoff", "failure_policy", "websocket_constraints"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "authority": { "const": "POSTGRESQL_DURABLE_ATOMIC" },
+    "allocator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["service", "lifecycle", "ipc", "socket_path", "single_writer_per_scope", "owner_fencing", "redis_is_authority"],
+      "properties": {
+        "service": { "const": "rate-budget-service" },
+        "lifecycle": { "const": "HOST_PERSISTENT_CROSS_PROJECT" },
+        "ipc": { "const": "UNIX_DOMAIN_SOCKET" },
+        "socket_path": { "const": "/run/ai-quant-rate/rate.sock" },
+        "single_writer_per_scope": { "const": true },
+        "owner_fencing": { "const": "POSTGRESQL_EPOCH_LEASE" },
+        "redis_is_authority": { "const": false }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["request_weight", "order_count", "websocket_control", "connection_attempts", "application_environment_is_scope_key", "project_name_is_scope_key"],
+      "properties": {
+        "request_weight": { "const": "ENDPOINT_AUTHORITY_AND_EGRESS_IP_SHARED_REST_WS_API_UM_CM" },
+        "order_count": { "const": "ENDPOINT_AUTHORITY_AND_ACCOUNT_SHARED_UM_CM" },
+        "websocket_control": { "const": "ENDPOINT_AUTHORITY_AND_CONNECTION" },
+        "connection_attempts": { "const": "ENDPOINT_AUTHORITY_AND_EGRESS_IP" },
+        "application_environment_is_scope_key": { "const": false },
+        "project_name_is_scope_key": { "const": false }
+      }
+    },
+    "limit_sources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["exchange_info", "response_headers", "endpoint_cost_catalog", "mandatory_endpoint_inventory", "hardcoded_limits_forbidden"],
+      "properties": {
+        "exchange_info": { "const": true },
+        "response_headers": { "const": ["X-MBX-USED-WEIGHT-*", "X-MBX-ORDER-COUNT-*", "Retry-After"] },
+        "endpoint_cost_catalog": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "schema_version", "content_hash", "source", "checked_at", "max_age_seconds", "unknown_endpoint_policy", "bootstrap_snapshot_required"],
+          "properties": {
+            "path": { "const": "/etc/ai-quant/host-control/binance-endpoint-cost-catalog.json" },
+            "schema_version": { "const": "1.0.0" },
+            "content_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "source": { "const": "SIGNED_OFFICIAL_CONTRACT_AND_EXCHANGE_INFO_SNAPSHOT" },
+            "checked_at": { "type": "string", "format": "date-time" },
+            "max_age_seconds": { "type": "integer", "minimum": 60, "maximum": 604800 },
+            "unknown_endpoint_policy": { "const": "DENY" },
+            "bootstrap_snapshot_required": { "const": true }
+          }
+        },
+        "mandatory_endpoint_inventory": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "schema_version", "content_hash", "required_status", "exact_coverage_required"],
+          "properties": {
+            "path": { "const": "/etc/ai-quant/host-control/binance-mandatory-endpoint-inventory.json" },
+            "schema_version": { "const": "1.0.0" },
+            "content_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "required_status": { "const": "SIGNED_RUNTIME" },
+            "exact_coverage_required": { "const": true }
+          }
+        },
+        "hardcoded_limits_forbidden": { "const": true }
+      }
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["trust_bundle_path", "trust_bundle_schema_version", "trust_bundle_content_hash", "payload_canonicalization", "peer_identity", "reserve_nonce_transition", "duplicate_nonce_action", "consume_transition", "not_sent_releases_nonce_or_budget", "gateway_holds_signing_key"],
+      "properties": {
+        "trust_bundle_path": { "const": "/etc/ai-quant/host-control/capability-trust-bundle.json" },
+        "trust_bundle_schema_version": { "const": "1.0.0" },
+        "trust_bundle_content_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "payload_canonicalization": { "const": "RFC8785_JCS_SHA256_ED25519" },
+        "peer_identity": { "const": "SO_PEERCRED_UID_GID_PLUS_SIGNED_CALLER_ACL" },
+        "reserve_nonce_transition": { "const": "ATOMIC_UNUSED_TO_RESERVED_BOUND_TO_GRANTED_PERMIT" },
+        "duplicate_nonce_action": { "const": "DENY_AND_AUDIT" },
+        "consume_transition": { "const": "ATOMIC_RESERVED_TO_CONSUMED_BY_GATEWAY" },
+        "not_sent_releases_nonce_or_budget": { "const": false },
+        "gateway_holds_signing_key": { "const": false }
+      }
+    },
+    "reservation_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["priority_order", "class_assignment", "bootstrap_floor_policy", "minimum_supported_runtime_total_limit", "host_rate_control_reserved_pct_of_request_weight_total", "host_rate_control_reserved_units_rule", "host_rate_control_reserve_nonborrowable", "host_rate_control_may_borrow_business_capacity", "business_may_borrow_host_rate_control_reserve", "business_usable_limit_rule", "cumulative_ceilings_pct", "ceiling_rounding", "business_priority_borrowing_scope", "higher_priority_may_use_lower_unused_capacity", "lower_priority_may_cross_ceiling", "market_data_snapshot_total_subcap_pct", "block_state_overrides_all_classes"],
+      "properties": {
+        "priority_order": { "const": ["HOST_RATE_CONTROL", "EMERGENCY_REDUCE_ONLY", "PROTECTION_CREATE_REPLACE", "CANCEL", "RECONCILIATION", "USER_STREAM_MAINTENANCE", "NORMAL_EXIT", "NORMAL_ENTRY", "MARKET_DATA_SNAPSHOT"] },
+        "class_assignment": { "const": "SIGNED_ENDPOINT_ALLOWED_CLASSES_PLUS_VERIFIED_ONE_TIME_CAUSAL_CAPABILITY_AND_OPERATION_FACTS" },
+        "bootstrap_floor_policy": { "const": "BEFORE_VERIFIED_EXCHANGE_INFO_ALLOW_EXACTLY_ONE_SERVER_TIME_AND_ONE_EXCHANGE_INFO_COST_ONE_EACH_ONCE_NO_PERCENTAGE_POOL" },
+        "minimum_supported_runtime_total_limit": { "const": 3 },
+        "host_rate_control_reserved_pct_of_request_weight_total": { "const": "5.00" },
+        "host_rate_control_reserved_units_rule": { "const": "MAX_2_FLOOR_TOTAL_LIMIT_TIMES_5_DIV_100" },
+        "host_rate_control_reserve_nonborrowable": { "const": true },
+        "host_rate_control_may_borrow_business_capacity": { "const": false },
+        "business_may_borrow_host_rate_control_reserve": { "const": false },
+        "business_usable_limit_rule": { "const": "TOTAL_LIMIT_MINUS_HOST_RATE_CONTROL_RESERVE_THEN_APPLY_BUSINESS_CLASS_CEILINGS" },
+        "cumulative_ceilings_pct": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["normal_entry_and_market_snapshot", "reconciliation_uds_and_normal_exit", "protection_and_cancel", "emergency_reduce_only"],
+          "properties": {
+            "normal_entry_and_market_snapshot": { "const": "70.00" },
+            "reconciliation_uds_and_normal_exit": { "const": "80.00" },
+            "protection_and_cancel": { "const": "90.00" },
+            "emergency_reduce_only": { "const": "100.00" }
+          }
+        },
+        "ceiling_rounding": { "const": "FLOOR_LIMIT_TIMES_PERCENT_DIV_100_PER_WINDOW" },
+        "business_priority_borrowing_scope": { "const": "BUSINESS_CLASSES_ONLY_EXCLUDES_HOST_RATE_CONTROL" },
+        "higher_priority_may_use_lower_unused_capacity": { "const": true },
+        "lower_priority_may_cross_ceiling": { "const": false },
+        "market_data_snapshot_total_subcap_pct": { "const": "60.00" },
+        "block_state_overrides_all_classes": { "const": true }
+      }
+    },
+    "accounting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reserve_before_send", "transaction_isolation", "multi_window_lock_order", "multi_window_atomicity", "effective_used_grant_rule", "header_reconciliation", "missing_header_rule", "unknown_result_rule", "permit_release_rule", "window_reset_rule", "limit_decrease_rule", "persist_across_restart", "persist_across_project_transition", "audit_every_reservation"],
+      "properties": {
+        "reserve_before_send": { "const": true },
+        "transaction_isolation": { "const": "SERIALIZABLE_OR_ROW_LOCK" },
+        "multi_window_lock_order": { "const": "ENDPOINT_AUTHORITY_SCOPE_TYPE_SCOPE_KEY_RATE_LIMIT_INTERVAL_WINDOW_START_ASC" },
+        "multi_window_atomicity": { "const": "ALL_ALLOCATIONS_OR_NONE" },
+        "effective_used_grant_rule": { "const": "LOCK_THEN_EFFECTIVE_USED_MAX_OBSERVED_THEN_CHECK_PLUS_COST_THEN_INCREMENT" },
+        "header_reconciliation": { "const": "MONOTONIC_MAX_WITHIN_VERIFIED_WINDOW" },
+        "missing_header_rule": { "const": "CONSERVATIVELY_CHARGE_DECLARED_COST" },
+        "unknown_result_rule": { "const": "KEEP_RESERVATION_CONSUMED_UNTIL_WINDOW_END" },
+        "permit_release_rule": { "const": "V1_NEVER_RELEASE_GRANTED_COST_BEFORE_WINDOW_END" },
+        "window_reset_rule": { "const": "FRESH_VERIFIED_SERVER_OFFSET_PLUS_MONOTONIC_AFTER_WINDOW_END_AND_GUARD" },
+        "limit_decrease_rule": { "const": "IF_LIMIT_BELOW_EFFECTIVE_USED_BLOCK_UNTIL_VERIFIED_WINDOW_TRANSITION" },
+        "persist_across_restart": { "const": true },
+        "persist_across_project_transition": { "const": true },
+        "audit_every_reservation": { "const": true }
+      }
+    },
+    "window_clock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["server_time_source", "monotonic_projection", "max_server_time_age_seconds", "max_chrony_uncertainty_ms", "boundary_guard_ms", "normal_transition", "stale_or_uncertain_action", "recovery_time_probe", "recovery_requires_operator_signature", "recovery_all_other_traffic_blocked"],
+      "properties": {
+        "server_time_source": { "const": "GATEWAY_ATTESTED_BINANCE_TLS_RESPONSE_OVER_AUTHENTICATED_UDS" },
+        "monotonic_projection": { "const": "LAST_VERIFIED_SERVER_TIME_PLUS_MONOTONIC_ELAPSED" },
+        "max_server_time_age_seconds": { "type": "integer", "minimum": 30, "maximum": 3600 },
+        "max_chrony_uncertainty_ms": { "type": "integer", "minimum": 1, "maximum": 1000 },
+        "boundary_guard_ms": { "type": "integer", "minimum": 1, "maximum": 5000 },
+        "normal_transition": { "const": "PROJECTED_SERVER_TIME_AFTER_WINDOW_END_PLUS_GUARD" },
+        "stale_or_uncertain_action": { "const": "BLOCK_ALL_NEW_BINANCE_EGRESS_AND_OPEN_P0" },
+        "recovery_time_probe": { "const": "ONE_TIME_CHRONY_GUARDED_BOOTSTRAP_FLOOR_SERVER_TIME_ONLY" },
+        "recovery_requires_operator_signature": { "const": true },
+        "recovery_all_other_traffic_blocked": { "const": true }
+      }
+    },
+    "backoff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["header_names_case_insensitive", "retry_after_unit", "http_429", "http_429_scope", "invalid_or_missing_retry_after_429", "http_418", "http_418_scope", "invalid_or_missing_retry_after_418", "persist_blocked_until", "blocked_state_restored_before_any_probe", "blocked_state_overrides_all_classes"],
+      "properties": {
+        "header_names_case_insensitive": { "const": true },
+        "retry_after_unit": { "const": "SECONDS" },
+        "http_429": { "const": "HONOR_RETRY_AFTER_AND_RECONCILE_HEADERS" },
+        "http_429_scope": { "const": "AFFECTED_EXTERNAL_SCOPE_OR_CONSERVATIVE_ENDPOINT_AUTHORITY_SCOPE_IF_UNKNOWN" },
+        "invalid_or_missing_retry_after_429": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["formula", "base_seconds", "multiplier", "maximum_seconds", "consecutive_count_scope", "n_rule", "reset_rule", "jitter", "minimum_block"],
+          "properties": {
+            "formula": { "const": "BLOCKED_UNTIL_EQUALS_MAX_WINDOW_END_PLUS_GUARD_COMMA_NOW_PLUS_MIN_MAXIMUM_COMMA_BASE_TIMES_MULTIPLIER_POWER_N" },
+            "base_seconds": { "type": "integer", "minimum": 1, "maximum": 3600 },
+            "multiplier": { "type": "integer", "minimum": 2, "maximum": 10 },
+            "maximum_seconds": { "type": "integer", "minimum": 1, "maximum": 86400 },
+            "consecutive_count_scope": { "const": "ENDPOINT_AUTHORITY_AND_EXTERNAL_SCOPE" },
+            "n_rule": { "const": "ZERO_BASED_CONSECUTIVE_MISSING_OR_INVALID_RETRY_AFTER_429_COUNT" },
+            "reset_rule": { "const": "RESET_AFTER_ONE_FULL_VERIFIED_WINDOW_WITHOUT_429_FOR_SCOPE" },
+            "jitter": { "const": "NONE_DETERMINISTIC" },
+            "minimum_block": { "const": "UNTIL_COMPUTED_NOT_BEFORE" }
+          }
+        },
+        "http_418": { "const": "PERSIST_BAN_UNTIL_AND_OPEN_P0" },
+        "http_418_scope": { "const": "ENDPOINT_AUTHORITY_AND_EGRESS_IP_ALL_CLASSES" },
+        "invalid_or_missing_retry_after_418": { "const": "BLOCK_INDEFINITELY_UNTIL_SIGNED_MANUAL_CLEAR_WITH_OFFICIAL_EVIDENCE" },
+        "persist_blocked_until": { "const": true },
+        "blocked_state_restored_before_any_probe": { "const": true },
+        "blocked_state_overrides_all_classes": { "const": true }
+      }
+    },
+    "failure_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allocator_or_authority_unavailable", "preissued_emergency_leases_v1", "native_protection_dependency", "manual_exchange_control_escalation"],
+      "properties": {
+        "allocator_or_authority_unavailable": { "const": "BLOCK_ALL_NEW_BINANCE_EGRESS_REQUESTS" },
+        "preissued_emergency_leases_v1": { "const": false },
+        "native_protection_dependency": { "const": true },
+        "manual_exchange_control_escalation": { "const": "P0" }
+      }
+    },
+    "websocket_constraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ws_api_enabled_v1", "operational_values_authority", "connection_contract_path", "connection_contract_schema_version", "connection_contract_content_hash", "checked_at", "valid_until", "market_stream_control_messages_per_second", "streams_per_connection", "ping_interval_seconds", "pong_deadline_seconds", "connection_attempt_interval_seconds", "connection_attempt_conservative_limit"],
+      "properties": {
+        "ws_api_enabled_v1": { "const": false },
+        "operational_values_authority": { "const": "SIGNED_SYSTEM_CONFIG_EXACT_MATCH_OFFICIAL_CONTRACT" },
+        "connection_contract_path": { "const": "/etc/ai-quant/host-control/binance-connection-contract.json" },
+        "connection_contract_schema_version": { "const": "1.0.0" },
+        "connection_contract_content_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "checked_at": { "type": "string", "format": "date-time" },
+        "valid_until": { "type": "string", "format": "date-time" },
+        "market_stream_control_messages_per_second": { "type": "integer", "minimum": 1, "maximum": 1000 },
+        "streams_per_connection": { "type": "integer", "minimum": 1, "maximum": 100000 },
+        "ping_interval_seconds": { "type": "integer", "minimum": 1, "maximum": 3600 },
+        "pong_deadline_seconds": { "type": "integer", "minimum": 1, "maximum": 3600 },
+        "connection_attempt_interval_seconds": { "type": "integer", "minimum": 1, "maximum": 86400 },
+        "connection_attempt_conservative_limit": { "type": "integer", "minimum": 1, "maximum": 100000 }
+      }
+    }
+  }
+}

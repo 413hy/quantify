@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0.0",
+  "message_type": "ConnectionStateObservation",
+  "message_id": "rate-msg-connection-0001",
+  "occurred_at": "2026-07-13T00:00:02Z",
+  "caller_service": "binance-egress-gateway",
+  "caller_instance_id": "egress-gateway-01",
+  "correlation_id": "rate-correlation-stream-0001",
+  "gateway_connection_id": "gateway-connection-public-0001",
+  "connection_generation": 1,
+  "endpoint_authority": "BINANCE_PRODUCTION_FSTREAM",
+  "market_stream_role": "PUBLIC",
+  "state": "OPEN",
+  "related_permit_id": "rate-permit-connect-0001",
+  "confirmed_stream_count": 15,
+  "confirmed_stream_set_hash": "7777777777777777777777777777777777777777777777777777777777777777",
+  "socket_peer_hash": "6666666666666666666666666666666666666666666666666666666666666666",
+  "fencing_epoch": 7,
+  "reason_code": "HANDSHAKE_CONFIRMED"
+}

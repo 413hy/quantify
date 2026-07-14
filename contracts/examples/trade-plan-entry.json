@@ -1,0 +1,70 @@
+{
+  "schema_version": "1.0.0",
+  "plan_hash": "5f606426e85833ed14ebb4b0e1ad00c0a37a86a1d7a814ac9d455814a2b8930f",
+  "content": {
+    "plan_id": "018f53c0-1234-7abc-8def-123456789013",
+    "analysis_cycle_id": "018f53c0-1234-7abc-8def-123456789014",
+    "analysis_epoch": "2026-07-14T13:00:00Z",
+    "engine": "CODEX_PRIMARY",
+    "model": "gpt-5.6",
+    "reasoning_effort": "medium",
+    "created_at": "2026-07-14T13:00:35Z",
+    "expires_at": "2026-07-14T13:01:35Z",
+    "context_id": "018f53c0-1234-7abc-8def-123456789001",
+    "context_hash": "18fec2259d7de458ca74ca11168d29f1f5c1b2a91c2aa59458b3f81d2750421b",
+    "strategy_version": "champion-20260714-v1",
+    "strategy_package_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+    "knowledge_refs": [
+      "kb:pyta/order-flow/imbalance-v1#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kb:louie/price-action/pullback-v1#bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    ],
+    "tool_evidence": [
+      {
+        "tool_name": "get_market_context",
+        "request_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "response_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "completed_at": "2026-07-14T13:00:05Z"
+      },
+      {
+        "tool_name": "estimate_trade_cost",
+        "request_hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "response_hash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "completed_at": "2026-07-14T13:00:20Z"
+      }
+    ],
+    "decision": "TRADE",
+    "symbol": "BTCUSDT",
+    "binance_parameters": {
+      "side": "BUY",
+      "positionSide": "BOTH",
+      "entry_type": "LIMIT_MAKER",
+      "timeInForce": "GTX",
+      "entry_price": "62010.5",
+      "stopPrice": "61860",
+      "take_profit_price": "62380",
+      "maker_ttl_ms": 1500,
+      "max_slippage_bps": "1.5",
+      "reduceOnly": false,
+      "workingType": "MARK_PRICE",
+      "priceProtect": true,
+      "urgency": "NORMAL"
+    },
+    "risk_request": {
+      "requested_initial_risk_pct": "0.5",
+      "leverage_cap": 10,
+      "correlation_cluster": "BTC_BETA",
+      "expected_gross_edge_bps": "8.5",
+      "expected_total_cost_bps": "2.5",
+      "expected_net_edge_bps": "6",
+      "holding_horizon_seconds": 300
+    },
+    "market_revalidation": {
+      "max_context_age_ms": 60000,
+      "max_price_drift_bps": "2",
+      "require_book_healthy": true,
+      "require_symbol_active": true,
+      "require_positive_net_edge": true
+    },
+    "reason_codes": ["PA_OF_ALIGNED", "POSITIVE_NET_EDGE"]
+  }
+}

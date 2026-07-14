@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant.local/config/binance-connection-contract.schema.json",
+  "title": "Signed Binance Connection Contract Snapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "contract_hash", "content", "signature"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "contract_hash": { "$ref": "#/$defs/sha256" },
+    "content": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract_id", "contract_status", "checked_at", "valid_until", "source_documents", "authority_profiles", "mismatch_action"],
+      "properties": {
+        "contract_id": { "$ref": "#/$defs/id" },
+        "contract_status": { "enum": ["UNVALIDATED_ENGINEERING_BASELINE", "SIGNED_RUNTIME"] },
+        "checked_at": { "type": "string", "format": "date-time" },
+        "valid_until": { "type": "string", "format": "date-time" },
+        "source_documents": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["source_id", "uri", "retrieved_at", "artifact_path", "canonicalization", "sha256", "covered_authorities", "covered_environments"],
+            "properties": {
+              "source_id": { "$ref": "#/$defs/id" },
+              "uri": { "type": "string", "format": "uri", "pattern": "^https://developers\\.binance\\.com/" },
+              "retrieved_at": { "type": "string", "format": "date-time" },
+              "artifact_path": { "type": "string", "pattern": "^evidence/official-contracts/[A-Za-z0-9._/-]+\\.txt$" },
+              "canonicalization": { "const": "UTF8_LF_NORMALIZED_VISIBLE_DOCUMENT_TEXT_WITH_URI_AND_RETRIEVED_AT_SIDECAR" },
+              "sha256": { "$ref": "#/$defs/sha256" },
+              "covered_authorities": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/authority" } },
+              "covered_environments": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/environment" } }
+            }
+          }
+        },
+        "authority_profiles": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["profile_id", "endpoint_authority", "environments", "provenance", "source_ids", "market_stream", "connection_attempt_budget"],
+            "properties": {
+              "profile_id": { "$ref": "#/$defs/id" },
+              "endpoint_authority": { "$ref": "#/$defs/authority" },
+              "environments": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/environment" } },
+              "provenance": { "enum": ["OFFICIAL_PRODUCTION_DOCUMENT", "SIGNED_TESTNET_PROTOCOL_PROBE", "SIGNED_TESTNET_BOOTSTRAP_OPERATOR_CEILING"] },
+              "source_ids": { "type": "array", "minItems": 0, "uniqueItems": true, "items": { "$ref": "#/$defs/id" } },
+              "probe_evidence": {
+                "oneOf": [
+                  { "type": "null" },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["plan_id", "evidence_path", "evidence_sha256", "observed_at"],
+                    "properties": {
+                      "plan_id": { "$ref": "#/$defs/id" },
+                      "evidence_path": { "type": "string", "pattern": "^evidence/testnet/[A-Za-z0-9._/-]+\\.json$" },
+                      "evidence_sha256": { "$ref": "#/$defs/sha256" },
+                      "observed_at": { "type": "string", "format": "date-time" }
+                    }
+                  }
+                ]
+              },
+              "bootstrap_constraints": {
+                "oneOf": [
+                  { "type": "null" },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["gateway_only", "testnet_authority_only", "max_connections", "max_streams", "orders_allowed", "ttl_seconds", "must_replace_after_probe"],
+                    "properties": {
+                      "gateway_only": { "const": true },
+                      "testnet_authority_only": { "const": true },
+                      "max_connections": { "const": 1 },
+                      "max_streams": { "const": 1 },
+                      "orders_allowed": { "const": false },
+                      "ttl_seconds": { "type": "integer", "minimum": 60, "maximum": 900 },
+                      "must_replace_after_probe": { "const": true }
+                    }
+                  }
+                ]
+              },
+              "operator_ceiling_evidence": {
+                "oneOf": [
+                  { "type": "null" },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["challenge", "ceiling_hash", "issued_at", "expires_at", "algorithm", "key_id", "signature_base64"],
+                    "properties": {
+                      "challenge": { "$ref": "#/$defs/id" },
+                      "ceiling_hash": { "$ref": "#/$defs/sha256" },
+                      "issued_at": { "type": "string", "format": "date-time" },
+                      "expires_at": { "type": "string", "format": "date-time" },
+                      "algorithm": { "const": "Ed25519" },
+                      "key_id": { "$ref": "#/$defs/id" },
+                      "signature_base64": { "type": "string", "pattern": "^[A-Za-z0-9+/]{86}==$" }
+                    }
+                  }
+                ]
+              },
+              "market_stream": { "$ref": "#/$defs/marketStream" },
+              "connection_attempt_budget": { "$ref": "#/$defs/connectionBudget" }
+            },
+            "allOf": [
+              {
+                "if": { "properties": { "provenance": { "const": "SIGNED_TESTNET_PROTOCOL_PROBE" } }, "required": ["provenance"] },
+                "then": { "required": ["probe_evidence"], "properties": { "probe_evidence": { "type": "object" }, "bootstrap_constraints": { "type": "null" }, "operator_ceiling_evidence": { "type": "null" }, "environments": { "const": ["testnet"] } } },
+                "else": {
+                  "if": { "properties": { "provenance": { "const": "SIGNED_TESTNET_BOOTSTRAP_OPERATOR_CEILING" } }, "required": ["provenance"] },
+                  "then": { "required": ["bootstrap_constraints", "operator_ceiling_evidence"], "properties": { "source_ids": { "const": [] }, "probe_evidence": { "type": "null" }, "bootstrap_constraints": { "type": "object" }, "operator_ceiling_evidence": { "type": "object" }, "environments": { "const": ["testnet"] } } },
+                  "else": { "properties": { "source_ids": { "minItems": 1 }, "probe_evidence": { "type": "null" }, "bootstrap_constraints": { "type": "null" }, "operator_ceiling_evidence": { "type": "null" } } }
+                }
+              }
+            ]
+          }
+        },
+        "mismatch_action": { "const": "BLOCK_ALL_NEW_BINANCE_EGRESS_AND_OPEN_P0" }
+      }
+    },
+    "signature": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["algorithm", "key_id", "signed_at", "signature_base64"],
+          "properties": {
+            "algorithm": { "const": "Ed25519" },
+            "key_id": { "$ref": "#/$defs/id" },
+            "signed_at": { "type": "string", "format": "date-time" },
+            "signature_base64": { "type": "string", "pattern": "^[A-Za-z0-9+/]{86}==$" }
+          }
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "content": { "properties": { "contract_status": { "const": "SIGNED_RUNTIME" } }, "required": ["contract_status"] } }, "required": ["content"] },
+      "then": { "properties": { "signature": { "type": "object" } } },
+      "else": { "properties": { "signature": { "type": "null" } } }
+    }
+  ],
+  "$comment": "加载器必须验证 contract_hash=SHA-256(RFC8785 JCS(content))；列出的每个 source_id 必须存在且覆盖 profile 的 authority/environments；production 文档不得推定覆盖 Testnet。production profile 至少一个官方 source；常规 Testnet profile 必须绑定签名 probe evidence。若无官方 Testnet 契约，只允许 source_ids=[] 且带独立 operator ceiling 签名的最长900秒 TESTNET_BOOTSTRAP profile：唯一 gateway、唯一连接、唯一 stream、禁止订单；探针完成即替换为 probe-backed profile。baseline 永不运行。",
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{8,128}$" },
+    "authority": { "enum": ["BINANCE_PRODUCTION_FSTREAM", "BINANCE_TESTNET_FSTREAM"] },
+    "environment": { "enum": ["shadow", "paper", "production", "testnet"] },
+    "marketStream": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["connection_lifetime_seconds", "rotate_no_later_than_seconds", "minimum_overlap_seconds", "ping_interval_seconds", "pong_deadline_seconds", "control_messages_per_second", "max_streams_per_connection"],
+      "properties": {
+        "connection_lifetime_seconds": { "type": "integer", "minimum": 300, "maximum": 172800 },
+        "rotate_no_later_than_seconds": { "type": "integer", "minimum": 60, "maximum": 172799 },
+        "minimum_overlap_seconds": { "type": "integer", "minimum": 1, "maximum": 3600 },
+        "ping_interval_seconds": { "type": "integer", "minimum": 1, "maximum": 3600 },
+        "pong_deadline_seconds": { "type": "integer", "minimum": 1, "maximum": 3600 },
+        "control_messages_per_second": { "type": "integer", "minimum": 1, "maximum": 1000 },
+        "max_streams_per_connection": { "type": "integer", "minimum": 1, "maximum": 100000 }
+      }
+    },
+    "connectionBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "scope", "interval_seconds", "conservative_limit", "missing_action"],
+      "properties": {
+        "source": { "enum": ["OFFICIAL_CONTRACT", "SIGNED_OPERATOR_SAFETY_CEILING", "SIGNED_TESTNET_PROTOCOL_PROBE"] },
+        "scope": { "const": "ENDPOINT_AUTHORITY_AND_EGRESS_IP" },
+        "interval_seconds": { "type": "integer", "minimum": 1, "maximum": 86400 },
+        "conservative_limit": { "type": "integer", "minimum": 1, "maximum": 100000 },
+        "missing_action": { "const": "BLOCK_NEW_CONNECTIONS" }
+      }
+    }
+  }
+}

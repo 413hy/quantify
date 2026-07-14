@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "network-egress.schema.json",
+  "title": "Network Egress Policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "policy_id",
+    "mode",
+    "default_deny",
+    "deny_cross_host_redirects",
+    "dns",
+    "dynamic_ip_policy",
+    "runtime_destinations",
+    "maintenance_destinations",
+    "maintenance_enabled_by_default"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "policy_id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{8,128}$" },
+    "mode": { "const": "APP_AND_HOST" },
+    "default_deny": { "const": true },
+    "deny_cross_host_redirects": { "const": true },
+    "dns": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resolver_mode", "resolver_endpoints", "ntp_hosts"],
+      "properties": {
+        "resolver_mode": { "const": "APPROVED_RESOLVERS_ONLY" },
+        "resolver_endpoints": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/nonSecretEndpoint" }
+        },
+        "ntp_hosts": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/host" }
+        }
+      }
+    },
+    "dynamic_ip_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "permanent_static_business_ips_forbidden", "root_only_updater", "honor_dns_ttl", "fail_closed"],
+      "properties": {
+        "mode": { "const": "RESOLVER_TO_NFT_SET" },
+        "permanent_static_business_ips_forbidden": { "const": true },
+        "root_only_updater": { "const": true },
+        "honor_dns_ttl": { "const": true },
+        "fail_closed": { "const": true }
+      }
+    },
+    "runtime_destinations": {
+      "type": "array",
+      "minItems": 7,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/destination" }
+    },
+    "maintenance_destinations": {
+      "type": "array",
+      "minItems": 3,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/destination" }
+    },
+    "maintenance_enabled_by_default": { "const": false }
+  },
+  "$defs": {
+    "host": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 253,
+      "pattern": "^(?:[A-Za-z0-9.-]+|<[A-Z0-9_]+>)$"
+    },
+    "nonSecretEndpoint": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 280,
+      "pattern": "^[A-Za-z0-9._:/<>-]+$"
+    },
+    "destination": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "purpose", "environments", "schemes", "hosts", "ports", "tls_verify", "host_key_required", "allowed_services"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{2,63}$" },
+        "purpose": {
+          "enum": [
+            "BINANCE_PRODUCTION_PUBLIC",
+            "BINANCE_PRODUCTION_TRADING",
+            "BINANCE_TESTNET",
+            "OPENAI_CODEX",
+            "TELEGRAM",
+            "FEISHU",
+            "ARCHIVE_SFTP",
+            "EXTERNAL_HEARTBEAT",
+            "DNS",
+            "NTP",
+            "OCI_REGISTRY",
+            "OS_PACKAGE_REPOSITORY",
+            "SECURITY_FEED"
+          ]
+        },
+        "environments": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["shadow", "testnet", "production", "maintenance"] }
+        },
+        "schemes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["https", "wss", "sftp", "dns-udp", "dns-tcp", "ntp-udp"] }
+        },
+        "hosts": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/host" }
+        },
+        "ports": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "integer", "minimum": 1, "maximum": 65535 }
+        },
+        "tls_verify": { "type": "boolean" },
+        "host_key_required": { "type": "boolean" },
+        "allowed_services": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]{2,63}$" }
+        }
+      }
+    }
+  }
+}

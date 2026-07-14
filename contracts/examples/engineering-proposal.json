@@ -1,0 +1,19 @@
+{
+  "schema_version": "1.0.0",
+  "proposal_hash": "cb4c6cb9309211e9dfdd2600f919136223af59315fa74b7d8e4b6fffafcb0ea6",
+  "content": {
+    "proposal_id": "018f53c0-1234-7abc-8def-123456789030",
+    "iteration_cycle_id": "2026-09",
+    "created_at": "2026-09-01T03:30:00Z",
+    "category": "EXECUTION_CODE",
+    "title": "评估 maker TTL 状态机实现的可观测性改进",
+    "problem": "运行证据显示部分 maker 撤单竞争缺少足够的阶段指标，但交易安全状态机本身不得由月度流程自动修改。",
+    "evidence_refs": ["evidence/monthly/2026-09/execution-quality.json#sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
+    "suggested_change": "在工程审查轨道中新增只读阶段指标和故障测试，不改变订单状态、TTL 语义、风险上限或 Binance 请求参数。",
+    "affected_components": ["execution-service", "monitoring"],
+    "risk": "HIGH",
+    "validation_plan": ["独立工程审查", "固定回放根一致", "Testnet 撤单竞争测试", "Shadow 资源门禁"],
+    "auto_publish_allowed": false,
+    "required_human_path": "C3_OR_C4_ENGINEERING_REVIEW"
+  }
+}

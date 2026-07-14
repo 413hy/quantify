@@ -1,0 +1,75 @@
+schema_version: 1.0.0
+baseline_origin: UNVALIDATED_ENGINEERING_BASELINE
+market: USD_M_USDT_PERPETUAL
+active_size: 10
+standby_size: 5
+refresh_seconds: 900
+ranking_window_seconds: 900
+score_weights:
+  trading_liquidity: '0.30'
+  book_depth: '0.30'
+  inverse_spread: '0.20'
+  activity: '0.10'
+  data_health: '0.10'
+l1_sampler:
+  um_filter: ST_EQUALS_1_INTERSECT_CURRENT_UM_EXCHANGE_INFO
+  merged_fields_required: [st, ps]
+  kline_source: SYMBOL_KLINE
+  kline_route: /market
+  kline_interval: 1m
+  closed_kline_count: 15
+  quote_notional_field: k.q
+  trade_count_field: k.n
+  forbid_24h_ticker_delta: true
+  book_ticker_source: ALL_MARKET_BOOK_TICKER
+  book_ticker_route: /public
+  sample_interval_seconds: 1
+  window_slots: 900
+  required_complete_slots: 896
+  partial_depth_source: SYMBOL_PARTIAL_DEPTH
+  partial_depth_levels: 20
+  depth_route: /public
+  depth_update_interval_ms: 500
+  deep_fallback_source: SYMBOL_DIFF_DEPTH
+  deep_snapshot_endpoint: /fapi/v1/depth
+  deep_snapshot_limit: 1000
+  deep_max_symbols: 40
+  deep_priority: [MANAGED_POSITION_SET, CURRENT_TOP10, CURRENT_RANK_11_15, CHEAP_PREFILTER_SCORE_DESC_SYMBOL_ASC]
+  depth_band_bps: '10.00'
+  both_sides_must_reach_band: true
+  missing_band_value: INVALID
+  allow_depth_extrapolation: false
+  public_stream_shard_max: 250
+  budget_policy_ref: SYSTEM_MARKET_DATA_PLUS_SIGNED_RATE_BUDGET_CONFIG
+  config_alignment_required: true
+  all_eligible_exact_depth_requires_independent_collector: true
+hysteresis:
+  minimum_residence_seconds: 3600
+  confirmation_cycles: 2
+  replacement_score_delta: '5.00'
+full_stream:
+  include_active: true
+  include_standby: true
+  include_managed_positions: true
+  snapshot_rebuild_required: true
+  warmup_seconds: 120
+  minimum_trade_events: 1000
+eligibility:
+  exchange_status: TRADING
+  quote_asset: USDT
+  contract_type: PERPETUAL
+  require_current_exchange_filters: true
+  require_healthy_lightweight_data: true
+  minimum_15m_trade_notional_usdt: '1000000.00'
+  maximum_median_spread_bps: '10.00'
+  depth_band_bps: '10.00'
+  minimum_two_sided_depth_usdt: '50000.00'
+  minimum_input_completeness_pct: '99.50'
+fallback:
+  allow_fewer_than_ten: true
+  emit_alert: true
+  never_fill_with_ineligible_symbol: true
+backtest:
+  archive_all_market_lightweight_inputs: true
+  archive_universe_snapshots: true
+  forbid_current_constituent_backfill: true

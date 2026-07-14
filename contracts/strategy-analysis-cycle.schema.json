@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "strategy-analysis-cycle.schema.json",
+  "title": "StrategyAnalysisCycle",
+  "description": "30/20 分钟策略调度、Codex 全新会话隔离、唯一决策权租约、失败接管与恢复探针事实。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "cycle_id", "analysis_epoch", "scheduled_engine", "effective_authority", "started_at", "deadline_at", "completed_at", "status", "context_id", "context_hash", "session_isolation", "authority_lease", "output_plan_id", "output_plan_hash", "failure", "recovery"],
+  "properties": {
+    "schema_version": { "const": "2.0.0" },
+    "cycle_id": { "$ref": "#/$defs/id" },
+    "analysis_epoch": { "type": "string", "format": "date-time" },
+    "scheduled_engine": { "enum": ["CODEX_PRIMARY", "RULE_FALLBACK", "RULE_SHADOW"] },
+    "effective_authority": { "enum": ["CODEX_PRIMARY", "RULE_FALLBACK", "NONE"] },
+    "started_at": { "type": "string", "format": "date-time" },
+    "deadline_at": { "type": "string", "format": "date-time" },
+    "completed_at": { "type": ["string", "null"], "format": "date-time" },
+    "status": { "enum": ["STARTED", "TRADE_PLAN", "NO_TRADE", "SHADOW_ONLY", "FAILED_OVER", "FAILED"] },
+    "context_id": { "$ref": "#/$defs/id" },
+    "context_hash": { "$ref": "#/$defs/sha256" },
+    "session_isolation": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["analysis_run_id", "thread_id", "invocation_mode", "ephemeral", "fresh_process", "fresh_thread", "fresh_workspace", "resume_used", "reused_thread_id", "history_or_transcript_input", "memory_input", "reasoning_input", "prior_context_policy", "workspace_manifest_hash", "prompt_input_manifest_hash", "command_audit_hash", "cleanup_status"],
+          "properties": {
+            "analysis_run_id": { "$ref": "#/$defs/id" },
+            "thread_id": { "$ref": "#/$defs/id" },
+            "invocation_mode": { "const": "CODEX_EXEC_EPHEMERAL" },
+            "ephemeral": { "const": true },
+            "fresh_process": { "const": true },
+            "fresh_thread": { "const": true },
+            "fresh_workspace": { "const": true },
+            "resume_used": { "const": false },
+            "reused_thread_id": { "type": "null" },
+            "history_or_transcript_input": { "const": false },
+            "memory_input": { "const": false },
+            "reasoning_input": { "const": false },
+            "prior_context_policy": { "const": "STRUCTURED_SCHEMA_FACTS_ONLY" },
+            "workspace_manifest_hash": { "$ref": "#/$defs/sha256" },
+            "prompt_input_manifest_hash": { "$ref": "#/$defs/sha256" },
+            "command_audit_hash": { "$ref": "#/$defs/sha256" },
+            "cleanup_status": { "enum": ["NOT_DUE", "COMPLETED", "FAILED"] }
+          }
+        }
+      ]
+    },
+    "authority_lease": {
+      "type": "object", "additionalProperties": false,
+      "required": ["lease_id", "epoch_key", "holder", "fencing_token", "acquired_at", "expires_at", "released_at"],
+      "properties": {
+        "lease_id": { "$ref": "#/$defs/id" },
+        "epoch_key": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:(00|20|30|40):00Z$" },
+        "holder": { "enum": ["CODEX_PRIMARY", "RULE_FALLBACK", "NONE"] },
+        "fencing_token": { "type": "integer", "minimum": 1 },
+        "acquired_at": { "type": "string", "format": "date-time" },
+        "expires_at": { "type": "string", "format": "date-time" },
+        "released_at": { "type": ["string", "null"], "format": "date-time" }
+      }
+    },
+    "output_plan_id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+    "output_plan_hash": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+    "failure": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["category", "detected_at", "fallback_cycle_id"],
+          "properties": {
+            "category": { "enum": ["TIMEOUT", "QUOTA", "AUTH", "TOOL", "SCHEMA", "CONTEXT", "KNOWLEDGE", "RESOURCE", "INTERNAL"] },
+            "detected_at": { "type": "string", "format": "date-time" },
+            "fallback_cycle_id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] }
+          }
+        }
+      ]
+    },
+    "recovery": {
+      "type": "object", "additionalProperties": false,
+      "required": ["cooldown_until", "required_dry_run_successes", "consecutive_dry_run_successes", "eligible_next_epoch"],
+      "properties": {
+        "cooldown_until": { "type": ["string", "null"], "format": "date-time" },
+        "required_dry_run_successes": { "const": 3 },
+        "consecutive_dry_run_successes": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "eligible_next_epoch": { "type": "boolean" }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "scheduled_engine": { "const": "CODEX_PRIMARY" } }, "required": ["scheduled_engine"] },
+      "then": { "properties": { "session_isolation": { "type": "object" } } },
+      "else": { "properties": { "session_isolation": { "type": "null" } } }
+    }
+  ],
+  "$defs": {
+    "id": { "type": "string", "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|[0-9A-HJKMNP-TV-Z]{26})$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  },
+  "unevaluatedProperties": false
+}

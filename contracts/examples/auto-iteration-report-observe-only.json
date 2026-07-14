@@ -1,0 +1,58 @@
+{
+  "schema_version": "2.0.0",
+  "report_hash": "29552b3f01f7c2282c8ef4ac40075fe7d177ec7f37f379f054b0307455f3991d",
+  "content": {
+    "report_id": "018f53c0-1234-7abc-8def-123456789020",
+    "iteration_cycle_id": "2026-08",
+    "attempt_id": "018f53c0-1234-7abc-8def-123456789030",
+    "attempt_number": 1,
+    "scheduled_for": "2026-08-01T03:10:00Z",
+    "data_cutoff_at": "2026-08-01T03:10:00Z",
+    "started_at": "2026-08-01T03:10:01Z",
+    "completed_at": "2026-08-01T03:20:00Z",
+    "mode": "OBSERVE_ONLY",
+    "cycle_state": "COMPLETE",
+    "queue_position": null,
+    "model_selection_decision_id": "018f53c0-1234-7abc-8def-123456789031",
+    "model_selection_decision_hash": "0933fcb8dc199311b78477e37566200bf04e2b69dc84f31da5adb83ceb6bd808",
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "high",
+    "champion_package_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+    "challenger_package_hash": null,
+    "changed_fields": [],
+    "whitelist_verdict": "NOT_APPLICABLE",
+    "dataset_manifest_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+    "metrics": {
+      "oos_trades": 0,
+      "net_expectancy": "0",
+      "profit_factor": "0",
+      "max_drawdown_pct": "0",
+      "cost_stress_expectancy": "0",
+      "parameter_perturbation_expectancy": "0",
+      "max_symbol_contribution_pct": "0",
+      "without_top_symbol_expectancy": "0",
+      "risk_adjusted_improvement": "0",
+      "meaningful_improvement_threshold": "0.05"
+    },
+    "gates": [
+      {
+        "stage": "AUDIT",
+        "status": "PASS",
+        "started_at": "2026-08-01T03:10:01Z",
+        "completed_at": "2026-08-01T03:20:00Z",
+        "risk_multiplier": "0",
+        "evidence_hash": "3333333333333333333333333333333333333333333333333333333333333333",
+        "blocking_reasons": ["INITIAL_90D_OBSERVE_ONLY"]
+      }
+    ],
+    "final_decision": "OBSERVE_ONLY",
+    "deferral": null,
+    "rollback": {
+      "required": false,
+      "completed": false,
+      "restored_package_hash": null,
+      "same_cycle_candidate_retry_forbidden": false
+    },
+    "evidence_manifest_hash": "4444444444444444444444444444444444444444444444444444444444444444"
+  }
+}

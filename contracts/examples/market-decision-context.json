@@ -1,0 +1,50 @@
+{
+  "schema_version": "1.0.0",
+  "context_hash": "18fec2259d7de458ca74ca11168d29f1f5c1b2a91c2aa59458b3f81d2750421b",
+  "content": {
+    "context_id": "018f53c0-1234-7abc-8def-123456789001",
+    "analysis_epoch": "2026-07-14T12:30:00Z",
+    "generated_at": "2026-07-14T12:30:02Z",
+    "valid_until": "2026-07-14T12:31:02Z",
+    "strategy_version": "champion-20260714-v1",
+    "strategy_package_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+    "universe_snapshot_id": "018f53c0-1234-7abc-8def-123456789002",
+    "universe_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+    "exchange_rules_hash": "3333333333333333333333333333333333333333333333333333333333333333",
+    "cost_model_hash": "4444444444444444444444444444444444444444444444444444444444444444",
+    "feature_schema_hash": "5555555555555555555555555555555555555555555555555555555555555555",
+    "knowledge_index_hash": "6666666666666666666666666666666666666666666666666666666666666666",
+    "data_health": "HEALTHY",
+    "risk_state": {
+      "runtime_state": "SHADOW",
+      "new_entries_allowed": true,
+      "risk_multiplier": "0.10",
+      "remaining_total_risk_pct": "2",
+      "remaining_daily_loss_pct": "4",
+      "open_position_count": 0
+    },
+    "account_state": {
+      "equity_bucket": "SMALL",
+      "effective_leverage": "0",
+      "one_way_mode": true,
+      "cross_margin_verified": true,
+      "account_snapshot_hash": "7777777777777777777777777777777777777777777777777777777777777777"
+    },
+    "symbols": [
+      {
+        "symbol": "BTCUSDT",
+        "membership": "TOP10",
+        "feature_snapshot_id": "018f53c0-1234-7abc-8def-123456789003",
+        "feature_hash": "8888888888888888888888888888888888888888888888888888888888888888",
+        "market_snapshot_at": "2026-07-14T12:30:01Z",
+        "mark_price": "62000.1",
+        "spread_bps": "0.8",
+        "data_health": "HEALTHY",
+        "pa_summary": {"regime": "TREND_UP", "direction": "LONG"},
+        "order_flow_summary": {"imbalance": "0.18", "confirmed": true},
+        "cost_summary": {"estimated_total_bps": "2.1"}
+      }
+    ],
+    "positions": []
+  }
+}

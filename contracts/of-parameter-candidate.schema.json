@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant.local/contracts/of-parameter-candidate.schema.json",
+  "title": "Frozen Order Flow Parameter Candidate",
+  "description": "三日校准产生、尚未获实盘授权的封闭 OF 参数候选。candidate_hash=SHA-256(RFC 8785 JCS(content))；parameter_manifest_hash=SHA-256(RFC 8785 JCS(parameters))。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "candidate_hash", "content", "signature"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "candidate_hash": { "$ref": "#/$defs/sha256" },
+    "content": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_id", "created_at", "output_label", "parameter_set_version", "dataset_manifest_hash",
+        "dataset_plan_hash", "of_search_plan_hash", "price_action_schema_hash", "price_action_config_hash",
+        "optimizer_run_id", "optimizer_run_manifest_hash", "research_evidence_hash", "liquidity_bucket_model_hash",
+        "parameter_manifest_hash", "parameters", "trial_summary", "selection", "limitations"
+      ],
+      "properties": {
+        "candidate_id": { "$ref": "#/$defs/id" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "output_label": { "const": "UNVALIDATED_HIGH_OVERFIT_RISK" },
+        "parameter_set_version": { "const": "of-alpha-v1" },
+        "dataset_manifest_hash": { "$ref": "#/$defs/sha256" },
+        "dataset_plan_hash": { "$ref": "#/$defs/sha256" },
+        "of_search_plan_hash": { "$ref": "#/$defs/sha256" },
+        "price_action_schema_hash": { "$ref": "#/$defs/sha256" },
+        "price_action_config_hash": { "$ref": "#/$defs/sha256" },
+        "optimizer_run_id": { "$ref": "#/$defs/id" },
+        "optimizer_run_manifest_hash": { "$ref": "#/$defs/sha256" },
+        "research_evidence_hash": { "$ref": "#/$defs/sha256" },
+        "liquidity_bucket_model_hash": { "$ref": "#/$defs/sha256" },
+        "parameter_manifest_hash": { "$ref": "#/$defs/sha256" },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["global", "by_liquidity_bucket"],
+          "properties": {
+            "global": { "$ref": "#/$defs/globalParameters" },
+            "by_liquidity_bucket": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["LOW", "MEDIUM", "HIGH"],
+              "properties": {
+                "LOW": { "$ref": "#/$defs/bucketParameters" },
+                "MEDIUM": { "$ref": "#/$defs/bucketParameters" },
+                "HIGH": { "$ref": "#/$defs/bucketParameters" }
+              }
+            }
+          }
+        },
+        "trial_summary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["planned", "executed", "completed", "failed", "pruned", "all_trials_retained", "trial_ledger_hash"],
+          "properties": {
+            "planned": { "type": "integer", "minimum": 1 },
+            "executed": { "type": "integer", "minimum": 1 },
+            "completed": { "type": "integer", "minimum": 1 },
+            "failed": { "type": "integer", "minimum": 0 },
+            "pruned": { "type": "integer", "minimum": 0 },
+            "all_trials_retained": { "const": true },
+            "trial_ledger_hash": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "selection": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["selected_trial_id", "primary_objective", "primary_value", "selected_rank", "candidate_evaluator_version", "candidate_evaluator_hash", "selection_rule", "selection_evidence_hash"],
+          "properties": {
+            "selected_trial_id": { "$ref": "#/$defs/id" },
+            "primary_objective": { "const": "NET_EXPECTANCY_AFTER_ALL_COSTS" },
+            "primary_value": { "$ref": "#/$defs/decimal" },
+            "selected_rank": { "const": 1 },
+            "candidate_evaluator_version": { "const": "candidate-evaluator-v1" },
+            "candidate_evaluator_hash": { "$ref": "#/$defs/sha256" },
+            "selection_rule": { "const": "DOCS03_SECTION_11_2_V1_DECIMAL_LEXICOGRAPHIC" },
+            "selection_evidence_hash": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "limitations": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": { "enum": ["THREE_DAY_ALL_OF_ALPHA_OPTIMIZATION", "NOT_STATISTICALLY_ROBUST", "NO_PROFIT_CLAIM", "EXPERIMENTAL_LIVE_UNTIL_DAY90_GATE"] },
+          "allOf": [
+            { "contains": { "const": "THREE_DAY_ALL_OF_ALPHA_OPTIMIZATION" } },
+            { "contains": { "const": "NOT_STATISTICALLY_ROBUST" } }
+          ]
+        }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "key_id", "signed_at", "signature_ref"],
+      "properties": {
+        "algorithm": { "const": "Ed25519" },
+        "key_id": { "type": "string", "minLength": 3, "maxLength": 128 },
+        "signed_at": { "type": "string", "format": "date-time" },
+        "signature_ref": { "type": "string", "maxLength": 300, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*\\.sig$" }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|[0-9A-HJKMNP-TV-Z]{26})$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "decimal": { "type": "string", "pattern": "^-?(?:0|[1-9][0-9]{0,19})(?:\\.[0-9]{1,18})?$" },
+    "nonNegativeDecimal": { "type": "string", "pattern": "^(?:0|[1-9][0-9]{0,19})(?:\\.[0-9]{1,18})?$" },
+    "globalParameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["of_window_short_ms", "of_window_medium_ms", "of_window_long_ms", "book_depth_levels", "continuation_hold_ms", "refill_window_ms", "minimum_confirmation_components", "signal_cooldown_ms"],
+      "properties": {
+        "of_window_short_ms": { "type": "integer", "minimum": 100, "maximum": 1000, "multipleOf": 100 },
+        "of_window_medium_ms": { "type": "integer", "minimum": 1000, "maximum": 5000, "multipleOf": 500 },
+        "of_window_long_ms": { "type": "integer", "minimum": 5000, "maximum": 30000, "multipleOf": 1000 },
+        "book_depth_levels": { "type": "integer", "minimum": 5, "maximum": 50, "multipleOf": 5 },
+        "continuation_hold_ms": { "type": "integer", "minimum": 100, "maximum": 5000, "multipleOf": 100 },
+        "refill_window_ms": { "type": "integer", "minimum": 100, "maximum": 5000, "multipleOf": 100 },
+        "minimum_confirmation_components": { "type": "integer", "minimum": 2, "maximum": 6 },
+        "signal_cooldown_ms": { "type": "integer", "minimum": 0, "maximum": 30000, "multipleOf": 500 }
+      }
+    },
+    "bucketParameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["book_imbalance_threshold", "microprice_confirmation_bps", "trade_imbalance_threshold", "cvd_slope_threshold", "aggressive_notional_quantile", "sweep_intensity_threshold", "swept_levels_min", "maximum_sweep_retrace_ratio", "absorption_score_threshold", "absorption_max_move_bps", "refill_ratio_threshold", "reversal_trade_imbalance_threshold"],
+      "properties": {
+        "book_imbalance_threshold": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "microprice_confirmation_bps": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "trade_imbalance_threshold": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "cvd_slope_threshold": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "aggressive_notional_quantile": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "sweep_intensity_threshold": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "swept_levels_min": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "maximum_sweep_retrace_ratio": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "absorption_score_threshold": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "absorption_max_move_bps": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "refill_ratio_threshold": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "reversal_trade_imbalance_threshold": { "$ref": "#/$defs/nonNegativeDecimal" }
+      }
+    }
+  }
+}

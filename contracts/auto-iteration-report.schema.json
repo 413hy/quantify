@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "auto-iteration-report.schema.json",
+  "title": "AutoIterationReport",
+  "description": "月度选择、额度延期、策略白名单审查、离线验证、灰度、自动晋升或回滚的 attempt 级追加式证据。report_hash=SHA-256(RFC8785 JCS(content))。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "report_hash", "content"],
+  "properties": {
+    "schema_version": { "const": "2.0.0" },
+    "report_hash": { "$ref": "#/$defs/sha256" },
+    "content": {
+      "type": "object", "additionalProperties": false,
+      "required": ["report_id", "iteration_cycle_id", "attempt_id", "attempt_number", "scheduled_for", "data_cutoff_at", "started_at", "completed_at", "mode", "cycle_state", "queue_position", "model_selection_decision_id", "model_selection_decision_hash", "model", "reasoning_effort", "champion_package_hash", "challenger_package_hash", "changed_fields", "whitelist_verdict", "dataset_manifest_hash", "metrics", "gates", "final_decision", "deferral", "rollback", "evidence_manifest_hash"],
+      "properties": {
+        "report_id": { "$ref": "#/$defs/id" },
+        "iteration_cycle_id": { "type": "string", "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$" },
+        "attempt_id": { "$ref": "#/$defs/id" },
+        "attempt_number": { "type": "integer", "minimum": 1 },
+        "scheduled_for": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-01T03:10:00Z$" },
+        "data_cutoff_at": { "type": "string", "format": "date-time" },
+        "started_at": { "type": "string", "format": "date-time" },
+        "completed_at": { "type": ["string", "null"], "format": "date-time" },
+        "mode": { "enum": ["OBSERVE_ONLY", "AUTO_VALIDATION"] },
+        "cycle_state": { "enum": ["QUEUED", "QUEUED_BEHIND_QUOTA", "MODEL_SELECTION", "MONTHLY_ANALYSIS", "DEFERRED_QUOTA", "OFFLINE_VALIDATION", "SHADOW", "LIVE_0_10", "LIVE_0_50", "PROMOTION", "COMPLETE", "REJECTED", "ROLLED_BACK"] },
+        "queue_position": { "type": ["integer", "null"], "minimum": 1 },
+        "model_selection_decision_id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+        "model_selection_decision_hash": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+        "model": { "oneOf": [{ "$ref": "#/$defs/modelId" }, { "type": "null" }] },
+        "reasoning_effort": { "oneOf": [{ "$ref": "#/$defs/reasoningEffort" }, { "type": "null" }] },
+        "champion_package_hash": { "$ref": "#/$defs/sha256" },
+        "challenger_package_hash": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+        "changed_fields": { "type": "array", "maxItems": 128, "uniqueItems": true, "items": { "type": "string", "pattern": "^[a-z][a-z0-9_.-]{2,180}$" } },
+        "whitelist_verdict": { "enum": ["PASS", "REJECT", "NOT_APPLICABLE"] },
+        "dataset_manifest_hash": { "$ref": "#/$defs/sha256" },
+        "metrics": {
+          "type": "object", "additionalProperties": false,
+          "required": ["oos_trades", "net_expectancy", "profit_factor", "max_drawdown_pct", "cost_stress_expectancy", "parameter_perturbation_expectancy", "max_symbol_contribution_pct", "without_top_symbol_expectancy", "risk_adjusted_improvement", "meaningful_improvement_threshold"],
+          "properties": {
+            "oos_trades": { "type": "integer", "minimum": 0 },
+            "net_expectancy": { "$ref": "#/$defs/decimal" },
+            "profit_factor": { "$ref": "#/$defs/nonNegativeDecimal" },
+            "max_drawdown_pct": { "$ref": "#/$defs/nonNegativeDecimal" },
+            "cost_stress_expectancy": { "$ref": "#/$defs/decimal" },
+            "parameter_perturbation_expectancy": { "$ref": "#/$defs/decimal" },
+            "max_symbol_contribution_pct": { "$ref": "#/$defs/nonNegativeDecimal" },
+            "without_top_symbol_expectancy": { "$ref": "#/$defs/decimal" },
+            "risk_adjusted_improvement": { "$ref": "#/$defs/decimal" },
+            "meaningful_improvement_threshold": { "$ref": "#/$defs/nonNegativeDecimal" }
+          }
+        },
+        "gates": {
+          "type": "array", "minItems": 1, "maxItems": 16,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["stage", "status", "started_at", "completed_at", "risk_multiplier", "evidence_hash", "blocking_reasons"],
+            "properties": {
+              "stage": { "enum": ["MODEL_CATALOG", "MODEL_SELECTION", "QUOTA_GATE", "AUDIT", "OFFLINE_VALIDATION", "SHADOW", "LIVE_0_10", "LIVE_0_50", "PROMOTION", "ROLLBACK"] },
+              "status": { "enum": ["PENDING", "RUNNING", "PASS", "FAIL", "SKIPPED"] },
+              "started_at": { "type": ["string", "null"], "format": "date-time" },
+              "completed_at": { "type": ["string", "null"], "format": "date-time" },
+              "risk_multiplier": { "enum": ["0", "0.10", "0.50", "1.00"] },
+              "evidence_hash": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+              "blocking_reasons": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{2,79}$" } }
+            }
+          }
+        },
+        "final_decision": { "enum": ["DEFERRED_QUOTA", "OBSERVE_ONLY", "NO_CHANGE", "REJECTED", "PROMOTED", "ROLLED_BACK", "ENGINEERING_PROPOSAL_ONLY"] },
+        "deferral": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object", "additionalProperties": false,
+              "required": ["category", "deferred_at", "next_retry_at", "original_scheduled_for", "frozen_data_cutoff_at", "fallback_model_attempted", "resume_attempted", "champion_unchanged", "queue_order"],
+              "properties": {
+                "category": { "enum": ["SELECTOR_QUOTA", "ANALYSIS_QUOTA"] },
+                "deferred_at": { "type": "string", "format": "date-time" },
+                "next_retry_at": { "type": "string", "format": "date-time" },
+                "original_scheduled_for": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-01T03:10:00Z$" },
+                "frozen_data_cutoff_at": { "type": "string", "format": "date-time" },
+                "fallback_model_attempted": { "const": false },
+                "resume_attempted": { "const": false },
+                "champion_unchanged": { "const": true },
+                "queue_order": { "const": "FIFO" }
+              }
+            }
+          ]
+        },
+        "rollback": {
+          "type": "object", "additionalProperties": false,
+          "required": ["required", "completed", "restored_package_hash", "same_cycle_candidate_retry_forbidden"],
+          "properties": {
+            "required": { "type": "boolean" },
+            "completed": { "type": "boolean" },
+            "restored_package_hash": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+            "same_cycle_candidate_retry_forbidden": { "type": "boolean" }
+          }
+        },
+        "evidence_manifest_hash": { "$ref": "#/$defs/sha256" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "final_decision": { "const": "DEFERRED_QUOTA" } }, "required": ["final_decision"] },
+          "then": { "properties": { "cycle_state": { "const": "DEFERRED_QUOTA" }, "deferral": { "type": "object" }, "challenger_package_hash": { "type": "null" } } },
+          "else": { "properties": { "deferral": { "type": "null" } } }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|[0-9A-HJKMNP-TV-Z]{26})$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "decimal": { "type": "string", "pattern": "^-?(?:0|[1-9][0-9]{0,19})(?:\\.[0-9]{1,18})?$" },
+    "nonNegativeDecimal": { "type": "string", "pattern": "^(?:0|[1-9][0-9]{0,19})(?:\\.[0-9]{1,18})?$" },
+    "modelId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{1,127}$" },
+    "reasoningEffort": { "enum": ["low", "medium", "high", "xhigh"] }
+  }
+}

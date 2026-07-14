@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0.0",
+  "payload_hash": "160f869c249afa789678d249a7ed59854534c786fd0b5ed31ba965bdfc2e2d77",
+  "signed_payload": {
+    "approval_id": "55555555-5555-4555-8555-555555555551",
+    "package_id": "33333333-3333-4333-8333-333333333331",
+    "package_hash": "194bcbe9d523428845f5b9db421fb818bed699b7faa59f89fb387f65fffd8fcf",
+    "action": "FREEZE_CHAMPION",
+    "resulting_stage": "CHAMPION_FROZEN",
+    "target_environment": "shadow",
+    "release_id": "release-20260716-c0",
+    "predecessor_approval_id": null,
+    "predecessor_payload_hash": null,
+    "evidence_hashes": [
+      "1111111111111111111111111111111111111111111111111111111111111111"
+    ],
+    "operator_id": "account-owner",
+    "issued_at": "2026-07-16T01:25:00Z",
+    "effective_at": "2026-07-16T01:30:00Z",
+    "expires_at": "2026-07-16T01:32:00Z",
+    "nonce": "freeze-c0-20260716-0001"
+  },
+  "signature": {
+    "algorithm": "Ed25519",
+    "key_id": "owner-signing-key-2026q3",
+    "signature_ref": "signatures/strategy-freeze-c0.sig"
+  }
+}

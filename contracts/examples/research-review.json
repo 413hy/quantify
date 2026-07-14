@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0.0",
+  "payload_hash": "e5b9f8bf28dd63bbbd279da908d286d67c37678467b8bafa9659a2cdbced9d09",
+  "signed_payload": {
+    "review_id": "77777777-7777-4777-8777-777777777771",
+    "proposal_id": "44444444-4444-4444-8444-444444444441",
+    "proposal_hash": "1dfd8e4975b2914109c06509d4d5d3e82c1dcbaf869bcca2d6b1f5f668464435",
+    "decision": "APPROVED_FOR_VALIDATION",
+    "evidence_hashes": [
+      "7777777777777777777777777777777777777777777777777777777777777777"
+    ],
+    "reviewer_id": "human-research-reviewer",
+    "reviewed_at": "2026-08-01T01:00:00Z",
+    "expires_at": "2026-08-02T01:00:00Z",
+    "nonce": "research-review-20260801-0001"
+  },
+  "signature": {
+    "algorithm": "Ed25519",
+    "key_id": "research-review-key-2026q3",
+    "signature_ref": "signatures/research-review-20260801.sig"
+  }
+}

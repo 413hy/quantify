@@ -1,0 +1,28 @@
+name: aiq-binance-egress
+
+services:
+  binance-egress-gateway:
+    image: ${AIQ_APP_IMAGE:?set digest-pinned AIQ_APP_IMAGE}
+    command: ["python", "-m", "ai_quant.services.locked_process"]
+    environment:
+      AIQ_SOCKET_PATH: /run/ai-quant-egress/gateway.sock
+      AIQ_RATE_SOCKET_PATH: /run/ai-quant-rate/rate.sock
+      AIQ_RUNTIME_STATE: RISK_LOCKED
+    networks: [binance_egress_net]
+    volumes:
+      - type: bind
+        source: /run/ai-quant-egress
+        target: /run/ai-quant-egress
+      - type: bind
+        source: /run/ai-quant-rate
+        target: /run/ai-quant-rate
+        read_only: true
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+
+networks:
+  binance_egress_net:
+    driver: bridge

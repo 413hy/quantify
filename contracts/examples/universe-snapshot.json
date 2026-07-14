@@ -1,0 +1,150 @@
+{
+  "schema_version": "1.1.0",
+  "event_type": "UniverseSnapshot",
+  "event_id": "11111111-1111-4111-8111-111111111111",
+  "occurred_at": "2026-07-13T00:15:00Z",
+  "received_at": "2026-07-13T00:15:00.025Z",
+  "correlation_id": "11111111-1111-4111-8111-111111111112",
+  "causation_id": null,
+  "strategy_version": "1.0.0-experimental",
+  "symbol": null,
+  "source_sequence": {
+    "channel": "universe-ranker",
+    "first": null,
+    "last": null,
+    "previous_last": null
+  },
+  "idempotency_key": "universe:185a1fbe1c7e659ac15ed08e9dda3d2dcce2d80d3aba87191a1046f2969999ca",
+  "producer": "realtime-engine",
+  "payload": {
+    "snapshot_id": "11111111-1111-4111-8111-111111111113",
+    "computed_at": "2026-07-13T00:15:00Z",
+    "effective_from": "2026-07-13T00:15:00Z",
+    "next_refresh_at": "2026-07-13T00:30:00Z",
+    "ranking_window_start": "2026-07-13T00:00:00Z",
+    "ranking_window_end": "2026-07-13T00:15:00Z",
+    "refresh_interval_seconds": 900,
+    "score_model_version": "score-v1",
+    "source_manifest_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "scoring_input_hash": "42e022f941670b35ca0276e3a25849a0535afc616801c397febdfed402676daa",
+    "exchange_rules_version": "exchange-rules-20260713T000000Z",
+    "eligible_count": 2,
+    "reduced_pool_alert": true,
+    "active": ["BTCUSDT", "ETHUSDT"],
+    "standby": [],
+    "managed_positions": [],
+    "ranking": [
+      {
+        "symbol": "BTCUSDT",
+        "rank": 1,
+        "membership": "TOP10",
+        "eligible": true,
+        "data_health_status": "HEALTHY",
+        "warmed_up": true,
+        "tradable": true,
+        "raw_inputs": {
+          "trading_liquidity_quote_notional": "1500000000",
+          "book_depth_quote_notional": "25000000",
+          "spread_bps": "0.5",
+          "trade_event_count": 120000,
+          "input_completeness_pct": "100"
+        },
+        "winsorized_components": {
+          "trading_liquidity": "21.10845769",
+          "book_depth": "17.01796122",
+          "inverse_spread": "-0.515",
+          "activity": "11.68087139",
+          "data_health": "99.97777778"
+        },
+        "normalized_components": {
+          "trading_liquidity": "100",
+          "book_depth": "100",
+          "inverse_spread": "100",
+          "activity": "100",
+          "data_health": "100"
+        },
+        "weighted_components": {
+          "trading_liquidity": "30",
+          "book_depth": "30",
+          "inverse_spread": "20",
+          "activity": "10",
+          "data_health": "10"
+        },
+        "score": "100",
+        "reason_codes": ["UNIVERSE_SELECTED_TOP10"]
+      },
+      {
+        "symbol": "ETHUSDT",
+        "rank": 2,
+        "membership": "TOP10",
+        "eligible": true,
+        "data_health_status": "HEALTHY",
+        "warmed_up": true,
+        "tradable": true,
+        "raw_inputs": {
+          "trading_liquidity_quote_notional": "1000000000",
+          "book_depth_quote_notional": "18000000",
+          "spread_bps": "0.8",
+          "trade_event_count": 90000,
+          "input_completeness_pct": "99.55555556"
+        },
+        "winsorized_components": {
+          "trading_liquidity": "20.74353909",
+          "book_depth": "16.72230757",
+          "inverse_spread": "-0.785",
+          "activity": "11.42196003",
+          "data_health": "99.57777778"
+        },
+        "normalized_components": {
+          "trading_liquidity": "0",
+          "book_depth": "0",
+          "inverse_spread": "0",
+          "activity": "0",
+          "data_health": "0"
+        },
+        "weighted_components": {
+          "trading_liquidity": "0",
+          "book_depth": "0",
+          "inverse_spread": "0",
+          "activity": "0",
+          "data_health": "0"
+        },
+        "score": "0",
+        "reason_codes": ["UNIVERSE_SELECTED_TOP10"]
+      }
+    ],
+    "excluded_candidates": [
+      {
+        "symbol": "XRPUSDT",
+        "membership": "INELIGIBLE",
+        "eligible": false,
+        "data_health_status": "INVALID",
+        "warmed_up": false,
+        "tradable": false,
+        "exclusion_stage": "H40_DEPTH_CAPACITY",
+        "h40_priority_rank": 41,
+        "raw_inputs": {
+          "trading_liquidity_quote_notional": "250000000",
+          "book_depth_quote_notional": null,
+          "spread_bps": "1.2",
+          "trade_event_count": 25000,
+          "input_completeness_pct": "99.6"
+        },
+        "evidence_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "reason_codes": ["UNIVERSE_CAPACITY_REDUCED"]
+      }
+    ],
+    "normalization_evidence": {
+      "trading_liquidity": { "q05": "20.74353909", "q95": "21.10845769", "direction": "HIGHER_IS_BETTER", "eligible_count": 2 },
+      "book_depth": { "q05": "16.72230757", "q95": "17.01796122", "direction": "HIGHER_IS_BETTER", "eligible_count": 2 },
+      "inverse_spread": { "q05": "-0.785", "q95": "-0.515", "direction": "HIGHER_IS_BETTER", "eligible_count": 2 },
+      "activity": { "q05": "11.42196003", "q95": "11.68087139", "direction": "HIGHER_IS_BETTER", "eligible_count": 2 },
+      "data_health": { "q05": "99.57777778", "q95": "99.97777778", "direction": "HIGHER_IS_BETTER", "eligible_count": 2 }
+    },
+    "hysteresis": {
+      "minimum_residence_seconds": 3600,
+      "confirmation_cycles": 2,
+      "replacement_score_delta": "5"
+    }
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "schema_version": "2.0.0",
+  "cycle_id": "018f53c0-1234-7abc-8def-123456789011",
+  "analysis_epoch": "2026-07-14T12:30:00Z",
+  "scheduled_engine": "CODEX_PRIMARY",
+  "effective_authority": "CODEX_PRIMARY",
+  "started_at": "2026-07-14T12:30:02Z",
+  "deadline_at": "2026-07-14T12:31:32Z",
+  "completed_at": "2026-07-14T12:30:40Z",
+  "status": "NO_TRADE",
+  "context_id": "018f53c0-1234-7abc-8def-123456789001",
+  "context_hash": "18fec2259d7de458ca74ca11168d29f1f5c1b2a91c2aa59458b3f81d2750421b",
+  "session_isolation": {
+    "analysis_run_id": "018f53c0-1234-7abc-8def-123456789013",
+    "thread_id": "018f53c0-1234-7abc-8def-123456789014",
+    "invocation_mode": "CODEX_EXEC_EPHEMERAL",
+    "ephemeral": true,
+    "fresh_process": true,
+    "fresh_thread": true,
+    "fresh_workspace": true,
+    "resume_used": false,
+    "reused_thread_id": null,
+    "history_or_transcript_input": false,
+    "memory_input": false,
+    "reasoning_input": false,
+    "prior_context_policy": "STRUCTURED_SCHEMA_FACTS_ONLY",
+    "workspace_manifest_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "prompt_input_manifest_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "command_audit_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "cleanup_status": "COMPLETED"
+  },
+  "authority_lease": {
+    "lease_id": "018f53c0-1234-7abc-8def-123456789012",
+    "epoch_key": "2026-07-14T12:30:00Z",
+    "holder": "CODEX_PRIMARY",
+    "fencing_token": 42,
+    "acquired_at": "2026-07-14T12:30:02Z",
+    "expires_at": "2026-07-14T12:31:45Z",
+    "released_at": "2026-07-14T12:30:41Z"
+  },
+  "output_plan_id": "018f53c0-1234-7abc-8def-123456789010",
+  "output_plan_hash": "e74a85887fd29a0ed8a70c18775db63d4cecb1699644aaeeebd9cd5e1219a99d",
+  "failure": null,
+  "recovery": {
+    "cooldown_until": null,
+    "required_dry_run_successes": 3,
+    "consecutive_dry_run_successes": 3,
+    "eligible_next_epoch": true
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "schema_version": "1.0.0",
+  "model_hash": "d581fe402814d4ec34fc992e5a7628681081a64484924b83c73664ab09815451",
+  "content": {
+    "model_id": "execution-model-maker-first-v1",
+    "created_at": "2026-07-16T00:00:00Z",
+    "market": "BINANCE_USDM_FUTURES",
+    "maker_first": {
+      "required_for_normal_entry": true,
+      "order_type": "LIMIT",
+      "time_in_force": "GTX",
+      "ttl_ms_by_liquidity_bucket": { "LOW": 750, "MEDIUM": 500, "HIGH": 300 },
+      "reprice_limit": 1,
+      "signal_must_remain_valid": true
+    },
+    "taker_escalation": {
+      "allowed": true,
+      "required_conditions": ["signal_not_expired", "pa_and_of_still_aligned", "book_healthy", "risk_reservation_valid", "net_edge_after_taker_cost_at_or_above_threshold", "urgency_elevated"],
+      "recompute_edge_with_taker_cost": true,
+      "stale_or_missing_cost_action": "CANCEL_AND_NO_ENTRY"
+    },
+    "queue_fill": {
+      "method": "FIFO_CONSERVATIVE_L2_REPLAY_V1",
+      "trade_quantity_field": "nq",
+      "queue_ahead_source": "VISIBLE_SIZE_AT_PRICE_WHEN_ACKED",
+      "hidden_liquidity_credit": false,
+      "cancel_ahead_credit": false,
+      "fill_requires_trade_through_or_queue_depletion": true
+    },
+    "latency": {
+      "method": "EMPIRICAL_EVENT_TIME_DISTRIBUTION_V1",
+      "components": ["market_to_feature", "feature_to_risk", "risk_to_durable_intent", "intent_to_gateway", "gateway_to_exchange_ack"],
+      "distribution_snapshot_hash": "969099da0ae0f28dac964e835a75a028d05bf9f42d6cc59a241d4ae0bdbc99ca",
+      "minimum_observations_per_path": 100,
+      "fallback": "CONSERVATIVE_P99_OR_REJECT"
+    },
+    "partial_fill": {
+      "protect_each_increment": true,
+      "protection_deadline_ms": 1000,
+      "remaining_quantity_rule": "RECHECK_SIGNAL_EDGE_RISK_AND_EXCHANGE_FILTERS",
+      "signal_expiry_action": "CANCEL_REMAINDER_KEEP_FILLED_PROTECTED"
+    },
+    "exchange_filters": {
+      "source": "CURRENT_EXCHANGE_INFO",
+      "refresh_on_reject": true,
+      "round_price": "SIDE_AND_ORDER_ROLE_SAFE_TICK",
+      "round_quantity": "DOWN_TO_STEP_SIZE",
+      "stale_action": "REJECT_ENTRY"
+    },
+    "native_protection": {
+      "transport": "ALGO",
+      "stop_order_type": "STOP_MARKET",
+      "reduce_position": true,
+      "deadline_ms": 1000,
+      "missing_action": "STOP_NEW_ENTRIES_AND_EMERGENCY_EXIT_IF_POSSIBLE"
+    },
+    "unknown_result": {
+      "reconcile_deadline_ms": 5000,
+      "blind_retry_forbidden": true,
+      "same_client_id_required": true,
+      "timeout_action": "RISK_LOCKED_AND_INCIDENT"
+    },
+    "replay": {
+      "event_time_only": true,
+      "deterministic_seed": 20260716,
+      "same_order_state_machine": true,
+      "same_cost_model": true,
+      "same_exchange_filter_snapshot": true
+    },
+    "automatic_update_forbidden": true
+  }
+}

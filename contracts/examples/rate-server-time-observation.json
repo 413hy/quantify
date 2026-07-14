@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0.0",
+  "message_type": "ServerTimeObservation",
+  "message_id": "rate-time-observation-0001",
+  "occurred_at": "2026-07-13T00:00:00.020Z",
+  "caller_service": "binance-egress-gateway",
+  "caller_instance_id": "egress-gateway-01",
+  "correlation_id": "host-bootstrap-correlation-0001",
+  "permit_id": "rate-permit-time-0001",
+  "endpoint_authority": "BINANCE_PRODUCTION_FAPI",
+  "endpoint_id": "REST_SERVER_TIME",
+  "raw_response_hash": "8181818181818181818181818181818181818181818181818181818181818181",
+  "tls_peer_certificate_hash": "8282828282828282828282828282828282828282828282828282828282828282",
+  "server_time_ms": 1783900800020,
+  "gateway_boot_id": "gateway-boot-20260713-0001",
+  "gateway_monotonic_ns": 123456789000,
+  "fencing_epoch": 7
+}

@@ -1,0 +1,71 @@
+name: aiq-host-control
+
+services:
+  host-control-postgres:
+    image: docker.io/library/postgres@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+    environment:
+      POSTGRES_DB: aiq_host_rate_control
+      POSTGRES_USER: aiq_host_control
+      POSTGRES_PASSWORD_FILE: /run/secrets/host_control_db_password
+    secrets: [host_control_db_password]
+    networks: [host_control_db_net]
+    volumes:
+      - host_control_pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp, /var/run/postgresql]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+
+  rate-budget-service:
+    image: ${AIQ_APP_IMAGE:?set digest-pinned AIQ_APP_IMAGE}
+    command: ["python", "-m", "ai_quant.services.locked_process"]
+    environment:
+      AIQ_SOCKET_PATH: /run/ai-quant-rate/rate.sock
+      AIQ_RUNTIME_STATE: RISK_LOCKED
+      AIQ_HOST_CONTROL_DB_PASSWORD_FILE: /run/secrets/host_control_db_password
+    secrets: [host_control_db_password]
+    networks: [host_control_db_net]
+    volumes:
+      - type: bind
+        source: /run/ai-quant-rate
+        target: /run/ai-quant-rate
+    depends_on: [host-control-postgres]
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+
+  host-attestation-signer:
+    image: ${AIQ_APP_IMAGE:?set digest-pinned AIQ_APP_IMAGE}
+    command: ["python", "-m", "ai_quant.services.locked_process"]
+    environment:
+      AIQ_SOCKET_PATH: /run/ai-quant-rate/attestation.sock
+      AIQ_RUNTIME_STATE: RISK_LOCKED
+      AIQ_ATTESTATION_KEY_FILE: /run/secrets/host_attestation_key
+    secrets: [host_attestation_key]
+    networks: [host_control_db_net]
+    volumes:
+      - type: bind
+        source: /run/ai-quant-rate
+        target: /run/ai-quant-rate
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+
+networks:
+  host_control_db_net:
+    internal: true
+
+volumes:
+  host_control_pgdata:
+
+secrets:
+  host_control_db_password:
+    file: ${HOST_CONTROL_DB_PASSWORD_FILE:-/run/ai-quant-secrets/host-control-db-password}
+  host_attestation_key:
+    file: ${HOST_ATTESTATION_KEY_FILE:-/run/ai-quant-secrets/host-attestation-key}

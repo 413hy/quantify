@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0.0",
+  "message_type": "SendOutcome",
+  "message_id": "rate-msg-00000003",
+  "occurred_at": "2026-07-13T00:00:00.010Z",
+  "caller_service": "binance-egress-gateway",
+  "caller_instance_id": "egress-gateway-01",
+  "correlation_id": "rate-correlation-0001",
+  "permit_id": "rate-permit-00000001",
+  "gateway_connection_id": null,
+  "transport": "REST",
+  "canonical_request_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+  "fencing_epoch": 7,
+  "outcome": "SENT_UNKNOWN",
+  "protocol_status": "UNKNOWN",
+  "connection_state_after": null,
+  "sent_at": "2026-07-13T00:00:00.005Z",
+  "http_status": 503,
+  "exchange_code": null,
+  "response_message_hash": "4444444444444444444444444444444444444444444444444444444444444444",
+  "result_receipt_hash": null
+}

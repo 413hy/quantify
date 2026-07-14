@@ -1,0 +1,414 @@
+schema_version: 1.1.0
+stability: frozen
+description: 跨服务、数据库和审计事件使用的稳定枚举。新增值须按向后兼容规则发布，既有值不得改义或复用。
+enums:
+  EventType:
+    - UniverseSnapshot
+    - MarketDataHealth
+    - FeatureSnapshot
+    - SignalCandidate
+    - RiskDecision
+    - OrderIntent
+    - OrderEvent
+    - PositionSnapshot
+    - Incident
+    - OperatorCommand
+    - StrategyPackage
+    - ResearchProposal
+    - StrategyAnalysisCycle
+    - DecisionAuthorityChanged
+    - TradePlan
+    - AutoIterationReport
+    - EngineeringProposal
+    - ModelSelectionDecision
+  StrategyEngine:
+    - CODEX_PRIMARY
+    - RULE_FALLBACK
+    - RULE_SHADOW
+  DecisionAuthority:
+    - CODEX_PRIMARY
+    - RULE_FALLBACK
+    - NONE
+  StrategyAnalysisStatus:
+    - STARTED
+    - TRADE_PLAN
+    - NO_TRADE
+    - SHADOW_ONLY
+    - FAILED_OVER
+    - FAILED
+  AutoIterationDecision:
+    - DEFERRED_QUOTA
+    - OBSERVE_ONLY
+    - NO_CHANGE
+    - REJECTED
+    - PROMOTED
+    - ROLLED_BACK
+    - ENGINEERING_PROPOSAL_ONLY
+  MonthlyCycleState:
+    - QUEUED
+    - QUEUED_BEHIND_QUOTA
+    - MODEL_SELECTION
+    - MONTHLY_ANALYSIS
+    - DEFERRED_QUOTA
+    - OFFLINE_VALIDATION
+    - SHADOW
+    - LIVE_0_10
+    - LIVE_0_50
+    - PROMOTION
+    - COMPLETE
+    - REJECTED
+    - ROLLED_BACK
+  QuotaDeferralCategory:
+    - SELECTOR_QUOTA
+    - ANALYSIS_QUOTA
+  ModelSelectionProvider:
+    - OPENAI_CODEX
+  RuntimeState:
+    - BOOTSTRAP
+    - RISK_LOCKED
+    - RECONCILING
+    - SHADOW
+    - PAPER
+    - TESTNET
+    - EXPERIMENTAL_LIVE
+    - PAUSED_NEW_ENTRIES
+    - EMERGENCY_FLATTENING
+    - STOPPED
+  Environment:
+    - shadow
+    - paper
+    - testnet
+    - production
+  DataClassification:
+    - INTERNAL
+    - CONFIDENTIAL
+  DataHealth:
+    - HEALTHY
+    - WARMING_UP
+    - STALE
+    - GAP_DETECTED
+    - CLOCK_UNSAFE
+    - INVALID
+  LiquidityBucket:
+    - LOW
+    - MEDIUM
+    - HIGH
+    - INVALID
+  DependencyState:
+    - HEALTHY
+    - DEGRADED
+    - UNAVAILABLE
+  TradeSide:
+    - LONG
+    - SHORT
+  PARegime:
+    - TREND_UP
+    - TREND_DOWN
+    - RANGE
+    - TRANSITION
+    - INVALID
+  PADirection:
+    - LONG
+    - SHORT
+    - NEUTRAL
+  PALocation:
+    - TREND_PULLBACK
+    - BREAKOUT_LEVEL
+    - RANGE_EDGE
+    - RANGE_MIDDLE
+    - UNQUALIFIED
+  PAStructure:
+    - HH_HL
+    - LH_LL
+    - COMPRESSION
+    - RANGE_BOUND
+    - UNCONFIRMED
+  SetupType:
+    - T1_TREND_PULLBACK_CONTINUATION
+    - B1_BREAKOUT_FOLLOW_THROUGH
+    - B2_BREAK_RETEST
+    - R1_RANGE_EDGE_REJECTION
+    - NO_SETUP
+  BinanceSide:
+    - BUY
+    - SELL
+  PositionSide:
+    - BOTH
+  SignalDecision:
+    - CANDIDATE
+    - NO_TRADE
+  RiskVerdict:
+    - APPROVE
+    - REJECT
+  RiskDecisionKind:
+    - ENTRY
+    - STRATEGY_EXIT
+    - PROTECTIVE_EXIT
+    - RISK_EXIT
+    - OPERATOR_FLATTEN
+    - RECONCILIATION_REPAIR
+  EntryMode:
+    - NEW_POSITION
+    - SCALE_IN
+  OrderState:
+    - CREATED
+    - RISK_APPROVED
+    - SUBMITTING
+    - ACKNOWLEDGED
+    - TRIGGER_PENDING
+    - TRIGGERING
+    - TRIGGERED
+    - PARTIALLY_FILLED
+    - FILLED
+    - CANCEL_PENDING
+    - CANCELED
+    - REJECTED
+    - EXPIRED
+    - UNKNOWN
+    - RECONCILING
+    - NOT_FOUND_CONFIRMED
+  OrderType:
+    - LIMIT
+    - MARKET
+    - STOP_MARKET
+    - TAKE_PROFIT_MARKET
+  AlgoType:
+    - CONDITIONAL
+  AlgoStatus:
+    - NEW
+    - CANCELED
+    - TRIGGERING
+    - TRIGGERED
+    - FINISHED
+    - REJECTED
+    - EXPIRED
+    - UNKNOWN
+  OrderIntentOrigin:
+    - ENTRY
+    - STRATEGY_EXIT
+    - PROTECTIVE_EXIT
+    - RISK_EXIT
+    - OPERATOR_FLATTEN
+    - RECONCILIATION_REPAIR
+  OrderRole:
+    - ENTRY
+    - STRATEGY_EXIT
+    - STOP_LOSS
+    - TAKE_PROFIT
+    - RISK_EXIT
+    - OPERATOR_FLATTEN
+    - RECONCILIATION_REPAIR
+  OrderExecutionType:
+    - REST_RESPONSE
+    - ALGO_REST_RESPONSE
+    - ORDER_UPDATE
+    - ALGO_UPDATE
+    - TRADE_UPDATE
+    - RECONCILIATION_QUERY
+    - ALGO_RECONCILIATION_QUERY
+    - INTERNAL_TRANSITION
+  OrderTransport:
+    - STANDARD
+    - ALGO
+  TimeInForce:
+    - GTX
+    - GTC
+    - IOC
+  Urgency:
+    - NORMAL
+    - ELEVATED
+    - PROTECTIVE
+    - EMERGENCY
+  RateBudgetMessageType:
+    - ReserveRequest
+    - ReserveDecision
+    - PermitConsumeRequest
+    - PermitConsumeDecision
+    - SendOutcome
+    - HeaderObservation
+  RateOperationClass:
+    - EMERGENCY_REDUCE_ONLY
+    - PROTECTION_CREATE_REPLACE
+    - CANCEL
+    - RECONCILIATION
+    - USER_STREAM_MAINTENANCE
+    - NORMAL_EXIT
+    - NORMAL_ENTRY
+    - MARKET_DATA_SNAPSHOT
+  RateDecision:
+    - GRANTED
+    - DENIED
+  RatePermitConsumeDecision:
+    - CONSUME_GRANTED
+    - CONSUME_DENIED
+  RateSendOutcome:
+    - NOT_SENT
+    - SENT_DEFINITE_RESULT
+    - SENT_UNKNOWN
+  IncidentSeverity:
+    - P0
+    - P1
+    - P2
+    - P3
+  IncidentState:
+    - OPEN
+    - MITIGATING
+    - RESOLVED
+  ProtectionStatus:
+    - VERIFIED
+    - MISSING
+    - UNKNOWN
+    - NOT_REQUIRED_FLAT
+  PositionMembership:
+    - TOP10
+    - MANAGED_POSITION
+    - EXTERNAL_UNKNOWN
+  OperatorAction:
+    - QUERY_STATUS
+    - PAUSE_NEW_ENTRIES
+    - CANCEL_OPEN_ORDERS
+    - PREPARE_EMERGENCY_FLATTEN
+    - CONFIRM_EMERGENCY_FLATTEN
+    - LIVE_ARM
+    - SET_RISK_MULTIPLIER
+    - RESUME_NEW_ENTRIES
+    - RISK_UNLOCK
+    - APPLY_RISK_CONFIG
+    - APPLY_STRATEGY_PACKAGE
+    - ROTATE_SECRET
+  CommandSource:
+    - LOCAL_CLI
+    - INTERNAL_API
+    - SYSTEM
+  CommandResult:
+    - PENDING
+    - ACCEPTED
+    - REJECTED
+    - COMPLETED
+    - FAILED
+  StrategyStage:
+    - DRAFT
+    - CHALLENGER
+    - SHADOW_APPROVED
+    - TESTNET_APPROVED
+    - EXPERIMENTAL_LIVE
+    - CHAMPION_FROZEN
+    - RETIRED
+    - REJECTED
+  StrategyPackageRole:
+    - CHAMPION
+    - CHALLENGER
+  StrategyApprovalAction:
+    - FREEZE_CHAMPION
+    - APPROVE_SHADOW
+    - APPROVE_TESTNET
+    - ARM_EXPERIMENTAL_LIVE
+    - RETIRE
+    - REJECT
+  ResearchReviewDecision:
+    - APPROVED_FOR_VALIDATION
+    - REJECTED
+    - SUPERSEDED
+  ResearchEvaluationScenario:
+    - BASELINE_COST_1_0
+    - COST_STRESS_1_5
+    - PARAMETER_PERTURBATION_20
+  UniverseMembership:
+    - TOP10
+    - STANDBY_11_15
+    - MANAGED_POSITION
+    - LIGHTWEIGHT_ONLY
+    - INELIGIBLE
+  ReasonCode:
+    - DATA_BOOK_GAP
+    - DATA_BOOK_REBUILDING
+    - DATA_STALE
+    - DATA_TRADE_GAP
+    - DATA_KLINE_UNCLOSED
+    - DATA_FEATURE_INCOMPLETE
+    - TIME_CLOCK_DRIFT
+    - TIME_LATE_EVENT
+    - UNIVERSE_SELECTED_TOP10
+    - UNIVERSE_SELECTED_STANDBY
+    - UNIVERSE_NOT_MEMBER
+    - UNIVERSE_WARMING_UP
+    - UNIVERSE_INELIGIBLE
+    - UNIVERSE_HYSTERESIS_HOLD
+    - UNIVERSE_CAPACITY_REDUCED
+    - UNIVERSE_MANAGED_POSITION_ONLY
+    - UNIVERSE_BUCKET_INVALID
+    - PA_REGIME_INVALID
+    - PA_REGIME_TRANSITION
+    - PA_DIRECTION_NEUTRAL
+    - PA_SETUP_ARMED
+    - PA_SETUP_CONFLICT
+    - PA_STRUCTURE_INVALIDATED
+    - PA_ARM_EXPIRED
+    - PA_RANGE_TOO_NARROW
+    - OF_MOMENTUM_CONFIRMED
+    - OF_ABSORPTION_CONFIRMED
+    - OF_INSUFFICIENT_AGGRESSION
+    - OF_BOOK_CONFLICT
+    - OF_CONFIRMATION_EXPIRED
+    - FUSION_DIRECTION_CONFLICT
+    - FUSION_NO_CONFIRMATION
+    - SIGNAL_EXPIRED
+    - NET_EDGE_INSUFFICIENT
+    - RISK_APPROVED
+    - RISK_STRATEGY_EXIT_APPROVED
+    - RISK_PROTECTIVE_EXIT_APPROVED
+    - RISK_FORCED_EXIT_APPROVED
+    - RISK_OPERATOR_FLATTEN_APPROVED
+    - RISK_RECONCILIATION_REPAIR_APPROVED
+    - RISK_LIFECYCLE_BLOCKED
+    - RISK_ACCOUNT_MISMATCH
+    - RISK_ACCOUNT_STALE
+    - RISK_SIGNAL_EXPIRED
+    - RISK_SINGLE_TRADE_LIMIT
+    - RISK_TOTAL_LIMIT
+    - RISK_CLUSTER_LIMIT
+    - RISK_DAILY_LOSS_LIMIT
+    - RISK_DRAWDOWN_LIMIT
+    - RISK_LEVERAGE_LIMIT
+    - RISK_POSITION_COUNT_LIMIT
+    - RISK_LOSS_STREAK_PAUSE
+    - RISK_DAILY_LOSS_COUNT_LOCK
+    - RISK_PROTECTION_UNAVAILABLE
+    - RISK_EXCHANGE_FILTER
+    - RISK_NET_EDGE_INSUFFICIENT
+    - RISK_PERSISTENCE_UNAVAILABLE
+    - EXCHANGE_RULE_STALE
+    - DATABASE_UNWRITABLE
+    - RESOURCE_OVERLOAD
+    - EXEC_PROTECTION_MISSING
+    - EXEC_ORDER_STATE_UNKNOWN
+    - EXEC_ORDER_STATE_INVARIANT_BREACH
+    - EXEC_EXCHANGE_UPDATE_APPLIED
+    - EXEC_ALGO_UPDATE_APPLIED
+    - EXEC_ALGO_STATUS_UNKNOWN
+    - EXEC_ALGO_ACTUAL_ORDER_RECONCILING
+    - EXEC_ALGO_PROTECTION_REJECTED
+    - EXEC_DEFINITE_FAILURE
+    - EXEC_MAKER_TTL_EXPIRED
+    - EXEC_DUPLICATE_IDEMPOTENCY_KEY
+    - CONTROL_NOT_AUTHORIZED
+    - CONTROL_COMMAND_REPLAYED
+    - CONTROL_HUMAN_SIGNATURE_REQUIRED
+    - CONTROL_COMMAND_ACCEPTED
+    - EXPERIMENTAL_LIVE_GATE
+  ApiProblemCode:
+    - AUTHENTICATION_FAILED
+    - AUTHORIZATION_FAILED
+    - AUTH_CONTEXT_MISMATCH
+    - COMMAND_NOT_ALLOWED
+    - IDEMPOTENCY_CONFLICT
+    - STATE_VERSION_CONFLICT
+    - RISK_LOCKED
+    - CONFIRMATION_REQUIRED
+    - CONFIRMATION_EXPIRED
+    - CONFIRMATION_USED
+    - DATABASE_UNWRITABLE
+    - SERVICE_NOT_READY
+    - MARKET_DATA_UNHEALTHY
+    - ORDER_STATE_UNKNOWN
+    - PROTECTION_UNHEALTHY
