@@ -20,6 +20,7 @@ from ai_quant.rate_budget.authorization import (
     PeerCredentials,
     authorize_protocol_peer,
     canonical_digest,
+    load_pinned_sha256,
     load_runtime_trust_bundle,
     peer_credentials,
     verify_causal_capability,
@@ -218,6 +219,7 @@ def test_loader_requires_pinned_root_owned_read_only_keyring(tmp_path: Path) -> 
         ROOT / "config/capability-trust-bundle.schema.json",
         keyring_path,
         ROOT / "config/verification-keyring.schema.json",
+        trusted_root_directory=tmp_path,
         expected_keyring_hash=keyring_hash,
         now=NOW,
     )
@@ -229,9 +231,32 @@ def test_loader_requires_pinned_root_owned_read_only_keyring(tmp_path: Path) -> 
             ROOT / "config/capability-trust-bundle.schema.json",
             keyring_path,
             ROOT / "config/verification-keyring.schema.json",
+            trusted_root_directory=tmp_path,
             expected_keyring_hash=keyring_hash,
             now=NOW,
         )
+
+
+def test_hash_pin_is_an_independent_root_owned_file(tmp_path: Path) -> None:
+    pin_path = tmp_path / "host-control-config-keyring.sha256"
+    pin_path.write_text("a" * 64 + "\n", encoding="ascii")
+    pin_path.chmod(0o444)
+    assert load_pinned_sha256(pin_path, trusted_directory=tmp_path) == "a" * 64
+    outside = tmp_path.parent / "outside-keyring-pin.sha256"
+    outside.write_text("a" * 64, encoding="ascii")
+    outside.chmod(0o444)
+    try:
+        with pytest.raises(AuthorizationDenied, match="TRUST_ROOT_FILE_UNSAFE"):
+            load_pinned_sha256(outside, trusted_directory=tmp_path)
+    finally:
+        outside.unlink()
+    link_path = tmp_path / "linked-keyring-pin.sha256"
+    link_path.symlink_to(pin_path)
+    with pytest.raises(AuthorizationDenied, match="TRUST_ROOT_FILE_UNSAFE"):
+        load_pinned_sha256(link_path, trusted_directory=tmp_path)
+    tmp_path.chmod(0o770)
+    with pytest.raises(AuthorizationDenied, match="TRUST_ROOT_FILE_UNSAFE"):
+        load_pinned_sha256(pin_path, trusted_directory=tmp_path)
 
 
 def test_kernel_peer_credentials_are_read_from_unix_socket() -> None:

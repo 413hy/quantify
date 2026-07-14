@@ -292,13 +292,14 @@ def load_runtime_endpoint_catalog(
     keyring_path: Path,
     keyring_schema_path: Path,
     *,
+    trusted_root_directory: Path,
     expected_keyring_hash: str,
     request_schema_path: Path,
     source_artifact_root: Path,
     now: datetime,
 ) -> RuntimeEndpointCatalog:
     """Validate closed schemas and load a signed catalog from the trusted filesystem boundary."""
-    assert_root_owned_0444(keyring_path)
+    assert_root_owned_0444(keyring_path, trusted_directory=trusted_root_directory)
     catalog = validate_config(catalog_path, catalog_schema_path)
     keyring = validate_config(keyring_path, keyring_schema_path)
     if not isinstance(catalog, dict) or not isinstance(keyring, dict):

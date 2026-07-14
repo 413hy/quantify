@@ -103,3 +103,22 @@ def test_attestation_evidence_has_one_writer_and_one_read_only_consumer() -> Non
         "host-attestation-signer": False,
         "binance-egress-gateway": True,
     }
+
+
+def test_trust_root_is_read_only_and_not_exposed_to_business_services() -> None:
+    mounts: dict[str, bool] = {}
+    for path in (ROOT / "deploy").glob("*.yaml"):
+        document = yaml.safe_load(path.read_text(encoding="utf-8"))
+        for name, service in document.get("services", {}).items():
+            for mount in service.get("volumes", []):
+                if (
+                    isinstance(mount, dict)
+                    and mount.get("source") == "/etc/ai-quant/trust"
+                ):
+                    assert mount.get("target") == "/etc/ai-quant/trust"
+                    mounts[name] = bool(mount.get("read_only", False))
+    assert mounts == {
+        "rate-budget-service": True,
+        "host-attestation-signer": True,
+        "binance-egress-gateway": True,
+    }

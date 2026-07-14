@@ -23,6 +23,10 @@ services:
         source: /run/ai-quant-attestation
         target: /run/ai-quant-attestation
         read_only: true
+      - type: bind
+        source: /etc/ai-quant/trust
+        target: /etc/ai-quant/trust
+        read_only: true
     restart: unless-stopped
     read_only: true
     tmpfs: [/tmp]

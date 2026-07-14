@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from ai_quant.rate_budget.application import RateBudgetApplication
-from ai_quant.rate_budget.authorization import load_runtime_trust_bundle
+from ai_quant.rate_budget.authorization import load_pinned_sha256, load_runtime_trust_bundle
 from ai_quant.rate_budget.policy import load_runtime_endpoint_catalog
 from ai_quant.rate_budget.postgres import PostgresRateAuthority, load_database_dsn
 from ai_quant.services.locked_process import validated_socket_path
@@ -25,23 +25,21 @@ def _path(name: str) -> Path:
     return path
 
 
-def _sha256_pin(name: str) -> str:
-    value = os.environ.get(name, "")
-    if len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
-        raise RuntimeError(f"invalid SHA-256 pin: {name}")
-    return value
-
-
 def run() -> None:
     now = datetime.now(UTC)
+    trusted_root_directory = Path("/etc/ai-quant/trust")
     keyring_path = _path("AIQ_HOST_CONFIG_KEYRING_FILE")
     keyring_schema_path = _path("AIQ_HOST_CONFIG_KEYRING_SCHEMA_FILE")
-    keyring_hash = _sha256_pin("AIQ_HOST_CONFIG_KEYRING_HASH")
+    keyring_hash = load_pinned_sha256(
+        _path("AIQ_HOST_CONFIG_KEYRING_HASH_FILE"),
+        trusted_directory=trusted_root_directory,
+    )
     trust_bundle = load_runtime_trust_bundle(
         _path("AIQ_CAPABILITY_TRUST_BUNDLE_FILE"),
         _path("AIQ_CAPABILITY_TRUST_BUNDLE_SCHEMA_FILE"),
         keyring_path,
         keyring_schema_path,
+        trusted_root_directory=trusted_root_directory,
         expected_keyring_hash=keyring_hash,
         now=now,
     )
@@ -50,6 +48,7 @@ def run() -> None:
         _path("AIQ_ENDPOINT_CATALOG_SCHEMA_FILE"),
         keyring_path,
         keyring_schema_path,
+        trusted_root_directory=trusted_root_directory,
         expected_keyring_hash=keyring_hash,
         request_schema_path=_path("AIQ_GATEWAY_REQUEST_SCHEMA_FILE"),
         source_artifact_root=_path("AIQ_ENDPOINT_SOURCE_ARTIFACT_ROOT"),

@@ -33,6 +33,10 @@ services:
       - type: bind
         source: /run/ai-quant-rate
         target: /run/ai-quant-rate
+      - type: bind
+        source: /etc/ai-quant/trust
+        target: /etc/ai-quant/trust
+        read_only: true
     depends_on: [host-control-postgres]
     restart: unless-stopped
     read_only: true
@@ -64,6 +68,10 @@ services:
       - type: bind
         source: /run/ai-quant-attestation
         target: /run/ai-quant-attestation
+      - type: bind
+        source: /etc/ai-quant/trust
+        target: /etc/ai-quant/trust
+        read_only: true
     restart: unless-stopped
     read_only: true
     tmpfs: [/tmp]

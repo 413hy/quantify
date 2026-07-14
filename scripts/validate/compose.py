@@ -47,6 +47,7 @@ def main() -> int:
     production_secret_consumers: list[str] = []
     attestation_secret_consumers: list[str] = []
     attestation_evidence_mounts: dict[str, bool] = {}
+    trust_root_mounts: dict[str, bool] = {}
     fixed_identity_services: set[str] = set()
     for path in FILES:
         document: dict[str, Any] = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -78,6 +79,10 @@ def main() -> int:
                             f"{path.name}:{name}: attestation mount target invalid"
                         )
                     attestation_evidence_mounts[name] = bool(mount.get("read_only", False))
+                if isinstance(mount, dict) and mount.get("source") == "/etc/ai-quant/trust":
+                    if mount.get("target") != "/etc/ai-quant/trust":
+                        failures.append(f"{path.name}:{name}: trust root mount target invalid")
+                    trust_root_mounts[name] = bool(mount.get("read_only", False))
             for port in service.get("ports", []):
                 if not str(port).startswith(("127.0.0.1:", "[::1]:")):
                     failures.append(f"{path.name}:{name}: non-loopback published port {port}")
@@ -130,6 +135,16 @@ def main() -> int:
         failures.append(
             "attestation evidence mounts must be signer=rw and gateway=ro, got "
             f"{attestation_evidence_mounts}"
+        )
+    expected_trust_mounts = {
+        "rate-budget-service": True,
+        "host-attestation-signer": True,
+        "binance-egress-gateway": True,
+    }
+    if trust_root_mounts != expected_trust_mounts:
+        failures.append(
+            "trust root mounts must be read-only host-control consumers, got "
+            f"{trust_root_mounts}"
         )
     if failures:
         print("\n".join(failures))

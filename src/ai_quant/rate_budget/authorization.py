@@ -10,6 +10,7 @@ import base64
 import binascii
 import hashlib
 import json
+import os
 import socket
 import stat
 import struct
@@ -197,15 +198,41 @@ def _integer_set(value: object, reason: str) -> frozenset[int]:
     return result
 
 
-def assert_root_owned_0444(path: Path) -> None:
-    metadata = path.lstat()
+def assert_root_owned_0444(path: Path, *, trusted_directory: Path) -> None:
+    """Require a direct, non-symlink file in an independently protected directory."""
+    absolute_path = Path(os.path.abspath(path))
+    absolute_directory = Path(os.path.abspath(trusted_directory))
+    try:
+        directory_metadata = absolute_directory.lstat()
+        metadata = absolute_path.lstat()
+    except OSError as exc:
+        raise AuthorizationDenied("TRUST_ROOT_FILE_UNSAFE") from exc
     if (
-        not stat.S_ISREG(metadata.st_mode)
-        or path.is_symlink()
+        path != absolute_path
+        or trusted_directory != absolute_directory
+        or absolute_path.parent != absolute_directory
+        or absolute_directory.resolve() != absolute_directory
+        or absolute_path.resolve() != absolute_path
+        or not stat.S_ISDIR(directory_metadata.st_mode)
+        or directory_metadata.st_uid != 0
+        or stat.S_IMODE(directory_metadata.st_mode) & 0o022
+        or not stat.S_ISREG(metadata.st_mode)
         or metadata.st_uid != 0
         or stat.S_IMODE(metadata.st_mode) != 0o444
     ):
         raise AuthorizationDenied("TRUST_ROOT_FILE_UNSAFE")
+
+
+def load_pinned_sha256(path: Path, *, trusted_directory: Path) -> str:
+    """Load an out-of-band SHA-256 fingerprint from the protected trust directory."""
+    assert_root_owned_0444(path, trusted_directory=trusted_directory)
+    try:
+        value = path.read_text(encoding="ascii").strip()
+    except (OSError, UnicodeError) as exc:
+        raise AuthorizationDenied("TRUST_ROOT_HASH_PIN_INVALID") from exc
+    if len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
+        raise AuthorizationDenied("TRUST_ROOT_HASH_PIN_INVALID")
+    return value
 
 
 def _verification_key(
@@ -543,11 +570,12 @@ def load_runtime_trust_bundle(
     keyring_path: Path,
     keyring_schema_path: Path,
     *,
+    trusted_root_directory: Path,
     expected_keyring_hash: str,
     now: datetime,
 ) -> RuntimeTrustBundle:
     """Load validated JSON, enforce the trust-root file boundary, and verify signatures."""
-    assert_root_owned_0444(keyring_path)
+    assert_root_owned_0444(keyring_path, trusted_directory=trusted_root_directory)
     bundle = validate_config(bundle_path, bundle_schema_path)
     keyring = validate_config(keyring_path, keyring_schema_path)
     if not isinstance(bundle, dict) or not isinstance(keyring, dict):
