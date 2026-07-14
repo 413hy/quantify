@@ -2,7 +2,7 @@
 
 - Stage: M0 — repository, contracts, configuration, migrations, audit and egress skeleton
 - Status: `IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
-- Report time: `2026-07-14T08:36:42Z`
+- Report time: `2026-07-14T08:41:50Z`
 - Implementation commits: `3a5762e37a5311f0a7faeca2e93b6c77ab8500ff`,
   `fca378cf7e4f18457f46a381e29fc8599bb5baa8`,
   `d5a394e21776957f627c9c3e7da78dfd1accf53c`,
@@ -11,7 +11,8 @@
   `411f4da41d1067fe6985a2e8da25bc1bfb136e56`,
   `b8bc2816c0118784d60267a7ee2648f12d37c66b`,
   `cc87fda6df0373dec2300a8bbf5616cd74838628`,
-  `35cfb59287ee2051a6c3fa095673eff7c178974a`
+  `35cfb59287ee2051a6c3fa095673eff7c178974a`,
+  `bd79957e59aac0828c32ba76ca342d71808842ad`
 - Implementer: `/root` engineering session
 - Independent reviewer: not assigned; a different actor with fresh context is still required
 - `CodexReviewReport`: absent by design; the implementer cannot self-sign it
@@ -38,7 +39,7 @@ metadata, and evidence.
 | M0-R08 atomic reserve/permit/nonce consume and replay denial | PASS for implemented database boundary | `migrations.log`; unit/property tests |
 | M0-R09 locked non-root container startup | PASS | `locked-runtime.log` |
 | M0-R10 full Reserve→gateway→PermitConsume→send service | PARTIAL | bounded rate/gateway IPC, v2 Reserve/Consume, exact-wire single-send core and outcome journal pass; production transport is intentionally absent |
-| M0-R11 signed startup evidence and host destination firewall | PARTIAL | independent trust-domain issuer/verifier passes; measured-facts service, signed deployment evidence and host firewall proof remain absent |
+| M0-R11 signed startup evidence and host destination firewall | PARTIAL | independent issuer, full measurement binding, atomic publisher and monitor pass; measured-facts service, signed deployment evidence and host firewall proof remain absent |
 | M0-R12 independent fresh-context review | BLOCKED | reviewer and valid `CodexReviewReport` absent |
 
 ## Artifact and configuration identity
@@ -48,8 +49,8 @@ metadata, and evidence.
 - The earlier foundation implementation manifest hash was
   `b13e7e76e1f6ad5e08b4d2b846f7ea15cdcefab163b25db5256541f7dd60b91a`; Git commit identity is
   authoritative for the later increments.
-- Local application OCI image ID: `sha256:d4f1b633536a199173402ddc1b4f52c82c0c63080f764e21addbd572ff57fd4d`.
-- Image architecture/size: Linux arm64, 340,691,455 bytes.
+- Local application OCI image ID: `sha256:67aaf98120950dbe93bc4f2b5b3958d2499bc7322365f2edb9e733c83e4d2854`.
+- Image architecture/size: Linux arm64, 340,696,047 bytes.
 - The earlier image was reproduced twice. This new dependency-bearing image was built repeatedly
   from cache with the same ID but has not had a fresh no-cache reproducibility run.
 - Business migration head: `0001_business_core`.
@@ -76,13 +77,14 @@ startup-evidence, or live authorization has been issued.
 | Boundary | startup attestation trust | config-root reuse and wrong signatures deny; only the trust-bundle signer and frozen holder UID/GID may issue |
 | Boundary | Compose service identity | realtime/execution/gateway/rate/signer use frozen UID/GID values; attestation key is granted only to 11007 at `0400` |
 | Boundary | Unix socket identity | server requires root-owned SGID runtime directory and exact owner; client pins inode/owner/group/mode and server `SO_PEERCRED` across connect |
+| Boundary | startup measurement lifecycle | every measured section is hash-bound; publication is verified, atomic and durable; monitor rejects expiry, local mismatch, unsafe file or replacement |
 | Boundary | any changed binding hash, expiry, or replay | property tests deny without reopening permit |
 | Startup failure | non-root container, no network, no startup evidence | `RISK_LOCKED`, new egress false |
 | Database | business + host `upgrade → downgrade base → upgrade` | PASS on fresh disposable volumes |
 | Configuration/contracts | all recommended M0 validation targets | PASS |
 
 Primary logs and SHA-256 values are stored below this report in `tests/`, `security/`, and
-`artifacts/`. The final CI run passed 76 unit, 3 property, 2 contract, and 5 security tests. The
+`artifacts/`. The final CI run passed 82 unit, 3 property, 2 contract, and 6 security tests. The
 migration shape test and containerized migration round-trip also passed.
 
 ## Resource and security observations

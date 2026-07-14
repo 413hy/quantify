@@ -1,9 +1,9 @@
 M0 rate/gateway v2 verification summary
-time=2026-07-14T08:36:42Z
-implementation_head=35cfb59287ee2051a6c3fa095673eff7c178974a
+time=2026-07-14T08:41:50Z
+implementation_head=bd79957e59aac0828c32ba76ca342d71808842ad
 rate_authority_commit=8516679
 gateway_pipeline_commit=42624ef909aa25cc4aa7c46c392a7c856eaa82f3
-ci=PASS unit=76 property=3 contract=2 security=5 mypy=PASS bandit=PASS secret_scan=PASS
+ci=PASS unit=82 property=3 contract=2 security=6 mypy=PASS bandit=PASS secret_scan=PASS
 host_migration_head=0008_decision_audit
 migration_roundtrip=PASS
 reserve_v2=PASS multi_class=true idempotent=true replay_denied=true lease_required=true
@@ -15,6 +15,7 @@ gateway_core=PASS peer_bound=true exact_wire=true consume_before_send=true send_
 allocator_grant_binding=PASS schema=true instance=true correlation=true permit=true connection=true fencing=true hashes=all deadline_bounded=true mismatch_send_calls=0
 startup_attestation=PASS independent_trust_domain=true fixed_uid_gid=true key_mode=0400 key_outside_repo=true schema_reverify=true
 startup_evidence_verifier=PASS signed_ready=true exact_binding=true wrong_key_denied=true max_ttl_seconds=300
+startup_measurement_lifecycle=PASS all_sections_bound=true atomic_publish=true fsync=true file_mode=0444 per_operation_reverify=true single_writer=true
 compose_identity=PASS realtime=11001 execution=11002 gateway=11005 rate=11006 signer=11007 signer_key_mode=0400
 uds_identity=PASS runtime_dir=root_sgid socket_inode_pinned=true owner_mode_pinned=true server_so_peercred=true shared_groups=11990,11991
 locked_runtime=PASS network=none new_egress_allowed=false

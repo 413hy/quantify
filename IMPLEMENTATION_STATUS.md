@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: `2026-07-14T08:36:42Z`
+Updated: `2026-07-14T08:41:50Z`
 
 Overall state: `M0_IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
 
@@ -60,6 +60,11 @@ Highest completed milestone: none
   attested identities. Clients verify socket inode/owner/group/mode before and after connect plus
   server `SO_PEERCRED`; servers require root-owned SGID runtime directories and exact socket owner.
   Compose grants only the frozen `11990/11991` shared socket groups.
+- Commit `bd79957e59aac0828c32ba76ca342d71808842ad` binds every measured startup
+  fact (including WAL/migration, socket identities, network policy, observations and integrity) in
+  one local measurement hash, verifies before atomic fsync/rename publication, and re-reads and
+  re-verifies the immutable `0444` evidence before controlled operations. Compose exposes exactly
+  one evidence writer and one read-only gateway consumer.
 - Docker CE/Compose, Python 3.12.13 via `uv`, chrony, ripgrep and GNU time are installed for
   development. Initial chrony observations are healthy, but not a 24-hour deployment proof.
 
@@ -73,7 +78,8 @@ Detailed evidence: `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`.
    after startup evidence and destination policy exist. Multi-role endpoints remain denied because
    the frozen request contract does not provide a unique gateway-side causal derivation rule.
 3. Build the executable attestation service and root-authenticated local-facts collector around the
-   completed signer/issuer primitive; no caller-supplied draft may be treated as measured host state.
+   completed signer/issuer/atomic-publisher/monitor primitives; no caller-supplied draft may be
+   treated as measured host state.
 4. Destination-specific host DNS/firewall enforcement proving exactly one Binance socket owner and
    zero business Binance routes; current Compose validation is static only.
 5. A different actor in fresh context must independently review and issue a valid
