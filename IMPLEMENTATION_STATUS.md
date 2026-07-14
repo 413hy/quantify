@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: `2026-07-14T08:26:34Z`
+Updated: `2026-07-14T08:31:49Z`
 
 Overall state: `M0_IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
 
@@ -52,6 +52,10 @@ Highest completed milestone: none
   their frozen trust-boundary identities (`11001`, `11002`, `11005`, `11006`, `11007`), aligns the
   hot-path name with `realtime-engine`, and restricts the attestation key grant to UID/GID 11007 at
   mode `0400`. Static policy and independent security tests reject drift.
+- Commit `cc87fda6df0373dec2300a8bbf5616cd74838628` closes the final pre-send
+  allocator-response boundary. Gateway validates the complete rate UDS schema and exact allocator
+  instance, correlation, permit, connection, fencing, request/facts/capability hashes and bounded
+  deadline; every valid-but-mismatched grant is journaled `NOT_SENT` and transport remains at zero.
 - Docker CE/Compose, Python 3.12.13 via `uv`, chrony, ripgrep and GNU time are installed for
   development. Initial chrony observations are healthy, but not a 24-hour deployment proof.
 
