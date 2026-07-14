@@ -2,7 +2,7 @@
 
 - Stage: M0 — repository, contracts, configuration, migrations, audit and egress skeleton
 - Status: `IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
-- Report time: `2026-07-14T08:41:50Z`
+- Report time: `2026-07-14T08:46:47Z`
 - Implementation commits: `3a5762e37a5311f0a7faeca2e93b6c77ab8500ff`,
   `fca378cf7e4f18457f46a381e29fc8599bb5baa8`,
   `d5a394e21776957f627c9c3e7da78dfd1accf53c`,
@@ -12,7 +12,8 @@
   `b8bc2816c0118784d60267a7ee2648f12d37c66b`,
   `cc87fda6df0373dec2300a8bbf5616cd74838628`,
   `35cfb59287ee2051a6c3fa095673eff7c178974a`,
-  `bd79957e59aac0828c32ba76ca342d71808842ad`
+  `bd79957e59aac0828c32ba76ca342d71808842ad`,
+  `b9f0d3243089a8b3ec54e2fcbc3371cacd7a51a1`
 - Implementer: `/root` engineering session
 - Independent reviewer: not assigned; a different actor with fresh context is still required
 - `CodexReviewReport`: absent by design; the implementer cannot self-sign it
@@ -49,8 +50,8 @@ metadata, and evidence.
 - The earlier foundation implementation manifest hash was
   `b13e7e76e1f6ad5e08b4d2b846f7ea15cdcefab163b25db5256541f7dd60b91a`; Git commit identity is
   authoritative for the later increments.
-- Local application OCI image ID: `sha256:67aaf98120950dbe93bc4f2b5b3958d2499bc7322365f2edb9e733c83e4d2854`.
-- Image architecture/size: Linux arm64, 340,696,047 bytes.
+- Local application OCI image ID: `sha256:aa7b11f6127fd1cf9c93cba9ad2620bd1eab38635892c1700f1e8cf538f4d2ce`.
+- Image architecture/size: Linux arm64, 340,698,435 bytes.
 - The earlier image was reproduced twice. This new dependency-bearing image was built repeatedly
   from cache with the same ID but has not had a fresh no-cache reproducibility run.
 - Business migration head: `0001_business_core`.
@@ -78,13 +79,14 @@ startup-evidence, or live authorization has been issued.
 | Boundary | Compose service identity | realtime/execution/gateway/rate/signer use frozen UID/GID values; attestation key is granted only to 11007 at `0400` |
 | Boundary | Unix socket identity | server requires root-owned SGID runtime directory and exact owner; client pins inode/owner/group/mode and server `SO_PEERCRED` across connect |
 | Boundary | startup measurement lifecycle | every measured section is hash-bound; publication is verified, atomic and durable; monitor rejects expiry, local mismatch, unsafe file or replacement |
+| Boundary | config trust root | keyring and fingerprint pin are root-owned `0444`, direct children of a non-writable independent trust directory; all mounts are read-only and business-isolated |
 | Boundary | any changed binding hash, expiry, or replay | property tests deny without reopening permit |
 | Startup failure | non-root container, no network, no startup evidence | `RISK_LOCKED`, new egress false |
 | Database | business + host `upgrade → downgrade base → upgrade` | PASS on fresh disposable volumes |
 | Configuration/contracts | all recommended M0 validation targets | PASS |
 
 Primary logs and SHA-256 values are stored below this report in `tests/`, `security/`, and
-`artifacts/`. The final CI run passed 82 unit, 3 property, 2 contract, and 6 security tests. The
+`artifacts/`. The final CI run passed 83 unit, 3 property, 2 contract, and 7 security tests. The
 migration shape test and containerized migration round-trip also passed.
 
 ## Resource and security observations

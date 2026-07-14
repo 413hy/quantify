@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: `2026-07-14T08:41:50Z`
+Updated: `2026-07-14T08:46:47Z`
 
 Overall state: `M0_IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
 
@@ -65,6 +65,10 @@ Highest completed milestone: none
   one local measurement hash, verifies before atomic fsync/rename publication, and re-reads and
   re-verifies the immutable `0444` evidence before controlled operations. Compose exposes exactly
   one evidence writer and one read-only gateway consumer.
+- Commit `b9f0d3243089a8b3ec54e2fcbc3371cacd7a51a1` moves the config-root fingerprint
+  out of ordinary environment control. Both keyring and SHA-256 pin must be direct root-owned
+  `0444` files in a non-symlink, non-writable `/etc/ai-quant/trust` boundary; only rate, signer and
+  gateway receive that directory, read-only.
 - Docker CE/Compose, Python 3.12.13 via `uv`, chrony, ripgrep and GNU time are installed for
   development. Initial chrony observations are healthy, but not a 24-hour deployment proof.
 
