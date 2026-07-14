@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: `2026-07-14T07:38:34Z`
+Updated: `2026-07-14T08:09:55Z`
 
 Overall state: `M0_IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
 
@@ -32,6 +32,15 @@ Highest completed milestone: none
   source/hash/identity/tier verification, bounded one-request length-prefixed Unix framing, duplicate
   JSON-key rejection, runtime-directory/socket-mode enforcement, and a rate admission application
   that closes endpoint, facts, capability, protocol direction and kernel peer before authority calls.
+- Commit `8516679` connects that boundary to PostgreSQL v2 atomic Reserve/Consume, stores exact
+  signed endpoint payloads and deterministic multi-class cost vectors, journals gateway outcomes and
+  observations idempotently, reconciles header maxima, and persists 429/418 blocks across restart.
+  The executable rate service verifies exact active policy/window coverage before taking its lease.
+- Commit `42624ef909aa25cc4aa7c46c392a7c856eaa82f3` adds gateway closed-schema IPC,
+  `SO_PEERCRED` caller binding, authority-to-host and catalog wire identity checks, exact prepared
+  wire/canonical/parameter/permit binding, Consume-before-one-send orchestration, SendOutcome, and
+  short-lived signed startup-evidence verification. Its transport remains injection-only and is not
+  enabled by Compose.
 - Docker CE/Compose, Python 3.12.13 via `uv`, chrony, ripgrep and GNU time are installed for
   development. Initial chrony observations are healthy, but not a 24-hour deployment proof.
 
@@ -39,11 +48,12 @@ Detailed evidence: `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`.
 
 ## M0 work still required
 
-1. Add the PostgreSQL rate-authority adapter and normalized multi-class signed endpoint-policy
-   ingestion, then package the admission layer as the executable bounded rate-budget service.
-2. Complete the bounded gateway Unix-socket protocol, gateway recomputation from wire
-   facts, send outcome/unknown accounting, and correlation audit.
-3. Signed startup evidence and attestation service.
+1. Provision real signed runtime catalog/trust/policy/window inputs and prove the executable rate
+   service startup on the authorized Ubuntu 24 deployment target; until then Compose stays locked.
+2. Implement and independently review the production exact-wire transport and gateway service only
+   after startup evidence and destination policy exist. Multi-role endpoints remain denied because
+   the frozen request contract does not provide a unique gateway-side causal derivation rule.
+3. Implement the attestation signer/issuance path; the strict signed startup-evidence verifier exists.
 4. Destination-specific host DNS/firewall enforcement proving exactly one Binance socket owner and
    zero business Binance routes; current Compose validation is static only.
 5. A different actor in fresh context must independently review and issue a valid
@@ -63,7 +73,7 @@ Detailed evidence: `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`.
 
 | Milestone | Status |
 |---|---|
-| M0 repository/contracts/config/migrations/audit/host control/gateway | IN PROGRESS; bounded rate admission committed, database/service/gateway/review outstanding |
+| M0 repository/contracts/config/migrations/audit/host control/gateway | IN PROGRESS; offline rate/gateway boundaries implemented, signed deployment/network/attestation/review outstanding |
 | M1 market data/order book/quality/archive/replay | NOT STARTED; M0 acceptance required |
 | M2 PA/OF/Top10/cost/Codex orchestration/unified backtest | NOT STARTED; Codex portion blocked by model catalog |
 | M3 risk/order state/user stream/native protection/reconciliation | NOT STARTED |
@@ -89,5 +99,5 @@ Deployment authorization: `NOT_AUTHORIZED`. Runtime default: `RISK_LOCKED`.
 cd /root/quantify/ai-quant-system && make ci && make test-migrations && make test-locked-runtime
 ```
 
-After this baseline re-verifies, continue M0 with the PostgreSQL rate adapter and normalized signed
-endpoint-policy ingestion. Do not start M1 or enable a transport.
+After this baseline re-verifies, continue M0 with deployment-safe attestation issuance and host
+network enforcement evidence. Do not start M1 or enable a transport.

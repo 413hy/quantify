@@ -2,10 +2,12 @@
 
 - Stage: M0 — repository, contracts, configuration, migrations, audit and egress skeleton
 - Status: `IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
-- Report time: `2026-07-14T07:26:53Z`
+- Report time: `2026-07-14T08:09:55Z`
 - Implementation commits: `3a5762e37a5311f0a7faeca2e93b6c77ab8500ff`,
   `fca378cf7e4f18457f46a381e29fc8599bb5baa8`,
-  `d5a394e21776957f627c9c3e7da78dfd1accf53c`
+  `d5a394e21776957f627c9c3e7da78dfd1accf53c`,
+  `0b8dc507522596cc9ba8659b56cbb96744f7c375`,
+  `8516679`, `42624ef909aa25cc4aa7c46c392a7c856eaa82f3`
 - Implementer: `/root` engineering session
 - Independent reviewer: not assigned; a different actor with fresh context is still required
 - `CodexReviewReport`: absent by design; the implementer cannot self-sign it
@@ -31,8 +33,8 @@ metadata, and evidence.
 | M0-R07 one gateway definition, zero business egress network membership | PASS statically | `scripts/validate/compose.py`; `ci.log` |
 | M0-R08 atomic reserve/permit/nonce consume and replay denial | PASS for implemented database boundary | `migrations.log`; unit/property tests |
 | M0-R09 locked non-root container startup | PASS | `locked-runtime.log` |
-| M0-R10 full Reserve→gateway→PermitConsume→send service | PARTIAL | durable Reserve/Consume, signed capability verifier, peer ACL and fencing lease pass; bounded IPC/send remain |
-| M0-R11 signed startup evidence and host destination firewall | NOT IMPLEMENTED | gateway intentionally remains locked/no-network |
+| M0-R10 full Reserve→gateway→PermitConsume→send service | PARTIAL | bounded rate/gateway IPC, v2 Reserve/Consume, exact-wire single-send core and outcome journal pass; production transport is intentionally absent |
+| M0-R11 signed startup evidence and host destination firewall | PARTIAL | strict evidence verifier passes; signer, signed deployment evidence and host firewall proof remain absent |
 | M0-R12 independent fresh-context review | BLOCKED | reviewer and valid `CodexReviewReport` absent |
 
 ## Artifact and configuration identity
@@ -47,7 +49,7 @@ metadata, and evidence.
 - The earlier image was reproduced twice. This new dependency-bearing image was built repeatedly
   from cache with the same ID but has not had a fresh no-cache reproducibility run.
 - Business migration head: `0001_business_core`.
-- Host-control migration head: `0003_fencing_lease`.
+- Host-control migration head: `0007_header_reconciliation`.
 
 The local image ID is not represented as a signed registry release digest. No release, deployment,
 startup-evidence, or live authorization has been issued.
@@ -63,13 +65,15 @@ startup-evidence, or live authorization has been issued.
 | Error | unauthorized caller, stale fencing, unknown catalog, blocked window | all denied before permit creation |
 | Error | competing fencing owner and expired lease | owner denied; expired lease denies Reserve and Consume |
 | Boundary | signed bundle/capability/peer checks | valid path passes; tampering, wrong peer, expiry and non-Unix peer deny |
+| Boundary | gateway exact-wire path | peer/caller, catalog, host, request, permit and facts bind before Consume; fake transport called once only after grant |
+| Accounting | gateway journal and header reconciliation | outcome/observation idempotency, replay denial, observed max and durable 429 block pass |
 | Boundary | any changed binding hash, expiry, or replay | property tests deny without reopening permit |
 | Startup failure | non-root container, no network, no startup evidence | `RISK_LOCKED`, new egress false |
 | Database | business + host `upgrade → downgrade base → upgrade` | PASS on fresh disposable volumes |
 | Configuration/contracts | all recommended M0 validation targets | PASS |
 
 Primary logs and SHA-256 values are stored below this report in `tests/`, `security/`, and
-`artifacts/`. The final CI run passed 25 unit, 3 property, 2 contract, and 2 security tests. The
+`artifacts/`. The final CI run passed 56 unit, 3 property, 2 contract, and 2 security tests. The
 migration shape test and containerized migration round-trip also passed.
 
 ## Resource and security observations
@@ -103,7 +107,8 @@ only forward. The integration test downgrades disposable empty test volumes only
 All runtime and live gates remain `NOT_AUTHORIZED`; `RISK_LOCKED` is mandatory. No credentials are
 needed for the next work.
 
-M0 cannot be accepted until the bounded rate service connects signed capability and `SO_PEERCRED`
-checks to atomic Reserve, signed endpoint catalogs populate authoritative policy rows, the complete
-gateway UDS/send-outcome path exists, startup evidence is signed, destination-specific host network
-proof passes, and a fresh-context independent review is accepted. M1 has not started.
+M0 cannot be accepted until real signed runtime inputs populate the deployment database, the
+attestation signer issues deployment-bound evidence, an independently reviewed production transport
+is activated behind destination-specific host network enforcement, and a fresh-context independent
+review is accepted. Offline services and verifiers do not constitute deployment evidence. M1 has not
+started.
