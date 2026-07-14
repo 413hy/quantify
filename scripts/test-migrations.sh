@@ -58,6 +58,14 @@ docker exec "${RUN_ID}-business-postgres-1" psql -U aiq_business_test -d aiq_bus
   "SELECT state || ':' || new_entries_allowed FROM control.runtime_state" | grep -qx 'RISK_LOCKED:false'
 docker exec "${RUN_ID}-host-postgres-1" psql -U aiq_host_control_test -d aiq_host_rate_control_test -Atc \
   "SELECT epoch || ':' || allocator_instance_id FROM rate_control.fencing_state" | grep -qx '1:UNINITIALIZED'
+docker exec "${RUN_ID}-host-postgres-1" psql -U aiq_host_control_test \
+  -d aiq_host_rate_control_test -Atc \
+  "SELECT (measurement->'database_authority'->>'migration_head')||':'||
+          (measurement->'nonce_permit_integrity'->>'duplicate_capability_nonce_count')||':'||
+          (measurement->'nonce_permit_integrity'->>'consumed_without_gateway_count')||':'||
+          (measurement->'nonce_permit_integrity'->>'outcome_missing_past_deadline_count')
+     FROM (SELECT rate_control.read_startup_measurements() AS measurement) AS snapshot" \
+  | grep -qx '0010_local_measurements:0:0:0'
 docker exec "${RUN_ID}-business-postgres-1" psql -U aiq_business_test -d aiq_business_test -Atc \
   "SELECT extversion FROM pg_extension WHERE extname='timescaledb'" | grep -Eq '^2\.'
 docker exec "${RUN_ID}-redis-1" redis-cli ping | grep -qx PONG
@@ -80,8 +88,12 @@ docker exec "${RUN_ID}-host-postgres-1" psql -U aiq_host_control_test \
           has_function_privilege(
             'aiq_rate_authority',
             'rate_control.acquire_fencing_lease(character varying,bigint,integer)',
+            'EXECUTE')||':'||
+          has_function_privilege(
+            'aiq_rate_authority',
+            'rate_control.read_startup_measurements()',
             'EXECUTE')" \
-  | grep -qx 'true:true:false:true:true'
+  | grep -qx 'true:true:false:true:true:true'
 docker exec "${RUN_ID}-host-postgres-1" psql -U aiq_host_control_test \
   -d aiq_host_rate_control_test -Atc \
   "SELECT bool_and(prosecdef AND proconfig @> ARRAY['search_path=pg_catalog, rate_control'])||':'||

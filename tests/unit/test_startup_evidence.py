@@ -20,6 +20,7 @@ from ai_quant.binance_egress.local_facts import (
     assemble_startup_content_from_local_facts,
     collect_and_publish_local_facts,
     load_local_facts_plan,
+    publish_root_dynamic_measurement,
 )
 from ai_quant.binance_egress.startup import (
     StartupEvidenceExpectation,
@@ -72,7 +73,7 @@ def _signed_ready(
     )
     content = evidence["content"]
     content["evidence_status"] = "SIGNED_READY"
-    content["issued_at"] = "2026-07-13T23:59:00Z"
+    content["issued_at"] = "2026-07-14T00:00:00Z"
     content["expires_at"] = "2026-07-14T00:04:00Z"
     for observation in content["authority_observations"]:
         observation["observed_at"] = "2026-07-14T00:00:00Z"
@@ -109,7 +110,7 @@ def test_local_facts_assembler_remeasures_files_boot_and_sockets(
 ) -> None:
     evidence, bundle, signer = _signed_ready(tmp_path)
     content = copy.deepcopy(evidence["content"])
-    content["database_authority"]["migration_head"] = "0009_runtime_role"
+    content["database_authority"]["migration_head"] = "0010_local_measurements"
 
     artifact_root = tmp_path / "artifacts"
     release_root = tmp_path / "release"
@@ -194,21 +195,20 @@ def test_local_facts_assembler_remeasures_files_boot_and_sockets(
             "readiness",
         ):
             measurement = content[name]
-            source_document = {
-                "schema_version": "1.0.0",
-                "captured_at": "2026-07-14T00:00:00Z",
-                "measurement_hash": canonical_digest(measurement).hex(),
-                "measurement": measurement,
-            }
             path = tmp_path / f"{name}.json"
-            path.write_text(json.dumps(source_document), encoding="utf-8")
-            path.chmod(0o444)
+            publish_root_dynamic_measurement(
+                name,
+                measurement,
+                output_path=path,
+                trusted_output_directory=tmp_path,
+                captured_at=NOW,
+            )
             dynamic_fact_sources[name] = path
         local_expectation = LocalFactsExpectation(
             stage=content["stage"],
             enabled_environments=frozenset(content["enabled_environments"]),
             enabled_authorities=frozenset(content["enabled_authorities"]),
-            migration_head="0009_runtime_role",
+            migration_head="0010_local_measurements",
             host_boot_id_path=boot_id_path,
             artifact_sources=artifact_sources,
             release_sources=release_sources,
@@ -271,7 +271,7 @@ def test_local_facts_assembler_remeasures_files_boot_and_sockets(
         assert loaded_plan.expectation == local_expectation
         facts_document = collect_and_publish_local_facts(loaded_plan, now=NOW)
         assert facts_document["facts"]["database_authority"]["migration_head"] == (
-            "0009_runtime_role"
+            "0010_local_measurements"
         )
         assert facts_path.stat().st_mode & 0o7777 == 0o444
         assembled, assembled_expectation = assemble_startup_content_from_local_facts(
@@ -316,7 +316,7 @@ def test_local_facts_assembler_remeasures_files_boot_and_sockets(
             now=NOW,
         )
         assert issued["content"]["database_authority"]["migration_head"] == (
-            "0009_runtime_role"
+            "0010_local_measurements"
         )
         assert assembled_expectation.measurement_hash == startup_measurement_hash(assembled)
         with pytest.raises(
@@ -416,6 +416,28 @@ def test_local_facts_assembler_remeasures_files_boot_and_sockets(
         readiness_source.write_text(original_readiness_source, encoding="utf-8")
         readiness_source.chmod(0o444)
 
+        skewed_readiness_source = json.loads(original_readiness_source)
+        skewed_readiness_source["captured_at"] = "2026-07-13T23:59:59Z"
+        readiness_source.write_text(
+            json.dumps(skewed_readiness_source),
+            encoding="utf-8",
+        )
+        readiness_source.chmod(0o444)
+        with pytest.raises(
+            AuthorizationDenied,
+            match="LOCAL_DYNAMIC_FACT_SNAPSHOT_MISMATCH",
+        ):
+            assemble_startup_content_from_local_facts(
+                facts_path,
+                trusted_facts_directory=tmp_path,
+                expectation=local_expectation,
+                evidence_id="host-startup-local-0003",
+                now=NOW,
+                ttl_seconds=300,
+            )
+        readiness_source.write_text(original_readiness_source, encoding="utf-8")
+        readiness_source.chmod(0o444)
+
         image_source = release_image_digest_sources["gateway_image_digest"]
         original_image_digest = image_source.read_text(encoding="ascii")
         image_source.write_text(f"sha256:{'f' * 64}\n", encoding="ascii")
@@ -425,7 +447,7 @@ def test_local_facts_assembler_remeasures_files_boot_and_sockets(
                 facts_path,
                 trusted_facts_directory=tmp_path,
                 expectation=local_expectation,
-                evidence_id="host-startup-local-0003",
+                evidence_id="host-startup-local-0004",
                 now=NOW,
                 ttl_seconds=300,
             )
@@ -470,6 +492,34 @@ def test_signed_startup_evidence_is_exactly_bound_and_short_lived(tmp_path: Path
         now=NOW,
     )
     assert verified.content_hash == evidence["evidence_hash"]
+
+
+@pytest.mark.parametrize(
+    "observed_at",
+    ["2026-07-14T00:00:01Z", "2026-07-13T23:54:59Z"],
+)
+def test_startup_observations_must_precede_issuance_and_remain_fresh(
+    tmp_path: Path,
+    observed_at: str,
+) -> None:
+    evidence, bundle, signer = _signed_ready(tmp_path)
+    for observation in evidence["content"]["authority_observations"]:
+        observation["observed_at"] = observed_at
+    digest = canonical_digest(evidence["content"])
+    evidence["evidence_hash"] = digest.hex()
+    evidence["signature"]["signature_base64"] = base64.b64encode(
+        signer.sign(digest)
+    ).decode()
+    with pytest.raises(
+        AuthorizationDenied,
+        match="STARTUP_EVIDENCE_OBSERVATIONS_INVALID",
+    ):
+        verify_startup_evidence(
+            evidence,
+            bundle,
+            expectation=_expectation(evidence["content"]),
+            now=NOW,
+        )
 
 
 def test_startup_evidence_from_other_boot_is_rejected(tmp_path: Path) -> None:

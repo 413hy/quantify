@@ -179,8 +179,11 @@ def verify_startup_evidence(
         != set(expectation.enabled_authorities)
     ):
         raise AuthorizationDenied("STARTUP_EVIDENCE_OBSERVATIONS_INVALID")
+    observation_floor = issued_at - timedelta(
+        seconds=signer.max_evidence_ttl_seconds
+    )
     if any(
-        not issued_at <= _time(item.get("observed_at")) <= utc_now
+        not observation_floor <= _time(item.get("observed_at")) <= issued_at
         for item in observations
     ):
         raise AuthorizationDenied("STARTUP_EVIDENCE_OBSERVATIONS_INVALID")

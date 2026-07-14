@@ -288,6 +288,7 @@ def _load_dynamic_facts(
     if set(sources) != _DYNAMIC_FACT_FIELDS:
         raise AuthorizationDenied("LOCAL_DYNAMIC_FACT_COVERAGE_INVALID")
     measurements: dict[str, Any] = {}
+    captured_times: set[datetime] = set()
     utc_now = now.astimezone(UTC)
     for field in sorted(sources):
         path = sources[field]
@@ -313,6 +314,7 @@ def _load_dynamic_facts(
             seconds=maximum_age_seconds
         ):
             raise AuthorizationDenied("LOCAL_DYNAMIC_FACT_STALE")
+        captured_times.add(captured_at)
         measurement = source.get("measurement")
         try:
             measurement_hash = canonical_digest(measurement).hex()
@@ -321,6 +323,8 @@ def _load_dynamic_facts(
         if source.get("measurement_hash") != measurement_hash:
             raise AuthorizationDenied("LOCAL_DYNAMIC_FACT_HASH_MISMATCH")
         measurements[field] = measurement
+    if len(captured_times) != 1:
+        raise AuthorizationDenied("LOCAL_DYNAMIC_FACT_SNAPSHOT_MISMATCH")
     return measurements
 
 
@@ -445,9 +449,12 @@ def _validate_collected_facts(
         raise AuthorizationDenied("LOCAL_FACTS_SCHEMA_INVALID")
 
 
-def _publish_root_facts(document: Mapping[str, Any], plan: LocalFactsPlan) -> None:
-    output_path = plan.facts_path
-    parent = plan.trusted_facts_directory
+def _publish_root_document(
+    document: Mapping[str, Any],
+    *,
+    output_path: Path,
+    parent: Path,
+) -> None:
     if os.geteuid() != 0 or os.getegid() != 0:
         raise AuthorizationDenied("LOCAL_FACTS_COLLECTOR_NOT_ROOT")
     try:
@@ -507,6 +514,72 @@ def _publish_root_facts(document: Mapping[str, Any], plan: LocalFactsPlan) -> No
     ):
         output_path.unlink(missing_ok=True)
         raise AuthorizationDenied("LOCAL_FACTS_PUBLISH_UNSAFE")
+
+
+def _publish_root_facts(document: Mapping[str, Any], plan: LocalFactsPlan) -> None:
+    _publish_root_document(
+        document,
+        output_path=plan.facts_path,
+        parent=plan.trusted_facts_directory,
+    )
+
+
+def publish_root_dynamic_measurement(
+    field: str,
+    measurement: object,
+    *,
+    output_path: Path,
+    trusted_output_directory: Path,
+    captured_at: datetime,
+) -> Mapping[str, Any]:
+    """Publish one root-authenticated dynamic source envelope for the collector."""
+    if field not in _DYNAMIC_FACT_FIELDS:
+        raise AuthorizationDenied("LOCAL_DYNAMIC_FACT_COVERAGE_INVALID")
+    try:
+        measurement_hash = canonical_digest(measurement).hex()
+    except (TypeError, ValueError) as exc:
+        raise AuthorizationDenied("LOCAL_DYNAMIC_FACT_INVALID") from exc
+    document: Mapping[str, Any] = {
+        "schema_version": "1.0.0",
+        "captured_at": captured_at.astimezone(UTC)
+        .isoformat()
+        .replace("+00:00", "Z"),
+        "measurement_hash": measurement_hash,
+        "measurement": measurement,
+    }
+    _publish_root_document(
+        document,
+        output_path=output_path,
+        parent=trusted_output_directory,
+    )
+    return document
+
+
+def publish_root_measurement_set(
+    measurements: Mapping[str, object],
+    *,
+    output_paths: Mapping[str, Path],
+    trusted_output_directory: Path,
+    captured_at: datetime,
+) -> Mapping[str, Mapping[str, Any]]:
+    """Publish all six source envelopes with one capture time or remove the entire set."""
+    if set(measurements) != _DYNAMIC_FACT_FIELDS or set(output_paths) != _DYNAMIC_FACT_FIELDS:
+        raise AuthorizationDenied("LOCAL_DYNAMIC_FACT_COVERAGE_INVALID")
+    published: dict[str, Mapping[str, Any]] = {}
+    try:
+        for field in sorted(_DYNAMIC_FACT_FIELDS):
+            published[field] = publish_root_dynamic_measurement(
+                field,
+                measurements[field],
+                output_path=output_paths[field],
+                trusted_output_directory=trusted_output_directory,
+                captured_at=captured_at,
+            )
+    except Exception:
+        for path in output_paths.values():
+            path.unlink(missing_ok=True)
+        raise
+    return published
 
 
 def collect_and_publish_local_facts(
