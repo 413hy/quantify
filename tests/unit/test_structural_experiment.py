@@ -8,6 +8,7 @@ from ai_quant.binance_egress.structural_experiment import (
     _exit_trade_price,
     _place_protection,
     _protected_position_event,
+    estimated_position_outcomes,
     exchange_maximum_initial_leverage,
     plan_market_quantity,
     quantize_protection,
@@ -112,6 +113,21 @@ def test_protected_position_event_exposes_leverage_margin_and_fee_adjusted_targe
     assert event["protection_working_type"] == "CONTRACT_PRICE"
 
 
+def test_pretrade_outcome_estimate_enforces_meaningful_fee_adjusted_target() -> None:
+    gross, fees, net, stop_loss = estimated_position_outcomes(
+        quantity=Decimal("71.25"),
+        actual_entry=Decimal("1"),
+        stop_trigger=Decimal("0.997"),
+        target_trigger=Decimal("1.0035"),
+        taker_fee_rate=Decimal("0.0004"),
+    )
+
+    assert gross == Decimal("0.249375")
+    assert fees == Decimal("0.057000")
+    assert net == Decimal("0.178125")
+    assert stop_loss == Decimal("0.285000")
+
+
 def test_testnet_protection_uses_contract_price_trigger() -> None:
     class Client:
         def __init__(self) -> None:
@@ -186,7 +202,7 @@ def test_short_protection_rounds_away_from_entry() -> None:
     assert target < Decimal("99.98") < stop
 
 
-def test_margin_expands_but_stop_loss_budget_caps_effective_size() -> None:
+def test_margin_reserves_slippage_buffer_inside_loss_budget() -> None:
     plan = ExperimentalPlan(
         symbol="SOLUSDT",
         direction=Direction.LONG,
@@ -203,8 +219,8 @@ def test_margin_expands_but_stop_loss_budget_caps_effective_size() -> None:
         taker_fee_rate=Decimal("0.0004"),
     )
 
-    assert margin == Decimal("1")
-    assert margin * Decimal(75) * Decimal("0.004") == Decimal("0.300")
+    assert margin == Decimal("0.9333333333333333333333333333")
+    assert margin * Decimal(75) * Decimal("0.005") <= Decimal("0.35")
 
 
 def test_exchange_maximum_leverage_is_selected_from_symbol_brackets() -> None:

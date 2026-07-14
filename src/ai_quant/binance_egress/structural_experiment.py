@@ -64,7 +64,7 @@ def risk_adjusted_margin_budget(
     leverage: int,
     maximum_net_loss: Decimal,
     taker_fee_rate: Decimal,
-    adverse_slippage_rate: Decimal = Decimal("0.0002"),
+    adverse_slippage_rate: Decimal = Decimal("0.0012"),
 ) -> Decimal:
     """Shrink margin so stop, round-trip fees, and slippage fit the loss budget."""
     if (
@@ -116,11 +116,17 @@ def run_structural_experiment(
     plan: TestnetExperimentalPlan,
     margin_budget: Decimal = Decimal("1"),
     maximum_net_loss: Decimal = Decimal("0.35"),
+    minimum_estimated_net_target: Decimal = Decimal("0.10"),
+    risk_sizing_slippage_rate: Decimal = Decimal("0.0012"),
     on_position_protected: Callable[[dict[str, Any]], None] | None = None,
     stop_requested: Callable[[], bool] = lambda: False,
     sleep: Callable[[float], None] = time.sleep,
 ) -> dict[str, Any]:
     """Open one Testnet position and wait only for strategy protection or operator stop."""
+    if not Decimal(0) <= minimum_estimated_net_target <= Decimal(1) or not Decimal(
+        0
+    ) <= risk_sizing_slippage_rate <= Decimal("0.01"):
+        raise TestnetProbeError("EXPERIMENT_NET_TARGET_THRESHOLD_INVALID")
     started_at = datetime.now(UTC)
     key = _credential(api_key_file, repository_root)
     secret = _credential(api_secret_file, repository_root)
@@ -156,6 +162,7 @@ def run_structural_experiment(
         leverage=leverage,
         maximum_net_loss=maximum_net_loss,
         taker_fee_rate=taker_fee_rate,
+        adverse_slippage_rate=risk_sizing_slippage_rate,
     )
     quantity = plan_market_quantity(
         exchange_info,
@@ -164,6 +171,18 @@ def run_structural_experiment(
         margin_budget=effective_margin_budget,
         leverage=leverage,
     )
+    pretrade_stop, pretrade_target = quantize_protection(
+        plan, actual_entry=reference, tick_size=tick_size
+    )
+    _, _, estimated_net_target, _ = estimated_position_outcomes(
+        quantity=quantity,
+        actual_entry=reference,
+        stop_trigger=pretrade_stop,
+        target_trigger=pretrade_target,
+        taker_fee_rate=taker_fee_rate,
+    )
+    if estimated_net_target < minimum_estimated_net_target:
+        raise TestnetProbeError("EXPERIMENT_ESTIMATED_NET_TARGET_INSUFFICIENT")
     entry_side = "BUY" if plan.direction is Direction.LONG else "SELL"
     close_side = "SELL" if plan.direction is Direction.LONG else "BUY"
     entry_id = f"aq-t-exp-{secrets.token_hex(6)}"
@@ -201,6 +220,15 @@ def run_structural_experiment(
         stop_trigger, target_trigger = quantize_protection(
             plan, actual_entry=actual_entry, tick_size=tick_size
         )
+        _, _, _, actual_stop_net_loss = estimated_position_outcomes(
+            quantity=quantity,
+            actual_entry=actual_entry,
+            stop_trigger=stop_trigger,
+            target_trigger=target_trigger,
+            taker_fee_rate=taker_fee_rate,
+        )
+        if actual_stop_net_loss > maximum_net_loss:
+            raise TestnetProbeError("EXPERIMENT_ACTUAL_FILL_EXCEEDS_LOSS_BUDGET")
         stop_doc = _place_protection(
             client,
             symbol=symbol,
@@ -293,6 +321,17 @@ def run_structural_experiment(
         "actual_initial_margin": format(position_notional / Decimal(leverage), "f"),
         "position_notional": format(position_notional, "f"),
         "maximum_net_loss_budget": format(maximum_net_loss, "f"),
+        "minimum_estimated_net_target": format(minimum_estimated_net_target, "f"),
+        "risk_sizing_slippage_rate": format(risk_sizing_slippage_rate, "f"),
+        "signal_quality_score": format(plan.signal_quality_score, "f"),
+        "signal_confirmation_rounds": plan.signal_confirmation_rounds,
+        "pa_alignment_count": plan.pa_alignment_count,
+        "directional_trade_imbalance": format(plan.directional_trade_imbalance, "f"),
+        "directional_book_imbalance": format(plan.directional_book_imbalance, "f"),
+        "directional_microprice_bps": format(plan.directional_microprice_bps, "f"),
+        "aggressive_notional": format(plan.aggressive_notional, "f"),
+        "aggressive_notional_ratio": format(plan.aggressive_notional_ratio, "f"),
+        "observed_spread_bps": format(plan.observed_spread_bps, "f"),
         "quantity": format(quantity, "f"),
         "entry_price": format(actual_entry, "f"),
         "stop_trigger": format(stop_trigger, "f"),
@@ -312,9 +351,7 @@ def run_structural_experiment(
     }
 
 
-def exchange_maximum_initial_leverage(
-    brackets: list[dict[str, Any]], symbol: str
-) -> int:
+def exchange_maximum_initial_leverage(brackets: list[dict[str, Any]], symbol: str) -> int:
     """Read the maximum current initial leverage for one Testnet symbol."""
     symbol_document = next((item for item in brackets if item.get("symbol") == symbol), None)
     if not isinstance(symbol_document, dict):
@@ -383,9 +420,7 @@ def _require_algo_new(
         raise TestnetProbeError(f"EXPERIMENT_{role}_QUERY_NOT_NEW")
 
 
-def _algo_status(
-    client: BinanceTestnetClient, symbol: str, algo_id: int, client_id: str
-) -> str:
+def _algo_status(client: BinanceTestnetClient, symbol: str, algo_id: int, client_id: str) -> str:
     try:
         return str(
             _query_algo_consistent(
@@ -432,10 +467,14 @@ def _protected_position_event(
     effective_margin_budget: Decimal,
     taker_fee_rate: Decimal,
 ) -> dict[str, Any]:
+    target_gross, round_trip_fee, target_net, stop_net_loss = estimated_position_outcomes(
+        quantity=quantity,
+        actual_entry=actual_entry,
+        stop_trigger=stop_trigger,
+        target_trigger=target_trigger,
+        taker_fee_rate=taker_fee_rate,
+    )
     notional = quantity * actual_entry
-    target_gross = quantity * abs(target_trigger - actual_entry)
-    stop_gross = quantity * abs(actual_entry - stop_trigger)
-    round_trip_fee = notional * taker_fee_rate * Decimal(2)
     adverse_slippage = notional * Decimal("0.0002")
     return {
         "record_type": "TESTNET_POSITION_PROTECTED",
@@ -451,21 +490,55 @@ def _protected_position_event(
         "position_notional": format(notional, "f"),
         "actual_initial_margin": format(notional / Decimal(leverage), "f"),
         "effective_margin_budget": format(effective_margin_budget, "f"),
+        "signal_quality_score": format(plan.signal_quality_score, "f"),
+        "signal_confirmation_rounds": plan.signal_confirmation_rounds,
+        "pa_alignment_count": plan.pa_alignment_count,
+        "directional_trade_imbalance": format(plan.directional_trade_imbalance, "f"),
+        "directional_book_imbalance": format(plan.directional_book_imbalance, "f"),
+        "directional_microprice_bps": format(plan.directional_microprice_bps, "f"),
+        "aggressive_notional": format(plan.aggressive_notional, "f"),
+        "aggressive_notional_ratio": format(plan.aggressive_notional_ratio, "f"),
+        "observed_spread_bps": format(plan.observed_spread_bps, "f"),
         "stop_trigger": format(stop_trigger, "f"),
         "target_trigger": format(target_trigger, "f"),
         "estimated_target_gross_pnl": format(target_gross, "f"),
         "estimated_round_trip_fee": format(round_trip_fee, "f"),
         "estimated_adverse_slippage": format(adverse_slippage, "f"),
-        "estimated_target_net_pnl": format(
-            target_gross - round_trip_fee - adverse_slippage, "f"
-        ),
-        "estimated_stop_net_loss": format(
-            stop_gross + round_trip_fee + adverse_slippage, "f"
-        ),
+        "estimated_target_net_pnl": format(target_net, "f"),
+        "estimated_stop_net_loss": format(stop_net_loss, "f"),
         "protection_working_type": "CONTRACT_PRICE",
         "protected_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "production_endpoint_requests": 0,
     }
+
+
+def estimated_position_outcomes(
+    *,
+    quantity: Decimal,
+    actual_entry: Decimal,
+    stop_trigger: Decimal,
+    target_trigger: Decimal,
+    taker_fee_rate: Decimal,
+    adverse_slippage_rate: Decimal = Decimal("0.0002"),
+) -> tuple[Decimal, Decimal, Decimal, Decimal]:
+    """Estimate target gross, round-trip fee, target net and stop net loss."""
+    if (
+        min(quantity, actual_entry, stop_trigger, target_trigger) <= 0
+        or taker_fee_rate < 0
+        or adverse_slippage_rate < 0
+    ):
+        raise TestnetProbeError("EXPERIMENT_OUTCOME_ESTIMATE_INVALID")
+    notional = quantity * actual_entry
+    target_gross = quantity * abs(target_trigger - actual_entry)
+    stop_gross = quantity * abs(actual_entry - stop_trigger)
+    round_trip_fee = notional * taker_fee_rate * Decimal(2)
+    adverse_slippage = notional * adverse_slippage_rate
+    return (
+        target_gross,
+        round_trip_fee,
+        target_gross - round_trip_fee - adverse_slippage,
+        stop_gross + round_trip_fee + adverse_slippage,
+    )
 
 
 def _filled_average_price(document: Mapping[str, Any]) -> Decimal:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 
 import pytest
 
@@ -14,9 +15,15 @@ from ai_quant.services.testnet_campaign import (
     _money,
     _select_candidate,
     _summary_text,
+    _update_pending_signals,
     campaign_trade_allowed,
 )
-from ai_quant.strategy.testnet_baseline import evaluate_testnet_baseline
+from ai_quant.strategy.testnet_baseline import (
+    TestnetSignalParameters as SignalParameters,
+)
+from ai_quant.strategy.testnet_baseline import (
+    evaluate_testnet_baseline,
+)
 
 
 def test_testnet_baseline_rejects_neutral_price_action_and_unconfirmed_book() -> None:
@@ -54,6 +61,8 @@ def test_testnet_baseline_rejects_neutral_price_action_and_unconfirmed_book() ->
 
 def test_campaign_limits_enforce_cooldown_count_and_daily_loss() -> None:
     limits = CampaignLimits()
+    assert limits.maximum_parallel_positions == 5
+    assert limits.signal_confirmation_rounds == 2
     now = datetime(2026, 7, 14, 12, tzinfo=UTC)
     assert campaign_trade_allowed(
         now=now,
@@ -203,11 +212,11 @@ def test_testnet_experiment_builds_structural_stop_without_time_exit(
     plan = decision.experimental_plan
     assert plan is not None
     assert plan.stop_anchor == Decimal("75.780")
-    assert Decimal("35") <= (
-        (plan.target_reference - plan.entry_reference)
-        / plan.entry_reference
-        * Decimal(10_000)
-    ) <= Decimal("60")
+    assert (
+        Decimal("35")
+        <= ((plan.target_reference - plan.entry_reference) / plan.entry_reference * Decimal(10_000))
+        <= Decimal("60")
+    )
     assert "maximum_holding" not in str(plan.evidence()).lower()
 
 
@@ -226,6 +235,188 @@ def test_experimental_candidates_prefer_price_action_alignment() -> None:
 
     assert _experimental_candidate_rank(aligned) < _experimental_candidate_rank(neutral)
     assert _money("0.08470919") == "0.084709"
+
+
+def test_candidate_requires_pa_alignment_and_explicit_flow_thresholds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    server_time_ms = int(datetime(2026, 7, 14, 12, tzinfo=UTC).timestamp() * 1_000)
+    neutral = PriceActionFrame(
+        as_of=datetime(2026, 7, 14, 12, tzinfo=UTC),
+        regime=Regime.TRANSITION,
+        structure=Structure.UNCONFIRMED,
+        direction=Direction.NEUTRAL,
+        atr=Decimal("0.2"),
+        efficiency_ratio=Decimal("0.5"),
+        reason_codes=(),
+    )
+    flow = OrderFlowFrame(
+        book_imbalance=Decimal("0.2"),
+        microprice=Decimal("76.005"),
+        microprice_mid_bps=Decimal("0.6"),
+        trade_imbalance=Decimal("0.8"),
+        aggressive_notional=Decimal("1000"),
+        cvd_notional=Decimal("800"),
+        valid=True,
+        reason_codes=(),
+    )
+    monkeypatch.setattr(baseline, "analyze_price_action", lambda *args, **kwargs: neutral)
+    monkeypatch.setattr(baseline, "calculate_order_flow", lambda *args, **kwargs: flow)
+
+    decision = evaluate_testnet_baseline(
+        symbol="SOLUSDT",
+        server_time_ms=server_time_ms,
+        one_minute_klines=_klines(server_time_ms, interval_ms=60_000),
+        five_minute_klines=_klines(server_time_ms, interval_ms=300_000),
+        depth={
+            "bids": [[f"{76 - level / 100:.2f}", "100"] for level in range(20)],
+            "asks": [[f"{76.01 + level / 100:.2f}", "100"] for level in range(20)],
+        },
+        aggregate_trades=[
+            {
+                "a": 1,
+                "p": "76.01",
+                "q": "1",
+                "nq": "1",
+                "f": 1,
+                "l": 1,
+                "T": server_time_ms - 100,
+                "m": False,
+            }
+        ],
+        signal_parameters=SignalParameters(),
+    )
+
+    assert decision.experimental_plan is None
+
+
+def test_candidate_rejects_material_book_microstructure_conflict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    server_time_ms = int(datetime(2026, 7, 14, 12, tzinfo=UTC).timestamp() * 1_000)
+    short_frame = PriceActionFrame(
+        as_of=datetime(2026, 7, 14, 12, tzinfo=UTC),
+        regime=Regime.TREND_DOWN,
+        structure=Structure.LH_LL,
+        direction=Direction.SHORT,
+        atr=Decimal("0.2"),
+        efficiency_ratio=Decimal("0.5"),
+        reason_codes=(),
+    )
+    conflicting_flow = OrderFlowFrame(
+        book_imbalance=Decimal("0.16"),
+        microprice=Decimal("76.005"),
+        microprice_mid_bps=Decimal("-0.85"),
+        trade_imbalance=Decimal("-1"),
+        aggressive_notional=Decimal("1000"),
+        cvd_notional=Decimal("-1000"),
+        valid=True,
+        reason_codes=(),
+    )
+    monkeypatch.setattr(baseline, "analyze_price_action", lambda *args, **kwargs: short_frame)
+    monkeypatch.setattr(baseline, "calculate_order_flow", lambda *args, **kwargs: conflicting_flow)
+
+    decision = evaluate_testnet_baseline(
+        symbol="DOGEUSDT",
+        server_time_ms=server_time_ms,
+        one_minute_klines=_klines(server_time_ms, interval_ms=60_000),
+        five_minute_klines=_klines(server_time_ms, interval_ms=300_000),
+        depth={
+            "bids": [[f"{76 - level / 100:.2f}", "100"] for level in range(20)],
+            "asks": [[f"{76.01 + level / 100:.2f}", "100"] for level in range(20)],
+        },
+        aggregate_trades=[
+            {
+                "a": 1,
+                "p": "76.01",
+                "q": "1",
+                "nq": "1",
+                "f": 1,
+                "l": 1,
+                "T": server_time_ms - 100,
+                "m": True,
+            }
+        ],
+    )
+
+    assert decision.experimental_plan is None
+
+
+def test_pending_signal_requires_two_consecutive_rounds_and_does_not_fill_slots() -> None:
+    state: dict[str, Any] = {}
+    decision = _decision_for_rank("BNBUSDT", Direction.SHORT)
+
+    assert (
+        _update_pending_signals(
+            state,
+            [decision],
+            active_symbols=set(),
+            evaluation_round=1,
+            required_rounds=2,
+            minimum_quality_score=Decimal("2"),
+            activity_lookback_rounds=12,
+            minimum_activity_samples=1,
+            minimum_activity_ratio=Decimal("0.5"),
+        )
+        == []
+    )
+    assert _update_pending_signals(
+        state,
+        [decision],
+        active_symbols=set(),
+        evaluation_round=2,
+        required_rounds=2,
+        minimum_quality_score=Decimal("2"),
+        activity_lookback_rounds=12,
+        minimum_activity_samples=1,
+        minimum_activity_ratio=Decimal("0.5"),
+    ) == [decision]
+    assert len(state["pending_signals"]) == 1
+
+
+def test_pending_signal_rejects_activity_far_below_recent_median() -> None:
+    state: dict[str, Any] = {
+        "aggressive_notional_history": {"BNBUSDT": ["1000", "1200", "900", "1100", "950"]}
+    }
+    decision = _decision_for_rank("BNBUSDT", Direction.SHORT)
+    low_flow = OrderFlowFrame(
+        book_imbalance=decision.order_flow.book_imbalance,
+        microprice=decision.order_flow.microprice,
+        microprice_mid_bps=decision.order_flow.microprice_mid_bps,
+        trade_imbalance=decision.order_flow.trade_imbalance,
+        aggressive_notional=Decimal("25"),
+        cvd_notional=Decimal("-25"),
+        valid=True,
+        reason_codes=(),
+    )
+    decision = baseline.TestnetBaselineDecision(
+        eligible=decision.eligible,
+        observed_at=decision.observed_at,
+        symbol=decision.symbol,
+        direction=decision.direction,
+        pa_1m=decision.pa_1m,
+        pa_5m=decision.pa_5m,
+        order_flow=low_flow,
+        spread_bps=decision.spread_bps,
+        reason_codes=decision.reason_codes,
+        experimental_plan=decision.experimental_plan,
+    )
+
+    assert (
+        _update_pending_signals(
+            state,
+            [decision],
+            active_symbols=set(),
+            evaluation_round=1,
+            required_rounds=2,
+            minimum_quality_score=Decimal("2"),
+            activity_lookback_rounds=12,
+            minimum_activity_samples=6,
+            minimum_activity_ratio=Decimal("0.5"),
+        )
+        == []
+    )
+    assert state["pending_signals"] == {}
 
 
 def test_campaign_summary_translates_runtime_and_reason_codes_to_chinese() -> None:
@@ -305,5 +496,9 @@ def _decision_for_rank(symbol: str, pa_direction: Direction) -> baseline.Testnet
             entry_reference=Decimal("100"),
             stop_anchor=Decimal("100.3"),
             target_reference=Decimal("99.65"),
+            signal_quality_score=(
+                Decimal("4") if pa_direction is Direction.SHORT else Decimal("0.5")
+            ),
+            pa_alignment_count=1 if pa_direction is Direction.SHORT else 0,
         ),
     )

@@ -20,6 +20,22 @@ def test_review_separates_target_rate_from_fee_adjusted_positive_rate() -> None:
     assert report["research_verdict"] == "INSUFFICIENT_SAMPLE"
 
 
+def test_review_excludes_operator_stop_from_strategy_metrics_but_keeps_accounting() -> None:
+    report = review_testnet_results(
+        [
+            _result("ADAUSDT", "OPERATOR_SERVICE_STOP", "-0.08", "0.05", "-0.13", False),
+            _result("DOGEUSDT", "STOP_LOSS", "-0.14", "0.04", "-0.18", False),
+        ],
+        strategy="TESTNET_EXPERIMENT_OF_PA_V2",
+    )
+
+    assert report["result_count"] == 2
+    assert report["strategy_result_count"] == 1
+    assert report["operator_exit_count"] == 1
+    assert report["net_pnl"] == "-0.31"
+    assert report["strategy_net_pnl"] == "-0.18"
+
+
 def _result(
     symbol: str,
     exit_reason: str,

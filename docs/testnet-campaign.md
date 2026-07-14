@@ -2,24 +2,36 @@
 
 该服务只连接 Binance USDⓈ-M Futures Testnet，不连接生产交易端点。它每 10 秒读取
 SOLUSDT、BNBUSDT、XRPUSDT、DOGEUSDT 和 ADAUSDT 的闭合 1 分钟/5 分钟 K 线、20 档
-深度及最近 5 秒 WebSocket 聚合成交，并以最多 3 个观察 worker 并行生成信号。
+深度及最近 5 秒 WebSocket 聚合成交，并以最多 5 个观察 worker 并行生成信号。
 
-## 实验规则（V2）
+## 实验规则（V3）
 
 这是 `UNVALIDATED_TESTNET_EXPERIMENT`，不能声称已经盈利，也不能用于生产交易：
 
-- 最近主动成交失衡达到 0.20 时确定多空方向；book imbalance 或 microprice 至少一项同向；
-- 1 分钟和 5 分钟 PA 不得与入场方向相反；当前点差不得超过 10 bps；
+- 最近主动成交失衡至少达到 0.25 时确定多空方向；book imbalance 至少 0.03 或
+  microprice 至少 0.10 bps 同向；
+- 即使其中一项同向，book imbalance 反向超过 0.05 或 microprice 反向超过 0.25 bps
+  也会一票否决，避免互相冲突的微观结构证据；
+- 每个币维护最近 12 轮主动成交额中位数；至少积累 6 轮后，当前值必须达到中位数的
+  0.50 倍，避免把极少量成交形成的 `+1/-1` 失衡当成可靠趋势；
+- 1 分钟和 5 分钟 PA 均不得与入场方向相反，且至少一个周期必须同向；当前点差不得超过
+  8 bps；
+- 综合质量分包含 1 分钟/5 分钟 PA 同向、效率、主动成交、盘口、microprice 和点差，必须
+  不低于 2.00；相同方向必须连续出现 2 个评估轮次才可提交，单轮脉冲不会开仓；
 - 止损使用最近 5 根闭合 1 分钟 K 线极值加 0.10 ATR 缓冲；若距离过近，外扩至
   0.30%，若超过 1.20%则拒绝；
 - 止盈为价格波动 0.35%–0.60%，并按结构止损距离的 0.75 倍动态选择。该范围仍属于
   短线目标，但在当前 50–75 倍名义仓位上为双边 taker 手续费和不利滑点留出空间；
 - 同一轮存在多个候选时，按 1 分钟/5 分钟 PA 同向程度、PA 效率、订单流强度和点差综合
   排序，不再按交易对字母顺序选前三个；
-- 每个币最多一个仓位，最多 3 个不同币并行；单笔保证金上限约 1 USDT；执行器每次读取
+- 每个币最多一个仓位，活动仓位容量为 0–5 个不同币；5 是硬上限而不是目标，不确认时允许
+  一直保留空槽，不会为了补满而降低条件。单笔保证金上限约 1 USDT；执行器每次读取
   Testnet leverage bracket，使用该币种当前允许的最高初始杠杆（当前候选约 50–75 倍）。
-  系统按结构止损距离、双边 taker 手续费和 2 bps 不利滑点自动缩小保证金，使单笔预计净
-  亏损不超过 0.35 USDT；同币平仓后至少冷却 60 秒；
+  系统按结构止损距离、双边 taker 手续费和 12 bps 风险定仓缓冲自动缩小保证金，使单笔
+  预计净亏损不超过 0.35 USDT；实际成交后还会用真实入场价再次复核，超限立即拒绝继续持仓。
+  目标净额仍按 2 bps 常规不利滑点估算；同币平仓后至少冷却 60 秒；
+- 下单前按当前盘口、数量、实际 taker 费和 2 bps 不利滑点预估目标净额；低于 0.10 USDT
+  直接拒绝，不再提交只有“蚊子腿”级费用后空间的仓位；
 - 每日最多 100 个已提交/活动样本，每日净亏损达到 1.00 USDT 后不再新增仓；
 - 退出只依赖 Binance 原生 `STOP_MARKET`、`TAKE_PROFIT_MARKET`，或操作员停止服务时的
   reduce-only 平仓。Testnet 超短线实验使用 `CONTRACT_PRICE`，让触发源和可成交合约盘口
@@ -55,10 +67,10 @@ jq . /var/lib/ai-quant/evidence/testnet/user-stream/current/state.json
 ```bash
 uv run python scripts/review-testnet-results.py \
   --observations /var/lib/ai-quant/evidence/testnet/campaign/current/observations.jsonl \
-  --strategy TESTNET_EXPERIMENT_OF_PA_V2
+  --strategy TESTNET_EXPERIMENT_OF_PA_V3
 ```
 
-少于 30 个已完成 V2 样本时报告固定为 `INSUFFICIENT_SAMPLE`，不能据此宣称策略有效。
+少于 30 个已完成 V3 样本时报告固定为 `INSUFFICIENT_SAMPLE`，不能据此宣称策略有效。
 
 独立的只读用户数据流观察器 `aiq-testnet-user-stream.service` 与实验执行线程解耦。它只连接
 当前 Testnet 私有 stream，维护 listen key、自动重连并对 `ORDER_TRADE_UPDATE`、

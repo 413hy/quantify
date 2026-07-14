@@ -53,9 +53,7 @@ def _telegram_call(path: str, document: dict[str, object], timeout: float) -> ob
     body = json.dumps(document, separators=(",", ":")).encode()
     connection = http.client.HTTPSConnection(_TELEGRAM_HOST, timeout=timeout)
     try:
-        connection.request(
-            "POST", path, body=body, headers={"Content-Type": "application/json"}
-        )
+        connection.request("POST", path, body=body, headers={"Content-Type": "application/json"})
         response = connection.getresponse()
         payload = response.read(1024 * 1024)
     except (OSError, http.client.HTTPException) as exc:
@@ -88,9 +86,7 @@ class TelegramDashboardClient:
         return cast(dict[str, Any], result)
 
     def set_commands(self) -> None:
-        result = self._call(
-            f"{self._base}/setMyCommands", {"commands": list(_COMMANDS)}, 10
-        )
+        result = self._call(f"{self._base}/setMyCommands", {"commands": list(_COMMANDS)}, 10)
         if result is not True:
             raise TelegramDeliveryError("Telegram command registration was not confirmed")
 
@@ -190,7 +186,7 @@ class TelegramDashboard:
                 state["last_error"] = type(exc).__name__
                 state["status"] = "DEGRADED"
                 self._save_state(state)
-                self.sleep(min(60, 2**min(consecutive_errors, 5)))
+                self.sleep(min(60, 2 ** min(consecutive_errors, 5)))
         state["status"] = "STOPPED"
         self._save_state(state)
         return 0
@@ -209,9 +205,7 @@ class TelegramDashboard:
             return
         chat_id = str(chat["id"])
         if chat_id not in self.allowed_chat_ids:
-            state["unauthorized_update_count"] = int(
-                state["unauthorized_update_count"]
-            ) + 1
+            state["unauthorized_update_count"] = int(state["unauthorized_update_count"]) + 1
             return
         text = message.get("text")
         if not isinstance(text, str):
@@ -349,6 +343,11 @@ def render_status(
     current = now or datetime.now(UTC)
     campaign_fresh = _fresh(campaign.get("updated_at"), current, maximum_age_seconds=90)
     stream_fresh = _fresh(user_stream.get("updated_at"), current, maximum_age_seconds=120)
+    limits_value = campaign.get("limits")
+    limits = limits_value if isinstance(limits_value, Mapping) else {}
+    pending_value = campaign.get("pending_signals")
+    pending_count = len(pending_value) if isinstance(pending_value, Mapping) else 0
+    maximum_positions = int(limits.get("maximum_parallel_positions", 0))
     return (
         "🧭 系统运行状态\n"
         "━━━━━━━━━━━━━━━━\n"
@@ -357,7 +356,12 @@ def render_status(
         f"策略: {campaign.get('strategy', 'UNKNOWN')}\n"
         f"决策来源: {campaign.get('decision_authority', 'UNKNOWN')}\n"
         f"依赖 Codex: {'是' if campaign.get('codex_dependency') else '否'}\n"
-        f"活动仓位: {len(_string_list(campaign.get('active_symbols')))} 个\n"
+        f"活动仓位: {len(_string_list(campaign.get('active_symbols')))} / "
+        f"{maximum_positions or '?'} (不强制补满)\n"
+        f"待确认信号: {pending_count} 个\n"
+        f"确认门槛: {limits.get('signal_confirmation_rounds', '?')} 轮 / "
+        f"质量分 {limits.get('minimum_signal_quality_score', '?')} / "
+        f"预计净目标 {limits.get('minimum_estimated_net_target', '?')} U\n"
         f"已提交/已平仓: {int(campaign.get('submitted_trade_count', 0))}/"
         f"{int(campaign.get('trade_count', 0))}\n"
         f"生产接口请求: {int(campaign.get('production_endpoint_requests', 0))}\n"
@@ -379,16 +383,18 @@ def render_strategy_stats(campaign: Mapping[str, Any], events: list[dict[str, An
         "🧪 策略统计\n"
         "━━━━━━━━━━━━━━━━\n"
         f"策略: {strategy}\n"
-        f"样本: {report['result_count']} 单\n"
-        f"费用后胜率: {_percent(report['positive_net_rate'])}\n"
-        f"目标命中率: {_percent(report['target_rate'])}\n"
+        f"全部平仓/策略退出: {report['result_count']}/{report['strategy_result_count']} 单\n"
+        f"操作员退出: {report['operator_exit_count']} 单\n"
+        f"策略费用后胜率: {_percent(report['strategy_positive_net_rate'])}\n"
+        f"策略目标命中率: {_percent(report['strategy_target_rate'])}\n"
         f"平均盈利: {_optional_money(report['average_positive_net'])}\n"
         f"平均亏损: {_optional_money(report['average_negative_net'])}\n"
-        f"Profit Factor: {_optional_number(report['profit_factor'])}\n"
+        f"策略 Profit Factor: {_optional_number(report['strategy_profit_factor'])}\n"
+        f"全部/策略净结果: {_money(report['net_pnl'])}/"
+        f"{_money(report['strategy_net_pnl'])} U\n"
         f"未分类退出: {report['unclassified_exit_count']} 单\n"
         f"研究结论: {_verdict_cn(report['research_verdict'])}\n"
-        "\n逐币结果\n"
-        + "\n".join(symbol_lines)
+        "\n逐币结果\n" + "\n".join(symbol_lines)
     )
 
 

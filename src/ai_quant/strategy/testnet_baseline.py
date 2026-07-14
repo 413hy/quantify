@@ -98,17 +98,65 @@ class TestnetExperimentalPlan:
     entry_reference: Decimal
     stop_anchor: Decimal
     target_reference: Decimal
-    strategy_version: str = "TESTNET_EXPERIMENT_OF_PA_V2"
+    signal_quality_score: Decimal = Decimal(0)
+    pa_alignment_count: int = 0
+    directional_trade_imbalance: Decimal = Decimal(0)
+    directional_book_imbalance: Decimal = Decimal(0)
+    directional_microprice_bps: Decimal = Decimal(0)
+    aggressive_notional: Decimal = Decimal(0)
+    aggressive_notional_ratio: Decimal = Decimal(0)
+    observed_spread_bps: Decimal = Decimal(0)
+    signal_confirmation_rounds: int = 1
+    strategy_version: str = "TESTNET_EXPERIMENT_OF_PA_V3"
 
-    def evidence(self) -> dict[str, str]:
+    def evidence(self) -> dict[str, str | int]:
         return {
             "symbol": self.symbol,
             "direction": self.direction,
             "entry_reference": format(self.entry_reference, "f"),
             "stop_anchor": format(self.stop_anchor, "f"),
             "target_reference": format(self.target_reference, "f"),
+            "signal_quality_score": format(self.signal_quality_score, "f"),
+            "pa_alignment_count": self.pa_alignment_count,
+            "directional_trade_imbalance": format(self.directional_trade_imbalance, "f"),
+            "directional_book_imbalance": format(self.directional_book_imbalance, "f"),
+            "directional_microprice_bps": format(self.directional_microprice_bps, "f"),
+            "aggressive_notional": format(self.aggressive_notional, "f"),
+            "aggressive_notional_ratio": format(self.aggressive_notional_ratio, "f"),
+            "observed_spread_bps": format(self.observed_spread_bps, "f"),
+            "signal_confirmation_rounds": self.signal_confirmation_rounds,
             "strategy_version": self.strategy_version,
         }
+
+
+@dataclass(frozen=True, slots=True)
+class TestnetSignalParameters:
+    """Explicit Testnet-only thresholds for a candidate signal."""
+
+    maximum_spread_bps: Decimal = Decimal("8.00")
+    minimum_trade_imbalance: Decimal = Decimal("0.25")
+    minimum_book_imbalance: Decimal = Decimal("0.03")
+    minimum_microprice_bps: Decimal = Decimal("0.10")
+    maximum_opposing_book_imbalance: Decimal = Decimal("0.05")
+    maximum_opposing_microprice_bps: Decimal = Decimal("0.25")
+    minimum_pa_alignment_count: int = 1
+
+    def __post_init__(self) -> None:
+        if not Decimal(0) < self.maximum_spread_bps <= Decimal(100):
+            raise ValueError("testnet maximum spread is invalid")
+        for value in (
+            self.minimum_trade_imbalance,
+            self.minimum_book_imbalance,
+            self.maximum_opposing_book_imbalance,
+        ):
+            if not Decimal(0) < value <= Decimal(1):
+                raise ValueError("testnet imbalance threshold is invalid")
+        if not Decimal(0) < self.minimum_microprice_bps <= Decimal(100):
+            raise ValueError("testnet microprice threshold is invalid")
+        if not Decimal(0) < self.maximum_opposing_microprice_bps <= Decimal(100):
+            raise ValueError("testnet opposing microprice threshold is invalid")
+        if self.minimum_pa_alignment_count not in {1, 2}:
+            raise ValueError("testnet PA alignment count is invalid")
 
 
 def evaluate_testnet_baseline(
@@ -119,8 +167,10 @@ def evaluate_testnet_baseline(
     five_minute_klines: list[Any],
     depth: dict[str, Any],
     aggregate_trades: list[dict[str, Any]],
+    signal_parameters: TestnetSignalParameters | None = None,
 ) -> TestnetBaselineDecision:
     """Apply the checked-in PA baseline and conservative long OF confirmation."""
+    parameters = signal_parameters or TestnetSignalParameters()
     observed_at = _utc_from_milliseconds(server_time_ms)
     bars_1m = _closed_bars(symbol, "1m", one_minute_klines, server_time_ms)
     bars_5m = _closed_bars(symbol, "5m", five_minute_klines, server_time_ms)
@@ -164,6 +214,7 @@ def evaluate_testnet_baseline(
         bid=bids[0].price,
         ask=asks[0].price,
         spread_bps=spread_bps,
+        parameters=parameters,
     )
 
     reasons: list[str] = []
@@ -209,25 +260,34 @@ def _experimental_plan(
     bid: Decimal,
     ask: Decimal,
     spread_bps: Decimal,
+    parameters: TestnetSignalParameters,
 ) -> TestnetExperimentalPlan | None:
-    """Create a deliberately unvalidated Testnet-only OF momentum experiment."""
-    if not order_flow.valid or pa_1m.atr is None or spread_bps > Decimal(10):
+    """Create a Testnet-only plan only when PA and directional flow agree."""
+    if not order_flow.valid or pa_1m.atr is None or spread_bps > parameters.maximum_spread_bps:
         return None
+    long_pa_count = sum(frame.direction is Direction.LONG for frame in (pa_1m, pa_5m))
+    short_pa_count = sum(frame.direction is Direction.SHORT for frame in (pa_1m, pa_5m))
     long_flow = (
-        order_flow.trade_imbalance >= Decimal("0.20")
+        long_pa_count >= parameters.minimum_pa_alignment_count
+        and order_flow.trade_imbalance >= parameters.minimum_trade_imbalance
         and (
-            order_flow.book_imbalance >= Decimal("0.02")
-            or order_flow.microprice_mid_bps >= Decimal("0.05")
+            order_flow.book_imbalance >= parameters.minimum_book_imbalance
+            or order_flow.microprice_mid_bps >= parameters.minimum_microprice_bps
         )
+        and order_flow.book_imbalance >= -parameters.maximum_opposing_book_imbalance
+        and order_flow.microprice_mid_bps >= -parameters.maximum_opposing_microprice_bps
         and pa_5m.direction is not Direction.SHORT
         and pa_1m.direction is not Direction.SHORT
     )
     short_flow = (
-        order_flow.trade_imbalance <= Decimal("-0.20")
+        short_pa_count >= parameters.minimum_pa_alignment_count
+        and order_flow.trade_imbalance <= -parameters.minimum_trade_imbalance
         and (
-            order_flow.book_imbalance <= Decimal("-0.02")
-            or order_flow.microprice_mid_bps <= Decimal("-0.05")
+            order_flow.book_imbalance <= -parameters.minimum_book_imbalance
+            or order_flow.microprice_mid_bps <= -parameters.minimum_microprice_bps
         )
+        and order_flow.book_imbalance <= parameters.maximum_opposing_book_imbalance
+        and order_flow.microprice_mid_bps <= parameters.maximum_opposing_microprice_bps
         and pa_5m.direction is not Direction.LONG
         and pa_1m.direction is not Direction.LONG
     )
@@ -256,7 +316,37 @@ def _experimental_plan(
     target_bps = max(Decimal(35), min(Decimal(60), risk_bps * Decimal("0.75")))
     target_distance = entry * target_bps / Decimal(10_000)
     target = entry + target_distance if long_flow else entry - target_distance
-    return TestnetExperimentalPlan(symbol, direction, entry, stop, target)
+    sign = Decimal(1) if long_flow else Decimal(-1)
+    pa_alignment_count = long_pa_count if long_flow else short_pa_count
+    pa_score = Decimal(0)
+    if pa_1m.direction is direction:
+        pa_score += Decimal(3) + (pa_1m.efficiency_ratio or Decimal(0))
+    if pa_5m.direction is direction:
+        pa_score += Decimal(2) + (pa_5m.efficiency_ratio or Decimal(0))
+    directional_trade = sign * order_flow.trade_imbalance
+    directional_book = sign * order_flow.book_imbalance
+    directional_microprice = sign * order_flow.microprice_mid_bps
+    quality_score = (
+        pa_score
+        + directional_trade
+        + max(Decimal(0), directional_book)
+        + max(Decimal(0), directional_microprice) / Decimal(10)
+        - spread_bps / Decimal(10)
+    )
+    return TestnetExperimentalPlan(
+        symbol=symbol,
+        direction=direction,
+        entry_reference=entry,
+        stop_anchor=stop,
+        target_reference=target,
+        signal_quality_score=quality_score,
+        pa_alignment_count=pa_alignment_count,
+        directional_trade_imbalance=directional_trade,
+        directional_book_imbalance=directional_book,
+        directional_microprice_bps=directional_microprice,
+        aggressive_notional=order_flow.aggressive_notional,
+        observed_spread_bps=spread_bps,
+    )
 
 
 def _closed_bars(

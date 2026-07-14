@@ -9,7 +9,7 @@ import os
 import signal
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -28,6 +28,7 @@ from ai_quant.notifications import (
 )
 from ai_quant.strategy.testnet_baseline import (
     TestnetBaselineDecision,
+    TestnetSignalParameters,
     evaluate_testnet_baseline,
 )
 
@@ -41,6 +42,20 @@ class CampaignLimits:
     daily_net_loss_limit: Decimal = Decimal("1.00")
     margin_budget: Decimal = Decimal("1")
     maximum_net_loss_per_trade: Decimal = Decimal("0.35")
+    maximum_parallel_positions: int = 5
+    signal_confirmation_rounds: int = 2
+    minimum_signal_quality_score: Decimal = Decimal("2.00")
+    minimum_estimated_net_target: Decimal = Decimal("0.10")
+    risk_sizing_slippage_bps: Decimal = Decimal("12.00")
+    maximum_entry_spread_bps: Decimal = Decimal("8.00")
+    minimum_trade_imbalance: Decimal = Decimal("0.25")
+    minimum_book_imbalance: Decimal = Decimal("0.03")
+    minimum_microprice_bps: Decimal = Decimal("0.10")
+    maximum_opposing_book_imbalance: Decimal = Decimal("0.05")
+    maximum_opposing_microprice_bps: Decimal = Decimal("0.25")
+    aggressive_notional_lookback_rounds: int = 12
+    minimum_aggressive_notional_samples: int = 6
+    minimum_aggressive_notional_ratio: Decimal = Decimal("0.50")
 
     def __post_init__(self) -> None:
         if not 60 <= self.duration_seconds <= 604_800:
@@ -57,6 +72,34 @@ class CampaignLimits:
             raise ValueError("campaign margin budget is invalid")
         if self.maximum_net_loss_per_trade <= 0 or self.maximum_net_loss_per_trade > Decimal("1"):
             raise ValueError("campaign per-trade loss budget is invalid")
+        if not 1 <= self.maximum_parallel_positions <= 10:
+            raise ValueError("campaign parallel position limit is invalid")
+        if not 1 <= self.signal_confirmation_rounds <= 10:
+            raise ValueError("campaign signal confirmation count is invalid")
+        if not Decimal(0) <= self.minimum_signal_quality_score <= Decimal(20):
+            raise ValueError("campaign signal quality threshold is invalid")
+        if not Decimal(0) <= self.minimum_estimated_net_target <= Decimal(1):
+            raise ValueError("campaign estimated net target is invalid")
+        if not Decimal(2) <= self.risk_sizing_slippage_bps <= Decimal(100):
+            raise ValueError("campaign risk sizing slippage is invalid")
+        if not 6 <= self.aggressive_notional_lookback_rounds <= 120:
+            raise ValueError("campaign activity lookback is invalid")
+        if (
+            not 3
+            <= self.minimum_aggressive_notional_samples
+            <= (self.aggressive_notional_lookback_rounds)
+        ):
+            raise ValueError("campaign activity sample count is invalid")
+        if not Decimal(0) < self.minimum_aggressive_notional_ratio <= Decimal(10):
+            raise ValueError("campaign activity ratio is invalid")
+        TestnetSignalParameters(
+            maximum_spread_bps=self.maximum_entry_spread_bps,
+            minimum_trade_imbalance=self.minimum_trade_imbalance,
+            minimum_book_imbalance=self.minimum_book_imbalance,
+            minimum_microprice_bps=self.minimum_microprice_bps,
+            maximum_opposing_book_imbalance=self.maximum_opposing_book_imbalance,
+            maximum_opposing_microprice_bps=self.maximum_opposing_microprice_bps,
+        )
 
 
 def campaign_trade_allowed(
@@ -110,7 +153,8 @@ class TestnetCampaign:
         self.client = BinanceTestnetClient(key, secret)
         self.trade_stream = TestnetAggregateTradeStream(symbols)
         self.trade_executor = ThreadPoolExecutor(
-            max_workers=min(3, len(symbols)), thread_name_prefix="testnet-experiment"
+            max_workers=min(limits.maximum_parallel_positions, len(symbols)),
+            thread_name_prefix="testnet-experiment",
         )
         self.active_trades: dict[str, Future[dict[str, Any]]] = {}
         self.position_events: SimpleQueue[dict[str, Any]] = SimpleQueue()
@@ -136,7 +180,10 @@ class TestnetCampaign:
                 f"候选池: {', '.join(self.symbols)}\n"
                 f"计划运行: {self.limits.duration_seconds // 86_400} 天\n"
                 f"评估间隔: {self.limits.evaluation_interval_seconds} 秒\n"
-                "运行模式: Testnet 实验下单 (最多 3 个币种并行)\n"
+                f"运行模式: Testnet 实验下单 (最多 {self._parallel_limit()} 个币种并行)\n"
+                "仓位规则: 0 到上限均正常, 不为补满仓位而开仓\n"
+                f"信号确认: 连续 {self.limits.signal_confirmation_rounds} 轮同方向且质量分不低于 "
+                f"{self.limits.minimum_signal_quality_score}\n"
                 "决策来源: Testnet 确定性规则策略 (不依赖 Codex 在线状态)\n"
                 f"单笔保证金: 最高 {self.limits.margin_budget} USDT\n"
                 "杠杆: 各币种 Testnet 当前允许的最高初始杠杆\n"
@@ -219,7 +266,7 @@ class TestnetCampaign:
         self._drain_position_events()
         self._reap_completed_trades(state)
         _, server_offset_ms = self.client.synchronize_time()
-        worker_count = min(3, len(self.symbols))
+        worker_count = self._parallel_limit()
         with ThreadPoolExecutor(
             max_workers=worker_count, thread_name_prefix="testnet-observation"
         ) as executor:
@@ -252,16 +299,22 @@ class TestnetCampaign:
         decisions: list[TestnetBaselineDecision],
         observed_at: datetime,
     ) -> None:
-        available = min(3, len(self.symbols)) - len(self.active_trades)
+        confirmed = _update_pending_signals(
+            state,
+            decisions,
+            active_symbols=set(self.active_trades),
+            evaluation_round=int(state["evaluation_round_count"]),
+            required_rounds=self.limits.signal_confirmation_rounds,
+            minimum_quality_score=self.limits.minimum_signal_quality_score,
+            activity_lookback_rounds=self.limits.aggressive_notional_lookback_rounds,
+            minimum_activity_samples=self.limits.minimum_aggressive_notional_samples,
+            minimum_activity_ratio=self.limits.minimum_aggressive_notional_ratio,
+        )
+        available = self._parallel_limit() - len(self.active_trades)
         if available <= 0:
             return
         candidates = sorted(
-            (
-                decision
-                for decision in decisions
-                if decision.experimental_plan is not None
-                and decision.symbol not in self.active_trades
-            ),
+            confirmed,
             key=_experimental_candidate_rank,
         )
         last_by_symbol = cast(dict[str, str], state.setdefault("last_trade_by_symbol", {}))
@@ -271,6 +324,15 @@ class TestnetCampaign:
             plan = decision.experimental_plan
             if plan is None:
                 continue
+            pending = cast(dict[str, dict[str, object]], state["pending_signals"])
+            signal_state = pending.get(plan.symbol, {})
+            plan = replace(
+                plan,
+                signal_confirmation_rounds=int(str(signal_state.get("consecutive_rounds", 1))),
+                aggressive_notional_ratio=Decimal(
+                    str(signal_state.get("aggressive_notional_ratio", "0"))
+                ),
+            )
             last_value = last_by_symbol.get(plan.symbol)
             allowed, reason = campaign_trade_allowed(
                 now=observed_at,
@@ -298,10 +360,13 @@ class TestnetCampaign:
                 plan=plan,
                 margin_budget=self.limits.margin_budget,
                 maximum_net_loss=self.limits.maximum_net_loss_per_trade,
+                minimum_estimated_net_target=self.limits.minimum_estimated_net_target,
+                risk_sizing_slippage_rate=(self.limits.risk_sizing_slippage_bps / Decimal(10_000)),
                 on_position_protected=self.position_events.put,
                 stop_requested=lambda: self.stop_requested,
             )
             self.active_trades[plan.symbol] = future
+            pending.pop(plan.symbol, None)
             state["submitted_trade_count"] = int(state.get("submitted_trade_count", 0)) + 1
             timestamp = observed_at.isoformat().replace("+00:00", "Z")
             last_by_symbol[plan.symbol] = timestamp
@@ -325,6 +390,11 @@ class TestnetCampaign:
                     f"参考入场: {plan.entry_reference}\n"
                     f"结构止损: {plan.stop_anchor}\n"
                     f"目标止盈: {plan.target_reference}\n"
+                    f"信号质量分: {plan.signal_quality_score.quantize(Decimal('0.01'))}\n"
+                    f"连续确认: {plan.signal_confirmation_rounds} 轮\n"
+                    f"PA 同向周期: {plan.pa_alignment_count}/2\n"
+                    "主动成交活跃度: "
+                    f"{plan.aggressive_notional_ratio.quantize(Decimal('0.01'))}x 近期中位数\n"
                     "决策来源: Testnet 确定性规则策略 (不依赖 Codex)\n"
                     "实际杠杆、数量和保证金将在仓位保护确认后通知。"
                 ),
@@ -407,6 +477,13 @@ class TestnetCampaign:
                     f"数量: {event['quantity']}\n"
                     f"名义价值: {_money(event['position_notional'])} USDT\n"
                     f"实际初始保证金: {_money(event['actual_initial_margin'])} USDT\n"
+                    "信号质量分: "
+                    f"{Decimal(str(event['signal_quality_score'])).quantize(Decimal('0.01'))}\n"
+                    f"连续确认: {event['signal_confirmation_rounds']} 轮\n"
+                    f"PA 同向周期: {event['pa_alignment_count']}/2\n"
+                    "主动成交活跃度: "
+                    f"{_two_decimals(event['aggressive_notional_ratio'])}x "
+                    "近期中位数\n"
                     f"成交入场价: {event['entry_price']}\n"
                     f"止盈触发价: {event['target_trigger']}\n"
                     f"预计止盈毛收益: {_money(event['estimated_target_gross_pnl'])} USDT\n"
@@ -433,7 +510,18 @@ class TestnetCampaign:
             five_minute_klines=five_minute_klines,
             depth=depth,
             aggregate_trades=aggregate_trades,
+            signal_parameters=TestnetSignalParameters(
+                maximum_spread_bps=self.limits.maximum_entry_spread_bps,
+                minimum_trade_imbalance=self.limits.minimum_trade_imbalance,
+                minimum_book_imbalance=self.limits.minimum_book_imbalance,
+                minimum_microprice_bps=self.limits.minimum_microprice_bps,
+                maximum_opposing_book_imbalance=(self.limits.maximum_opposing_book_imbalance),
+                maximum_opposing_microprice_bps=(self.limits.maximum_opposing_microprice_bps),
+            ),
         )
+
+    def _parallel_limit(self) -> int:
+        return min(self.limits.maximum_parallel_positions, len(self.symbols))
 
     def _reset_daily_state_if_needed(self, state: dict[str, Any], observed_at: datetime) -> None:
         day = observed_at.date().isoformat()
@@ -486,12 +574,14 @@ class TestnetCampaign:
                 self.symbols
             ):
                 document["limits"] = self._limits_document()
-                document["strategy"] = "TESTNET_EXPERIMENT_OF_PA_V2"
+                document["strategy"] = "TESTNET_EXPERIMENT_OF_PA_V3"
                 document["validation_status"] = "UNVALIDATED_TESTNET_EXPERIMENT"
                 document["decision_authority"] = "TESTNET_DETERMINISTIC_RULE"
                 document["codex_dependency"] = False
                 document.setdefault("last_trade_by_symbol", {})
                 document.setdefault("active_symbols", [])
+                document.setdefault("pending_signals", {})
+                document.setdefault("aggressive_notional_history", {})
                 document.setdefault(
                     "submitted_trade_count",
                     int(document.get("trade_count", 0)) + len(document["active_symbols"]),
@@ -512,7 +602,7 @@ class TestnetCampaign:
             "schema_version": "1.0.0",
             "status": "RUNNING",
             "environment": "testnet",
-            "strategy": "TESTNET_EXPERIMENT_OF_PA_V2",
+            "strategy": "TESTNET_EXPERIMENT_OF_PA_V3",
             "validation_status": "UNVALIDATED_TESTNET_EXPERIMENT",
             "decision_authority": "TESTNET_DETERMINISTIC_RULE",
             "codex_dependency": False,
@@ -536,6 +626,8 @@ class TestnetCampaign:
             "daily_net_pnl": "0",
             "last_trade_by_symbol": {},
             "active_symbols": [],
+            "pending_signals": {},
+            "aggressive_notional_history": {},
             "production_endpoint_requests": 0,
             "limits": self._limits_document(),
             "prior_campaign": prior_campaign,
@@ -550,15 +642,37 @@ class TestnetCampaign:
             "maximum_trades_per_day": self.limits.maximum_trades_per_day,
             "daily_net_loss_limit": format(self.limits.daily_net_loss_limit, "f"),
             "margin_budget": format(self.limits.margin_budget, "f"),
-            "maximum_net_loss_per_trade": format(
-                self.limits.maximum_net_loss_per_trade, "f"
-            ),
+            "maximum_net_loss_per_trade": format(self.limits.maximum_net_loss_per_trade, "f"),
             "execution_mode": "TESTNET_EXPERIMENT",
             "decision_authority": "TESTNET_DETERMINISTIC_RULE",
             "codex_dependency": False,
-            "maximum_parallel_observations": min(3, len(self.symbols)),
-            "maximum_parallel_positions": min(3, len(self.symbols)),
-            "maximum_candidates_per_round": min(3, len(self.symbols)),
+            "maximum_parallel_observations": self._parallel_limit(),
+            "maximum_parallel_positions": self._parallel_limit(),
+            "maximum_candidates_per_round": self._parallel_limit(),
+            "position_slots_are_target": False,
+            "signal_confirmation_rounds": self.limits.signal_confirmation_rounds,
+            "minimum_signal_quality_score": format(self.limits.minimum_signal_quality_score, "f"),
+            "minimum_estimated_net_target": format(self.limits.minimum_estimated_net_target, "f"),
+            "risk_sizing_slippage_bps": format(self.limits.risk_sizing_slippage_bps, "f"),
+            "maximum_entry_spread_bps": format(self.limits.maximum_entry_spread_bps, "f"),
+            "minimum_trade_imbalance": format(self.limits.minimum_trade_imbalance, "f"),
+            "minimum_book_imbalance": format(self.limits.minimum_book_imbalance, "f"),
+            "minimum_microprice_bps": format(self.limits.minimum_microprice_bps, "f"),
+            "maximum_opposing_book_imbalance": format(
+                self.limits.maximum_opposing_book_imbalance, "f"
+            ),
+            "maximum_opposing_microprice_bps": format(
+                self.limits.maximum_opposing_microprice_bps, "f"
+            ),
+            "aggressive_notional_lookback_rounds": (
+                self.limits.aggressive_notional_lookback_rounds
+            ),
+            "minimum_aggressive_notional_samples": (
+                self.limits.minimum_aggressive_notional_samples
+            ),
+            "minimum_aggressive_notional_ratio": format(
+                self.limits.minimum_aggressive_notional_ratio, "f"
+            ),
             "elapsed_time_exit_enabled": False,
         }
 
@@ -645,29 +759,94 @@ def _select_candidate(
     return sorted(eligible, key=rank)[0]
 
 
+def _update_pending_signals(
+    state: dict[str, Any],
+    decisions: list[TestnetBaselineDecision],
+    *,
+    active_symbols: set[str],
+    evaluation_round: int,
+    required_rounds: int,
+    minimum_quality_score: Decimal,
+    activity_lookback_rounds: int,
+    minimum_activity_samples: int,
+    minimum_activity_ratio: Decimal,
+) -> list[TestnetBaselineDecision]:
+    """Require consecutive same-direction evidence without treating slots as a target."""
+    pending = cast(dict[str, dict[str, object]], state.setdefault("pending_signals", {}))
+    activity_history = cast(
+        dict[str, list[str]], state.setdefault("aggressive_notional_history", {})
+    )
+    current_symbols = {decision.symbol for decision in decisions}
+    for symbol in list(pending):
+        if symbol not in current_symbols or symbol in active_symbols:
+            pending.pop(symbol, None)
+
+    confirmed: list[TestnetBaselineDecision] = []
+    for decision in decisions:
+        plan = decision.experimental_plan
+        history = activity_history.setdefault(decision.symbol, [])
+        current_activity = decision.order_flow.aggressive_notional
+        history.append(format(current_activity, "f"))
+        del history[:-activity_lookback_rounds]
+        activity_values = sorted(Decimal(value) for value in history)
+        activity_median = _median_decimal(activity_values)
+        activity_ratio = Decimal(0) if activity_median <= 0 else current_activity / activity_median
+        if (
+            plan is None
+            or plan.symbol in active_symbols
+            or plan.signal_quality_score < minimum_quality_score
+            or len(activity_values) < minimum_activity_samples
+            or activity_ratio < minimum_activity_ratio
+        ):
+            pending.pop(decision.symbol, None)
+            continue
+        previous = pending.get(plan.symbol)
+        consecutive = 1
+        if (
+            previous is not None
+            and previous.get("direction") == str(plan.direction)
+            and int(str(previous.get("evaluation_round", -1))) == evaluation_round - 1
+        ):
+            consecutive = int(str(previous.get("consecutive_rounds", 0))) + 1
+        pending[plan.symbol] = {
+            "direction": str(plan.direction),
+            "consecutive_rounds": consecutive,
+            "evaluation_round": evaluation_round,
+            "last_observed_at": decision.observed_at.isoformat().replace("+00:00", "Z"),
+            "signal_quality_score": format(plan.signal_quality_score, "f"),
+            "pa_alignment_count": plan.pa_alignment_count,
+            "aggressive_notional": format(current_activity, "f"),
+            "aggressive_notional_median": format(activity_median, "f"),
+            "aggressive_notional_ratio": format(activity_ratio, "f"),
+        }
+        if consecutive >= required_rounds:
+            confirmed.append(decision)
+    return confirmed
+
+
+def _median_decimal(values: list[Decimal]) -> Decimal:
+    if not values:
+        return Decimal(0)
+    midpoint = len(values) // 2
+    if len(values) % 2:
+        return values[midpoint]
+    return (values[midpoint - 1] + values[midpoint]) / Decimal(2)
+
+
 def _experimental_candidate_rank(decision: TestnetBaselineDecision) -> tuple[Decimal, str]:
     """Prefer persistent PA alignment and stronger executable order flow."""
     plan = decision.experimental_plan
     if plan is None:
         return Decimal("Infinity"), decision.symbol
-    sign = Decimal(1) if str(plan.direction) == "LONG" else Decimal(-1)
-    pa_score = Decimal(0)
-    if decision.pa_1m.direction is plan.direction:
-        pa_score += Decimal(3) + (decision.pa_1m.efficiency_ratio or Decimal(0))
-    if decision.pa_5m.direction is plan.direction:
-        pa_score += Decimal(2) + (decision.pa_5m.efficiency_ratio or Decimal(0))
-    flow = decision.order_flow
-    flow_score = (
-        abs(flow.trade_imbalance)
-        + max(Decimal(0), sign * flow.book_imbalance)
-        + max(Decimal(0), sign * flow.microprice_mid_bps) / Decimal(10)
-    )
-    score = pa_score + flow_score - decision.spread_bps / Decimal(10)
-    return -score, decision.symbol
+    return -plan.signal_quality_score, decision.symbol
 
 
 def _money(value: object) -> str:
     return format(Decimal(str(value)).quantize(Decimal("0.000001")), "f")
+
+
+def _two_decimals(value: object) -> str:
+    return format(Decimal(str(value)).quantize(Decimal("0.01")), "f")
 
 
 def _parse_time(value: str) -> datetime:
@@ -706,8 +885,22 @@ def main() -> int:
     parser.add_argument("--maximum-trades-per-day", type=int, default=8)
     parser.add_argument("--daily-net-loss-limit", type=Decimal, default=Decimal("1.00"))
     parser.add_argument("--margin-budget", type=Decimal, default=Decimal("1"))
+    parser.add_argument("--maximum-net-loss-per-trade", type=Decimal, default=Decimal("0.35"))
+    parser.add_argument("--maximum-parallel-positions", type=int, default=5)
+    parser.add_argument("--signal-confirmation-rounds", type=int, default=2)
+    parser.add_argument("--minimum-signal-quality-score", type=Decimal, default=Decimal("2.00"))
+    parser.add_argument("--minimum-estimated-net-target", type=Decimal, default=Decimal("0.10"))
+    parser.add_argument("--risk-sizing-slippage-bps", type=Decimal, default=Decimal("12.00"))
+    parser.add_argument("--maximum-entry-spread-bps", type=Decimal, default=Decimal("8.00"))
+    parser.add_argument("--minimum-trade-imbalance", type=Decimal, default=Decimal("0.25"))
+    parser.add_argument("--minimum-book-imbalance", type=Decimal, default=Decimal("0.03"))
+    parser.add_argument("--minimum-microprice-bps", type=Decimal, default=Decimal("0.10"))
+    parser.add_argument("--maximum-opposing-book-imbalance", type=Decimal, default=Decimal("0.05"))
+    parser.add_argument("--maximum-opposing-microprice-bps", type=Decimal, default=Decimal("0.25"))
+    parser.add_argument("--aggressive-notional-lookback-rounds", type=int, default=12)
+    parser.add_argument("--minimum-aggressive-notional-samples", type=int, default=6)
     parser.add_argument(
-        "--maximum-net-loss-per-trade", type=Decimal, default=Decimal("0.35")
+        "--minimum-aggressive-notional-ratio", type=Decimal, default=Decimal("0.50")
     )
     arguments = parser.parse_args()
     limits = CampaignLimits(
@@ -718,6 +911,20 @@ def main() -> int:
         daily_net_loss_limit=arguments.daily_net_loss_limit,
         margin_budget=arguments.margin_budget,
         maximum_net_loss_per_trade=arguments.maximum_net_loss_per_trade,
+        maximum_parallel_positions=arguments.maximum_parallel_positions,
+        signal_confirmation_rounds=arguments.signal_confirmation_rounds,
+        minimum_signal_quality_score=arguments.minimum_signal_quality_score,
+        minimum_estimated_net_target=arguments.minimum_estimated_net_target,
+        risk_sizing_slippage_bps=arguments.risk_sizing_slippage_bps,
+        maximum_entry_spread_bps=arguments.maximum_entry_spread_bps,
+        minimum_trade_imbalance=arguments.minimum_trade_imbalance,
+        minimum_book_imbalance=arguments.minimum_book_imbalance,
+        minimum_microprice_bps=arguments.minimum_microprice_bps,
+        maximum_opposing_book_imbalance=arguments.maximum_opposing_book_imbalance,
+        maximum_opposing_microprice_bps=arguments.maximum_opposing_microprice_bps,
+        aggressive_notional_lookback_rounds=(arguments.aggressive_notional_lookback_rounds),
+        minimum_aggressive_notional_samples=arguments.minimum_aggressive_notional_samples,
+        minimum_aggressive_notional_ratio=arguments.minimum_aggressive_notional_ratio,
     )
     arguments.lock_file.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     with arguments.lock_file.open("w", encoding="ascii") as lock:

@@ -47,9 +47,7 @@ def test_bot_api_uses_long_poll_commands_and_persistent_reply_keyboard() -> None
     assert keyboard["is_persistent"] is True
     assert keyboard["resize_keyboard"] is True
     assert "📊 当前盈亏" in str(keyboard["keyboard"])
-    commands = next(
-        document for path, document, _ in calls if path.endswith("/setMyCommands")
-    )
+    commands = next(document for path, document, _ in calls if path.endswith("/setMyCommands"))
     assert {item["command"] for item in commands["commands"]} == {
         "start",
         "pnl",
@@ -121,6 +119,8 @@ def test_status_marks_fresh_independent_rule_runtime_healthy() -> None:
     assert "交易活动: 🟢 正常" in rendered
     assert "用户数据流: 🟢 正常" in rendered
     assert "依赖 Codex: 否" in rendered
+    assert "活动仓位: 2 / 5 (不强制补满)" in rendered
+    assert "确认门槛: 2 轮 / 质量分 2.00 / 预计净目标 0.10 U" in rendered
     assert "生产接口请求: 0" in rendered
 
 
@@ -143,6 +143,13 @@ def _campaign(*, updated_at: str = "2026-07-14T17:59:30Z") -> dict[str, Any]:
         "trade_count": 2,
         "submitted_trade_count": 4,
         "active_symbols": ["XRPUSDT", "DOGEUSDT"],
+        "pending_signals": {"SOLUSDT": {"consecutive_rounds": 1}},
+        "limits": {
+            "maximum_parallel_positions": 5,
+            "signal_confirmation_rounds": 2,
+            "minimum_signal_quality_score": "2.00",
+            "minimum_estimated_net_target": "0.10",
+        },
         "production_endpoint_requests": 0,
         "updated_at": updated_at,
     }
@@ -165,9 +172,7 @@ def _protected(symbol: str) -> dict[str, object]:
     }
 
 
-def _result(
-    symbol: str, realized: str, fee: str, net: str, target: bool
-) -> dict[str, object]:
+def _result(symbol: str, realized: str, fee: str, net: str, target: bool) -> dict[str, object]:
     return {
         "record_type": "TESTNET_EXPERIMENT_RESULT",
         "strategy": "TESTNET_EXPERIMENT_OF_PA_V2",

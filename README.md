@@ -14,9 +14,11 @@ ceiling, native protection and zero-state cleanup, but did not verify a profitab
 fixed-duration runner has been removed under owner-approved ADR 0006; elapsed time can no longer
 close a position. Calibration, Shadow and live gates remain pending.
 A three-day Testnet-only experimental campaign runs as `aiq-testnet-campaign.service`; it observes
-five symbols and can hold up to three Testnet positions in parallel with about 1 USDT margin and an
+five symbols and can hold zero to five Testnet positions in parallel with about 1 USDT margin and an
 exchange-maximum-leverage policy (also specified for future production), native
-structural stop/target protection and no elapsed-time exit. It is explicitly unvalidated and does
+structural stop/target protection and no elapsed-time exit. Position slots are capacity, not a
+target: V3 requires PA alignment, two consecutive same-direction rounds, a minimum signal score and
+a minimum estimated fee-adjusted target before submission. It is explicitly unvalidated and does
 not change the production `RISK_LOCKED` gate.
 An independent `aiq-testnet-user-stream.service` now maintains the Testnet listen key and records
 deduplicated, secret-free, hash-chained user events without exposing an order-submission method.

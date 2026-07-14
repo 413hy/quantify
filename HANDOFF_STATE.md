@@ -32,10 +32,12 @@ is retained only as historical lifecycle evidence.
 
 The Testnet-only `aiq-testnet-campaign.service` is enabled as an owner-authorized experimental
 execution process. It evaluates SOLUSDT, BNBUSDT, XRPUSDT, DOGEUSDT and ADAUSDT every ten seconds,
-can hold three different symbols in parallel and uses about 1 USDT margin with the symbol's current
+can hold zero to five different symbols in parallel and uses about 1 USDT margin with the symbol's current
 Testnet maximum initial leverage (the same policy specified for future production), a 0.35 USDT
 estimated loss budget, and installs native structural stop/target protection without an elapsed-time
-exit. Strict baseline
+exit. Five is capacity, not a fill target: V3 requires one aligned PA timeframe, two consecutive
+same-direction rounds, quality score 2.00 and at least 0.10 USDT estimated fee-adjusted target.
+Strict baseline
 production rejection remains recorded separately; experiment results are unvalidated. State is
 `/var/lib/ai-quant/evidence/testnet/campaign/current/state.json`; see `docs/testnet-campaign.md`.
 Telegram messages are structured Chinese text.
