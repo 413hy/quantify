@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from ai_quant.binance_egress.testnet_probe import BinanceTestnetClient, _credential
+from ai_quant.binance_egress.testnet_stream import TestnetAggregateTradeStream
 from ai_quant.notifications import (
     Notification,
     OutboundNotifier,
@@ -100,12 +101,20 @@ class TestnetCampaign:
         key = _credential(api_key_file, repository_root)
         secret = _credential(api_secret_file, repository_root)
         self.client = BinanceTestnetClient(key, secret)
+        self.trade_stream = TestnetAggregateTradeStream(symbols)
         self.stop_requested = False
 
     def request_stop(self) -> None:
         self.stop_requested = True
 
     def run(self) -> int:
+        self.trade_stream.start()
+        try:
+            return self._run_campaign()
+        finally:
+            self.trade_stream.stop()
+
+    def _run_campaign(self) -> int:
         state = self._load_or_create_state()
         self._notify(
             severity="INFO",
@@ -208,7 +217,7 @@ class TestnetCampaign:
         one_minute_klines = self.client.klines(symbol, "1m", limit=120)
         five_minute_klines = self.client.klines(symbol, "5m", limit=120)
         depth = self.client.depth(symbol, limit=20)
-        aggregate_trades = self.client.aggregate_trades(symbol, limit=100)
+        aggregate_trades = self.trade_stream.snapshot(symbol, maximum_age_ms=5_000)
         server_time_ms = int(time.time() * 1_000) + server_offset_ms
         return evaluate_testnet_baseline(
             symbol=symbol,

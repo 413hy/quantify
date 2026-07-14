@@ -2,7 +2,7 @@
 
 该服务只连接 Binance USDⓈ-M Futures Testnet，不连接生产交易端点。它每 10 秒读取
 SOLUSDT、BNBUSDT、XRPUSDT、DOGEUSDT 和 ADAUSDT 的 1 分钟/5 分钟闭合 K 线、20 档
-深度和最近 500ms 聚合成交，调用仓库现有的 Price Action 与 Order Flow 原语生成候选
+深度和最近 5 秒 WebSocket 聚合成交，调用仓库现有的 Price Action 与 Order Flow 原语生成候选
 信号。行情读取最多使用 3 个并行观察 worker，缩短五个标的之间的观测偏移；交易选择
 仍严格保持每轮最多一个。这五个标的是当前 Testnet 上能够在 1 USDT 保证金、10x 杠杆和交易所最小下单量
 约束内执行的初始候选池；它扩大前向样本，但不能冒充文档要求的正式 Top10 排名证据。
@@ -43,7 +43,9 @@ jq . /var/lib/ai-quant/evidence/testnet/campaign/current/state.json
 止盈/止损触发价、已实现盈亏、手续费、净结果、保护确认延迟和最终零状态。标注“模拟”的
 通知只用于格式验证，不计入交易统计。
 
-每条新观察同时记录当时 `mid_price` 和 `microprice`，供不使用持仓到期退出的结构策略做
+聚合成交由 `demo-fstream.binance.com` 的公开实时 `aggTrade` 流持续接收，只接受带有效
+`nq` normal quantity 的事件，不再用 10 秒 REST 轮询冒充实时 OF。每条新观察同时记录当时
+`mid_price` 和 `microprice`，供不使用持仓到期退出的结构策略做
 前向 markout、结构止损/目标触发和费用后结果统计。旧观察缺少价格字段，不允许反推或补值。
 
 当前服务不创建新仓，可直接停止：

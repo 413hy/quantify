@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: `2026-07-14T15:39:20Z`
+Updated: `2026-07-14T15:44:06Z`
 
 Overall state: `TESTNET_CORE_PROTOCOL_PASS / EXTERNAL_DURATION_GATES_PENDING / RISK_LOCKED`
 
@@ -49,6 +49,11 @@ calibration, 72-hour, or live authorization evidence. No production exchange ord
   research gate: 2 closed samples, 0 wins and -0.0389499593 USDT at 10 USDT notional. The exact
   forward baseline also had 0 eligible observations out of 679. Machine evidence is under
   `/var/lib/ai-quant/evidence/testnet/backtest/current/`; the campaign remains observation-only.
+- Testnet Order Flow collection now uses one persistent exact-host combined `aggTrade` WebSocket
+  for all five symbols. It validates and retains only events with finite non-negative Binance `nq`
+  normal quantity and evaluates a rolling five-second window. A live post-deployment check produced
+  non-zero aggressive flow for all 10 observations across two complete rounds, replacing the
+  mostly-empty ten-second REST polling snapshots.
 - M4 operations: bounded FastAPI control surface, session-context binding, idempotent commands,
   one-use emergency-flatten challenge, outbound-only redacted notifications, Prometheus exposition,
   alert/runbook mapping, checksummed backup manifests and append-only operational migrations.

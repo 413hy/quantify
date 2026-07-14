@@ -211,14 +211,14 @@ def _trades(
     symbol: str, documents: list[dict[str, Any]], received_at: datetime
 ) -> tuple[AggregateTrade, ...]:
     if not documents:
-        raise ValueError("testnet aggregate trade response is empty")
+        return ()
     result: list[AggregateTrade] = []
     for document in documents:
         raw = json.dumps(document, sort_keys=True, separators=(",", ":")).encode()
         try:
             trade_time = _utc_from_milliseconds(int(document["T"]))
             age = received_at - trade_time
-            if not timedelta(0) <= age <= timedelta(milliseconds=500):
+            if not timedelta(0) <= age <= timedelta(seconds=5):
                 continue
             result.append(
                 AggregateTrade(

@@ -43,6 +43,11 @@ enable Testnet order submission from this result. Evidence is
 `/var/lib/ai-quant/evidence/testnet/backtest/current/structural-review.json`; new campaign records
 include `mid_price` and `microprice` for future forward evaluation.
 
+The campaign now obtains recent trades from a persistent five-symbol Testnet `aggTrade` WebSocket,
+not REST polling. Only messages with valid `nq` normal quantity enter OF. The first two deployed
+five-second rounds had non-zero aggressive flow for every symbol; entry still remained rejected by
+PA/setup/edge gates, as intended.
+
 The historical parallel Testnet sample ran SOLUSDT, BNBUSDT and XRPUSDT concurrently. It ended at
 -0.00742656/-0.00525511/-0.00930724 USDT net and reconciled fully flat. Its elapsed-duration runner
 has been deleted; the retained records are execution stress evidence, not strategy trades.

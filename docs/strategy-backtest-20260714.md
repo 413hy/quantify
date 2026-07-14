@@ -12,6 +12,11 @@ none was execution-ready and none had both 1m and 5m Price Action in the require
 46 observations contained recent aggressive trades, confirming that ten-second REST polling is
 not a sufficient replacement for the causal real-time Order Flow stream.
 
+After the review, the campaign was upgraded to a persistent five-symbol `aggTrade` WebSocket and a
+five-second normal-quantity window. Its first two complete deployed rounds had non-zero aggressive
+flow in all 10 symbol observations. This fixes the collection defect but does not retroactively
+change the failed backtest or authorize an entry.
+
 ## Conservative structural replay
 
 The reproducible research runner used the latest approximately 25 hours of Testnet history for
