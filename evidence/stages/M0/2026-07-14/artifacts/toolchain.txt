@@ -1,0 +1,9 @@
+checked_at_utc=2026-07-14T06:57:25Z
+3a5762e37a5311f0a7faeca2e93b6c77ab8500ff
+uv 0.11.28 (aarch64-unknown-linux-gnu)
+Python 3.12.13
+Docker version 29.6.1, build 8900f1d
+Docker Compose version v5.3.1
+github.com/docker/buildx v0.35.0 a319e5b15052cf6557ceb666eb8ff6e32380b782
+chronyc (chrony) version 4.3 (+READLINE +SECHASH +IPV6 -DEBUG)
+Linux instance-20260520-1140 6.1.0-50-cloud-arm64 #1 SMP Debian 6.1.176-1 (2026-07-02) aarch64 GNU/Linux

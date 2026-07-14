@@ -1,0 +1,20 @@
+checked_at_utc=2026-07-14T06:57:25Z
+Reference ID    : 7986D768 (121.134.215.104)
+Stratum         : 3
+Ref time (UTC)  : Tue Jul 14 06:54:58 2026
+System time     : 0.000025677 seconds slow of NTP time
+Last offset     : -0.000013346 seconds
+RMS offset      : 0.000132695 seconds
+Frequency       : 5.966 ppm slow
+Residual freq   : -0.002 ppm
+Skew            : 0.086 ppm
+Root delay      : 0.003493902 seconds
+Root dispersion : 0.000319019 seconds
+Update interval : 257.6 seconds
+Leap status     : Normal
+               total        used        free      shared  buff/cache   available
+Mem:     12536565760   692797440   464031744      733184 11605516288 11843768320
+Swap:              0           0           0
+Filesystem        1B-blocks        Used    Available Use% Mounted on
+/dev/sda2      199142084608 11906977792 177044733952   7% /
+2

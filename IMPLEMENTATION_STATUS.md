@@ -1,60 +1,81 @@
 # Implementation status
 
-Updated: `2026-07-14T06:35:00Z`  
-Overall state: `M0_IN_PROGRESS / FAIL_CLOSED`  
+Updated: `2026-07-14T06:57:33Z`
+
+Overall state: `M0_IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
+
 Highest completed milestone: none
 
-## Completed
+## Completed and evidenced
 
-- Located all three archives and matched all user-supplied SHA-256 values.
-- Tested and safely extracted archives into isolated, read-only reference directories.
-- Validated all internal manifests/inventories with no missing or changed payload.
-- Read the required baseline, contracts, configuration, runbooks, diagrams, Louie, and PYTA materials in full.
-- Validated JSON, YAML, JSON Schema/examples, JCS hashes, OpenAPI, XML, DOCX package, and internal links.
-- Audited the current host and current official Binance/OpenAI facts.
-- Created the isolated Git implementation repository and persistent preflight evidence.
-- Installed `chrony` and `ripgrep`; chrony reached a healthy initial synchronization sample.
+- All three outer hashes and all internal manifests/inventories match; sources remain read-only.
+- Full required-document reading and machine audit are complete. Only two immutable broken anchors
+  remain, with no additional source defect.
+- Implementation commit `3a5762e37a5311f0a7faeca2e93b6c77ab8500ff` establishes the M0
+  repository, exact dependency lock, immutable contract/config copies, validators, independent
+  migrations, initial audit tables, Compose lifecycle boundaries, a one-shot permit consume model,
+  locked Unix-socket runtime, tests, SBOM and security evidence.
+- All recommended M0 validation commands pass. Both database trees reproduce
+  `upgrade → downgrade base → upgrade`; atomic permit consumption grants once and denies replay.
+- The non-root container starts with no network and returns only `RISK_LOCKED` when startup evidence
+  is absent.
+- Docker CE/Compose, Python 3.12.13 via `uv`, chrony, ripgrep and GNU time are installed for
+  development. Initial chrony observations are healthy, but not a 24-hour deployment proof.
+
+Detailed evidence: `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`.
+
+## M0 work still required
+
+1. Durable atomic Reserve allocation across all rate windows and class ceilings.
+2. Signed causal-capability verification, nonce reservation, `SO_PEERCRED` caller ACL and fencing
+   lease ownership.
+3. Complete bounded rate-budget and gateway Unix-socket protocols, gateway recomputation from wire
+   facts, send outcome/unknown accounting, and correlation audit.
+4. Signed startup evidence and attestation service.
+5. Destination-specific host DNS/firewall enforcement proving exactly one Binance socket owner and
+   zero business Binance routes; current Compose validation is static only.
+6. A different actor in fresh context must independently review and issue a valid
+   `CodexReviewReport` with zero open P0/P1 before M0 acceptance.
 
 ## Current blockers
 
 | ID | Scope | Blocker | Required resolution |
 |---|---|---|---|
-| BLK-001 | M5 Testnet and later validation | Official Binance Testnet WebSocket base is now `wss://demo-fstream.binance.com`; frozen schemas require `wss://fstream.binancefuture.com/{public,market,private}` | Account owner must approve a baseline amendment or provide current primary-source/account evidence for the frozen routed hosts |
-| BLK-002 | M2 Codex execution, M9 | Exact `gpt-5.6` absent from current authenticated Codex catalog; no substitution allowed | Wait for catalog availability or explicit owner baseline change |
-| BLK-003 | Deployment/M6+ | Host is Debian 12 rather than Ubuntu 24 target | Reprovision target OS or explicitly approve a reviewed platform amendment |
-| BLK-004 | Deployment/M6+ | 24-hour network/clock/static-IP evidence, independent backtest host, 90-day remote storage, restore, external heartbeat, credentials isolation, and signatures do not exist | Satisfy deployment preflight; no secrets are requested now |
-| BLK-005 | Every milestone acceptance | Independent reviewer must be a different actor using fresh context; not yet performed | Obtain independent review after implementation and tests |
-
-Low-risk source defect: two broken runbook section anchors; source remains immutable.
+| BLK-001 | M5 Testnet and later validation | Official Testnet WS base is `wss://demo-fstream.binance.com`; frozen schemas require routed `fstream.binancefuture.com` hosts | Owner-approved baseline amendment or current primary-source/account evidence |
+| BLK-002 | M2 Codex execution, M9 | Exact `gpt-5.6` absent from current authenticated Codex catalog; substitution prohibited | Wait for catalog availability or explicit baseline change |
+| BLK-003 | Deployment/M6+ | Host is Debian 12 rather than frozen Ubuntu 24 target | Reprovision or approve a reviewed platform amendment |
+| BLK-004 | Deployment/M6+ | 24-hour network/clock/static-IP, independent backtest, remote storage, restore, heartbeat, credential-isolation and signature evidence absent | Complete deployment preflight; no secrets requested now |
+| BLK-005 | M0 acceptance and every later milestone | Independent fresh-context reviewer absent | Perform independent review after the remaining M0 implementation |
 
 ## M0–M9 plan
 
-| Milestone | Status | Next acceptance boundary |
-|---|---|---|
-| M0 repository/contracts/config/migrations/audit/host control/gateway | IN PROGRESS | Pinned project skeleton, copied immutable contracts/config, strict validators, separate migrations, default lock, one-shot permit/gateway contract, CI, tests, independent review |
-| M1 market data/order book/quality/archive/replay | NOT STARTED | M0 accepted first |
-| M2 PA/OF/Top10/cost/Codex orchestration/unified backtest | BLOCKED IN PART | Exact model catalog gate blocks Codex runs; deterministic/offline pieces only after M1 |
-| M3 risk/order state/user stream/native protection/reconciliation | NOT STARTED | M2 accepted first |
-| M4 local control/one-way notifications/monitoring/backup/archive/heartbeat | NOT STARTED | M3 accepted first |
-| M5 unit/property/replay/integration/Testnet/fault/security/recovery/load | BLOCKED IN PART | Testnet endpoint conflict; offline suites only after M4 |
-| M6 three-day calibration/candidates only | BLOCKED | Deployment gates and M5 acceptance |
-| M7 fresh validation/C0 freeze/72-hour dual validation | BLOCKED | All deployment gates and M6 |
-| M8 signed experimental live/87-day forward/90-day decision | BLOCKED | Valid `LIVE_ARM`, owner gates, M7 |
-| M9 monthly new-session selection/review/canary/promotion/rollback | BLOCKED | Initial 90-day acceptance and exact catalog semantics |
+| Milestone | Status |
+|---|---|
+| M0 repository/contracts/config/migrations/audit/host control/gateway | IN PROGRESS; foundation committed, full services/review outstanding |
+| M1 market data/order book/quality/archive/replay | NOT STARTED; M0 acceptance required |
+| M2 PA/OF/Top10/cost/Codex orchestration/unified backtest | NOT STARTED; Codex portion blocked by model catalog |
+| M3 risk/order state/user stream/native protection/reconciliation | NOT STARTED |
+| M4 local control/notifications/monitoring/backup/archive/heartbeat | NOT STARTED |
+| M5 complete validation | NOT STARTED; Testnet portion blocked by endpoint conflict |
+| M6 three-day calibration/candidates only | BLOCKED by earlier milestones and deployment gates |
+| M7 fresh validation/C0 freeze/72-hour dual validation | BLOCKED |
+| M8 signed experimental live/forward/90-day decision | BLOCKED |
+| M9 monthly selection/review/canary/promotion/rollback | BLOCKED |
 
-## Credentials state
+## Credentials and deployment state
 
-No production Binance, Testnet Binance, Telegram, database, archive, heartbeat, or signing credential has been requested or injected. Environment-variable names only were scanned; no values or Codex authentication files were read. Source, configuration, Compose, images, logs, and chat contain no user secret supplied for this project.
+No Binance, OpenAI, Telegram, database, archive, heartbeat or signing production credential has
+been requested or injected. Only ephemeral random database passwords were created for disposable
+local migration tests and removed by cleanup traps. No exchange API connection, account probe,
+order, Testnet runtime, shadow runtime, deployment or live action has occurred.
 
-## Deployment gate state
-
-`NOT_AUTHORIZED`. No Binance REST/WSS connection, account probe, order, Testnet order, paper/shadow runtime, or live deployment has been attempted. Documentation-site access is not exchange API egress.
+Deployment authorization: `NOT_AUTHORIZED`. Runtime default: `RISK_LOCKED`.
 
 ## Next exact command
 
 ```bash
-cd /root/quantify/ai-quant-system && make preflight
+cd /root/quantify/ai-quant-system && make ci && make test-migrations && make test-locked-runtime
 ```
 
-The Make target is the next M0 deliverable; until it exists, rerun the source audit directly using the command in `HANDOFF_STATE.md`.
-
+After this baseline re-verifies, continue M0 with the durable Reserve allocation and peer-identity
+boundary. Do not start M1 or enable a transport.
