@@ -33,7 +33,7 @@ Before implementation:
    appropriate for the restored host. Record actual results; do not copy expected results as proof.
 
 Mandatory state and safety constraints:
-- Current state is OFFLINE_DEVELOPMENT_FLOW_PASS / TESTNET_CREDENTIAL_REJECTED / RISK_LOCKED.
+- Current state is TESTNET_CORE_PROTOCOL_PASS / EXTERNAL_DURATION_GATES_PENDING / RISK_LOCKED.
 - Debian 12 Bookworm/aarch64 on Oracle Cloud is the sole owner-approved host platform. Do not select
   or recommend another distribution. Run `make validate-debian-platform` on deployment candidates.
 - Keep runtime default RISK_LOCKED.
@@ -67,12 +67,13 @@ Current implementation facts to verify rather than assume:
   deployment facts exist.
 - The restricted database role now has five explicit table reads and six explicit function entry
   points; observations and authority blocks are measurement-reader-only.
-- Last recorded tests were 176 unit, 8 property, 2 contract, 16 security, 3 replay, 18 integration,
+- Last recorded tests were 178 unit, 8 property, 2 contract, 16 security, 3 replay, 18 integration,
   6 fault and 1 resource tests, but rerun them.
 
 Known external blockers:
-- BLK-001 endpoint conflict resolved by ADR 0005; authenticated Testnet validation is currently
-  blocked because Binance returns `-2015` for the supplied Demo credential.
+- BLK-001 endpoint conflict resolved by ADR 0005. The replacement credential passes authenticated
+  capabilities, actual place/query/cancel and native protection/flatten; received User Data events,
+  remaining external protocol cases and the isolated Testnet project seal are still pending.
 - BLK-002 exact gpt-5.6 unavailable; substitution prohibited.
 - BLK-003 resolved by owner-approved ADR 0004; Debian 12 is the sole platform.
 - BLK-004 qualified deployment/network/clock/storage/restore/heartbeat/signed evidence absent.

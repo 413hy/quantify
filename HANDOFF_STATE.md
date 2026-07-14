@@ -1,6 +1,6 @@
 # Handoff state
 
-Updated: `2026-07-14T12:57:45Z`
+Updated: `2026-07-14T13:15:15Z`
 
 Resume in `/root/quantify/ai-quant-system`. Debian 12 Bookworm/aarch64 is the sole supported host.
 Do not modify `/root/quantify/reference-materials`; the copied contract/config provenance validator
@@ -29,7 +29,7 @@ make test-migrations test-locked-runtime paper-flow
 make sbom scan
 ```
 
-Expected counts are 176 unit, 8 property, 2 contract, 16 security, 3 replay, 18 integration,
+Expected counts are 178 unit, 8 property, 2 contract, 16 security, 3 replay, 18 integration,
 6 fault and 1 resource test. The Paper result has `external_requests=0`, `order_state=FILLED`,
 `protection_healthy=true`, and `runtime_state=RISK_LOCKED`.
 
@@ -45,14 +45,13 @@ system is complete. Local changes must be reviewed and committed before any futu
 
 ## External work still required
 
-- The owner approved ADR 0005 and the current official Testnet destinations are configured. Public
-  REST and public/market/WS-API handshakes pass. The bounded authenticated probe exists but the
-  currently supplied Demo credential receives Binance `-2015` on the first signed account call;
-  replace it with a Demo/Testnet key that has Futures read/trade permission and, if enabled, the
-  `140.245.75.36` IP allowlist. Never place the credential in Git or chat.
-- After credential replacement, rerun `scripts/run-testnet-probe.py`; it must pass before any real
-  matching-engine lifecycle test. Production credentials remain unnecessary until signed live
-  arming.
+- The owner approved ADR 0005 and the current official Testnet destinations are configured. The
+  replacement credential passed the safe capability probe, actual GTX place/query/cancel lifecycle,
+  and a minimum fill/native Algo protection/reduce-only flatten cycle. Final Testnet state is zero
+  regular orders, zero Algo orders and zero position; production request count is zero. Runtime
+  copies are root-owned `0400` files under `/run/ai-quant-secrets/` and must never enter Git/chat.
+- Complete live User Data event consumption/reconnect evidence, the remaining pre-registered
+  protocol fault/race cases, and independent project persistence/backup/seal before calibration.
 - Complete actual Binance destination measurements and the still-running 24-hour generic host
   baseline.
 - Provision remote archive/backup destinations and prove restore.

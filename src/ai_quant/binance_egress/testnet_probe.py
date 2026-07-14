@@ -204,6 +204,12 @@ class BinanceTestnetClient:
             "BOOK_TICKER",
         )
 
+    def mark_price(self, symbol: str) -> dict[str, Any]:
+        return _json_object(
+            self._call("GET", "/fapi/v1/premiumIndex", params={"symbol": symbol}),
+            "MARK_PRICE",
+        )
+
     def position_mode(self) -> dict[str, Any]:
         return _json_object(
             self._call("GET", "/fapi/v1/positionSide/dual", signed=True),
@@ -253,6 +259,84 @@ class BinanceTestnetClient:
         _json_object(
             self._call("POST", "/fapi/v1/order/test", params=params, signed=True),
             "TEST_ORDER",
+        )
+
+    def place_order(self, params: Mapping[str, str]) -> dict[str, Any]:
+        return _json_object(
+            self._call("POST", "/fapi/v1/order", params=params, signed=True),
+            "PLACE_ORDER",
+        )
+
+    def query_order(self, symbol: str, client_order_id: str) -> dict[str, Any]:
+        return _json_object(
+            self._call(
+                "GET",
+                "/fapi/v1/order",
+                params={"symbol": symbol, "origClientOrderId": client_order_id},
+                signed=True,
+            ),
+            "QUERY_ORDER",
+        )
+
+    def cancel_order(self, symbol: str, client_order_id: str) -> dict[str, Any]:
+        return _json_object(
+            self._call(
+                "DELETE",
+                "/fapi/v1/order",
+                params={"symbol": symbol, "origClientOrderId": client_order_id},
+                signed=True,
+            ),
+            "CANCEL_ORDER",
+        )
+
+    def place_algo_order(self, params: Mapping[str, str]) -> dict[str, Any]:
+        return _json_object(
+            self._call("POST", "/fapi/v1/algoOrder", params=params, signed=True),
+            "PLACE_ALGO_ORDER",
+        )
+
+    def query_algo_order(
+        self, *, client_algo_id: str | None = None, algo_id: int | None = None
+    ) -> dict[str, Any]:
+        if (client_algo_id is None) == (algo_id is None):
+            raise TestnetProbeError("ALGO_QUERY_ID_INVALID")
+        params: dict[str, str | int] = (
+            {"algoId": algo_id} if algo_id is not None else {"clientAlgoId": str(client_algo_id)}
+        )
+        return _json_object(
+            self._call(
+                "GET",
+                "/fapi/v1/algoOrder",
+                params=params,
+                signed=True,
+            ),
+            "QUERY_ALGO_ORDER",
+        )
+
+    def cancel_algo_order(
+        self, *, client_algo_id: str | None = None, algo_id: int | None = None
+    ) -> dict[str, Any]:
+        if (client_algo_id is None) == (algo_id is None):
+            raise TestnetProbeError("ALGO_CANCEL_ID_INVALID")
+        params: dict[str, str | int] = (
+            {"algoId": algo_id} if algo_id is not None else {"clientAlgoId": str(client_algo_id)}
+        )
+        return _json_object(
+            self._call(
+                "DELETE",
+                "/fapi/v1/algoOrder",
+                params=params,
+                signed=True,
+            ),
+            "CANCEL_ALGO_ORDER",
+        )
+
+    def open_algo_orders(self, symbol: str) -> list[dict[str, Any]]:
+        return _json_list(
+            self._call(
+                "GET", "/fapi/v1/openAlgoOrders", params={"symbol": symbol}, signed=True
+            ),
+            "OPEN_ALGO_ORDERS",
         )
 
 
@@ -305,6 +389,104 @@ def _order_test_parameters(
         "price": format(price, "f"),
         "newClientOrderId": f"aq-t-probe-{secrets.token_hex(6)}",
     }
+
+
+def _symbol_filters(exchange_info: Mapping[str, Any], symbol: str) -> dict[str, dict[str, Any]]:
+    symbols = exchange_info.get("symbols")
+    if not isinstance(symbols, list):
+        raise TestnetProbeError("EXCHANGE_INFO_INVALID_RESPONSE")
+    symbol_info = next(
+        (item for item in symbols if isinstance(item, dict) and item.get("symbol") == symbol),
+        None,
+    )
+    if not isinstance(symbol_info, dict) or symbol_info.get("status") != "TRADING":
+        raise TestnetProbeError("TEST_SYMBOL_NOT_TRADING")
+    filters = symbol_info.get("filters")
+    if not isinstance(filters, list):
+        raise TestnetProbeError("TEST_SYMBOL_FILTERS_INVALID")
+    return {
+        str(item["filterType"]): item
+        for item in filters
+        if isinstance(item, dict) and isinstance(item.get("filterType"), str)
+    }
+
+
+def _minimum_market_quantity(
+    exchange_info: Mapping[str, Any], symbol: str, ask_price: Decimal
+) -> Decimal:
+    filters = _symbol_filters(exchange_info, symbol)
+    try:
+        lot = filters.get("MARKET_LOT_SIZE") or filters["LOT_SIZE"]
+        step_size = Decimal(str(lot["stepSize"]))
+        minimum_quantity = Decimal(str(lot["minQty"]))
+        minimum_notional = Decimal(str(filters.get("MIN_NOTIONAL", {}).get("notional", "0")))
+    except (KeyError, ArithmeticError) as exc:
+        raise TestnetProbeError("TEST_SYMBOL_FILTERS_INVALID") from exc
+    quantity = minimum_quantity
+    if minimum_notional > 0:
+        quantity = max(
+            quantity,
+            _decimal_step(minimum_notional / ask_price, step_size, ROUND_CEILING),
+        )
+    return quantity
+
+
+def _position_quantity(client: BinanceTestnetClient, symbol: str) -> Decimal:
+    positions = client.position_risk(symbol)
+    return sum(
+        (Decimal(str(item.get("positionAmt", "0"))) for item in positions),
+        start=Decimal("0"),
+    )
+
+
+def _flatten_position(client: BinanceTestnetClient, symbol: str) -> dict[str, Any] | None:
+    quantity = _position_quantity(client, symbol)
+    if quantity == 0:
+        return None
+    return client.place_order(
+        {
+            "symbol": symbol,
+            "side": "SELL" if quantity > 0 else "BUY",
+            "positionSide": "BOTH",
+            "type": "MARKET",
+            "quantity": format(abs(quantity), "f"),
+            "reduceOnly": "true",
+            "newOrderRespType": "RESULT",
+            "newClientOrderId": f"aq-t-flat-{secrets.token_hex(6)}",
+        }
+    )
+
+
+def _query_algo_consistent(
+    client: BinanceTestnetClient,
+    *,
+    symbol: str,
+    algo_id: int,
+    client_algo_id: str,
+) -> dict[str, Any]:
+    last_error: TestnetProbeError | None = None
+    for _ in range(5):
+        try:
+            return client.query_algo_order(algo_id=algo_id)
+        except TestnetProbeError as exc:
+            if "CODE_-2013" not in str(exc):
+                raise
+            last_error = exc
+            time.sleep(0.1)
+    open_algos = client.open_algo_orders(symbol)
+    match = next(
+        (
+            item
+            for item in open_algos
+            if item.get("algoId") == algo_id or item.get("clientAlgoId") == client_algo_id
+        ),
+        None,
+    )
+    if match is not None:
+        return match
+    if last_error is not None:
+        raise last_error
+    raise TestnetProbeError("QUERY_ALGO_ORDER_NOT_FOUND")
 
 
 def _credential(path: Path, repository_root: Path) -> str:
@@ -408,4 +590,279 @@ def run_safe_testnet_probe(
             "streams": f"wss://{TESTNET_STREAM_HOST}",
             "websocket_api": f"wss://{TESTNET_WS_API_HOST}/ws-fapi/v1",
         },
+    }
+
+
+def run_testnet_order_lifecycle(
+    *,
+    api_key_file: Path,
+    api_secret_file: Path,
+    repository_root: Path,
+    symbol: str = "BTCUSDT",
+    transport: Transport = _urllib_transport,
+) -> dict[str, Any]:
+    """Place, query and cancel one far-from-market Testnet GTX order, then prove flatness."""
+    started_at = datetime.now(UTC)
+    api_key = _credential(api_key_file, repository_root)
+    api_secret = _credential(api_secret_file, repository_root)
+    client = BinanceTestnetClient(api_key, api_secret, transport=transport)
+    _, offset = client.synchronize_time()
+    if abs(offset) > 1_000:
+        raise TestnetProbeError("TESTNET_CLOCK_OFFSET_EXCESSIVE")
+    if client.position_mode().get("dualSidePosition") is not False:
+        raise TestnetProbeError("ACCOUNT_POSITION_MODE_NOT_ONE_WAY")
+    existing_positions = client.position_risk(symbol)
+    existing_non_flat = [
+        item
+        for item in existing_positions
+        if Decimal(str(item.get("positionAmt", "0"))) != Decimal("0")
+    ]
+    if client.open_orders(symbol) or existing_non_flat:
+        raise TestnetProbeError("TESTNET_ACCOUNT_NOT_CLEAN")
+
+    exchange_info = client.exchange_info()
+    ticker = client.book_ticker(symbol)
+    order_params = _order_test_parameters(exchange_info, ticker, symbol)
+    client.test_order(order_params)
+    client_order_id = order_params["newClientOrderId"]
+    request_hash = hashlib.sha256(
+        json.dumps(order_params, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+
+    placed = False
+    canceled_document: dict[str, Any] | None = None
+    try:
+        placed_document = client.place_order(order_params)
+        placed = True
+        if placed_document.get("clientOrderId") != client_order_id:
+            raise TestnetProbeError("PLACE_ORDER_ID_MISMATCH")
+        if placed_document.get("status") != "NEW":
+            raise TestnetProbeError("PLACE_ORDER_NOT_RESTING_NEW")
+        queried = client.query_order(symbol, client_order_id)
+        if queried.get("clientOrderId") != client_order_id or queried.get("status") != "NEW":
+            raise TestnetProbeError("QUERY_ORDER_NOT_RESTING_NEW")
+        canceled_document = client.cancel_order(symbol, client_order_id)
+        if canceled_document.get("clientOrderId") != client_order_id:
+            raise TestnetProbeError("CANCEL_ORDER_ID_MISMATCH")
+        final_order = client.query_order(symbol, client_order_id)
+        if final_order.get("status") != "CANCELED":
+            raise TestnetProbeError("ORDER_NOT_CANCELED")
+    finally:
+        if placed and canceled_document is None:
+            try:
+                client.cancel_order(symbol, client_order_id)
+            except TestnetProbeError:
+                pass
+
+    open_orders = client.open_orders(symbol)
+    positions = client.position_risk(symbol)
+    non_flat = [
+        item
+        for item in positions
+        if Decimal(str(item.get("positionAmt", "0"))) != Decimal("0")
+    ]
+    if open_orders or non_flat:
+        raise TestnetProbeError("TESTNET_CLEANUP_NOT_FLAT")
+
+    completed_at = datetime.now(UTC)
+    return {
+        "schema_version": "1.0.0",
+        "probe": "BINANCE_USDS_M_FUTURES_TESTNET_ORDER_LIFECYCLE",
+        "started_at": started_at.isoformat().replace("+00:00", "Z"),
+        "completed_at": completed_at.isoformat().replace("+00:00", "Z"),
+        "result": "PASS",
+        "environment": "testnet",
+        "production_endpoint_requests": 0,
+        "matching_engine_orders_created": 1,
+        "matching_engine_fills": 0,
+        "symbol": symbol,
+        "request_hash": request_hash,
+        "placed_status": "NEW",
+        "queried_status": "NEW",
+        "final_status": "CANCELED",
+        "final_open_order_count": 0,
+        "final_non_flat_position_count": 0,
+        "clock_offset_ms": offset,
+    }
+
+
+def run_testnet_native_protection(
+    *,
+    api_key_file: Path,
+    api_secret_file: Path,
+    repository_root: Path,
+    symbol: str = "BTCUSDT",
+    transport: Transport = _urllib_transport,
+) -> dict[str, Any]:
+    """Open the minimum Testnet position, attach native protection, flatten and clean up."""
+    started_at = datetime.now(UTC)
+    api_key = _credential(api_key_file, repository_root)
+    api_secret = _credential(api_secret_file, repository_root)
+    client = BinanceTestnetClient(api_key, api_secret, transport=transport)
+    _, offset = client.synchronize_time()
+    if abs(offset) > 1_000:
+        raise TestnetProbeError("TESTNET_CLOCK_OFFSET_EXCESSIVE")
+    if client.position_mode().get("dualSidePosition") is not False:
+        raise TestnetProbeError("ACCOUNT_POSITION_MODE_NOT_ONE_WAY")
+    if client.open_orders(symbol) or client.open_algo_orders(symbol):
+        raise TestnetProbeError("TESTNET_ACCOUNT_NOT_CLEAN")
+    if _position_quantity(client, symbol) != 0:
+        raise TestnetProbeError("TESTNET_ACCOUNT_NOT_CLEAN")
+
+    exchange_info = client.exchange_info()
+    ticker = client.book_ticker(symbol)
+    try:
+        ask_price = Decimal(str(ticker["askPrice"]))
+        quantity = _minimum_market_quantity(exchange_info, symbol, ask_price)
+        tick_size = Decimal(str(_symbol_filters(exchange_info, symbol)["PRICE_FILTER"]["tickSize"]))
+    except (KeyError, ArithmeticError) as exc:
+        raise TestnetProbeError("TEST_SYMBOL_FILTERS_INVALID") from exc
+    entry_client_id = f"aq-t-entry-{secrets.token_hex(6)}"
+    algo_client_id = f"aqa-t-stop-{secrets.token_hex(6)}"
+    entry_document: dict[str, Any] | None = None
+    algo_document: dict[str, Any] | None = None
+    algo_id: int | None = None
+    algo_final_status = "NOT_CREATED"
+    cleanup_flattened = False
+    protection_latency_ms: int | None = None
+    try:
+        entry_document = client.place_order(
+            {
+                "symbol": symbol,
+                "side": "BUY",
+                "positionSide": "BOTH",
+                "type": "MARKET",
+                "quantity": format(quantity, "f"),
+                "newOrderRespType": "RESULT",
+                "newClientOrderId": entry_client_id,
+            }
+        )
+        if entry_document.get("clientOrderId") != entry_client_id:
+            raise TestnetProbeError("ENTRY_ORDER_ID_MISMATCH")
+        if entry_document.get("status") != "FILLED":
+            raise TestnetProbeError("ENTRY_ORDER_NOT_FILLED")
+        position_quantity = _position_quantity(client, symbol)
+        if position_quantity <= 0:
+            raise TestnetProbeError("ENTRY_POSITION_NOT_LONG")
+        mark_document = client.mark_price(symbol)
+        mark_price = Decimal(str(mark_document.get("markPrice", "0")))
+        trigger_price = _decimal_step(mark_price * Decimal("0.95"), tick_size, ROUND_FLOOR)
+        algo_document = client.place_algo_order(
+            {
+                "algoType": "CONDITIONAL",
+                "symbol": symbol,
+                "side": "SELL",
+                "positionSide": "BOTH",
+                "type": "STOP_MARKET",
+                "triggerPrice": format(trigger_price, "f"),
+                "workingType": "MARK_PRICE",
+                "closePosition": "true",
+                "priceProtect": "false",
+                "clientAlgoId": algo_client_id,
+                "newOrderRespType": "RESULT",
+            }
+        )
+        if algo_document.get("clientAlgoId") != algo_client_id:
+            raise TestnetProbeError("PROTECTION_ALGO_ID_MISMATCH")
+        if algo_document.get("algoStatus") != "NEW":
+            raise TestnetProbeError("PROTECTION_ALGO_NOT_NEW")
+        raw_algo_id = algo_document.get("algoId")
+        if not isinstance(raw_algo_id, int):
+            raise TestnetProbeError("PROTECTION_ALGO_ID_MISSING")
+        algo_id = raw_algo_id
+        entry_update = entry_document.get("updateTime")
+        protection_create = algo_document.get("createTime")
+        if not isinstance(entry_update, int) or not isinstance(protection_create, int):
+            raise TestnetProbeError("PROTECTION_LATENCY_TIMESTAMPS_MISSING")
+        protection_latency_ms = protection_create - entry_update
+        if not 0 <= protection_latency_ms <= 1_000:
+            raise TestnetProbeError("PROTECTION_CONFIRMATION_OVER_1000MS")
+        queried_algo = _query_algo_consistent(
+            client, symbol=symbol, algo_id=algo_id, client_algo_id=algo_client_id
+        )
+        if queried_algo.get("algoStatus") != "NEW":
+            raise TestnetProbeError("PROTECTION_QUERY_NOT_NEW")
+        close_document = _flatten_position(client, symbol)
+        cleanup_flattened = close_document is not None
+        if close_document is None or close_document.get("status") != "FILLED":
+            raise TestnetProbeError("TESTNET_FLATTEN_NOT_FILLED")
+        if _position_quantity(client, symbol) != 0:
+            raise TestnetProbeError("TESTNET_POSITION_NOT_FLAT")
+        try:
+            current_algo = _query_algo_consistent(
+                client, symbol=symbol, algo_id=algo_id, client_algo_id=algo_client_id
+            )
+            algo_final_status = str(current_algo.get("algoStatus"))
+        except TestnetProbeError as exc:
+            if "CODE_-2013" not in str(exc) or client.open_algo_orders(symbol):
+                raise
+            algo_final_status = "REMOVED_AFTER_FLAT"
+        if algo_final_status in {"NEW", "TRIGGERING"}:
+            try:
+                client.cancel_algo_order(algo_id=algo_id)
+            except TestnetProbeError as exc:
+                if "CODE_-2011" not in str(exc) or client.open_algo_orders(symbol):
+                    raise
+                algo_final_status = "REMOVED_AFTER_FLAT"
+            else:
+                try:
+                    algo_final_status = str(
+                        _query_algo_consistent(
+                            client,
+                            symbol=symbol,
+                            algo_id=algo_id,
+                            client_algo_id=algo_client_id,
+                        ).get("algoStatus")
+                    )
+                except TestnetProbeError as exc:
+                    if "CODE_-2013" not in str(exc) or client.open_algo_orders(symbol):
+                        raise
+                    algo_final_status = "REMOVED_AFTER_FLAT"
+        if algo_final_status not in {
+            "CANCELED",
+            "EXPIRED",
+            "FINISHED",
+            "REMOVED_AFTER_FLAT",
+        }:
+            raise TestnetProbeError("PROTECTION_ALGO_NOT_TERMINAL")
+    finally:
+        if entry_document is not None and _position_quantity(client, symbol) != 0:
+            _flatten_position(client, symbol)
+            cleanup_flattened = True
+        if algo_document is not None and algo_id is not None:
+            try:
+                open_algos = client.open_algo_orders(symbol)
+                if any(
+                    item.get("algoId") == algo_id or item.get("clientAlgoId") == algo_client_id
+                    for item in open_algos
+                ):
+                    client.cancel_algo_order(algo_id=algo_id)
+            except TestnetProbeError:
+                pass
+
+    final_open_orders = client.open_orders(symbol)
+    final_open_algos = client.open_algo_orders(symbol)
+    final_position = _position_quantity(client, symbol)
+    if final_open_orders or final_open_algos or final_position != 0:
+        raise TestnetProbeError("TESTNET_PROTECTION_CLEANUP_INCOMPLETE")
+    completed_at = datetime.now(UTC)
+    return {
+        "schema_version": "1.0.0",
+        "probe": "BINANCE_USDS_M_FUTURES_TESTNET_NATIVE_PROTECTION",
+        "started_at": started_at.isoformat().replace("+00:00", "Z"),
+        "completed_at": completed_at.isoformat().replace("+00:00", "Z"),
+        "result": "PASS",
+        "environment": "testnet",
+        "production_endpoint_requests": 0,
+        "symbol": symbol,
+        "entry_status": "FILLED",
+        "native_protection_status": "NEW_CONFIRMED",
+        "protection_confirmation_latency_ms": protection_latency_ms,
+        "maximum_protection_latency_ms": 1_000,
+        "flatten_status": "FILLED" if cleanup_flattened else "NOT_REQUIRED",
+        "protection_final_status": algo_final_status,
+        "final_open_order_count": 0,
+        "final_open_algo_order_count": 0,
+        "final_position_quantity": "0",
+        "clock_offset_ms": offset,
     }

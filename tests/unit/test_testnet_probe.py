@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 import json
+import time
 import urllib.parse
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from ai_quant.binance_egress.testnet_probe import HttpResult, run_safe_testnet_probe
+from ai_quant.binance_egress.testnet_probe import (
+    HttpResult,
+    run_safe_testnet_probe,
+    run_testnet_native_protection,
+    run_testnet_order_lifecycle,
+)
 
 
 def _result(document: Any) -> HttpResult:
@@ -81,3 +87,184 @@ def test_safe_probe_never_uses_production_and_redacts_ephemeral_values(tmp_path:
     assert "test-secret" not in json.dumps(evidence)
     assert "private-listen-key-value" not in json.dumps(evidence)
     assert any(path.startswith("/private/ws/") for _, path in websocket_paths)
+
+
+def test_real_order_lifecycle_places_queries_cancels_and_finishes_flat(tmp_path: Path) -> None:
+    key = tmp_path / "key"
+    secret = tmp_path / "secret"
+    key.write_text("test-key", encoding="ascii")
+    secret.write_text("test-secret", encoding="ascii")
+    key.chmod(0o400)
+    secret.chmod(0o400)
+    repository_root = tmp_path / "repository"
+    repository_root.mkdir()
+    order_status = "NONE"
+
+    def transport(
+        method: str, url: str, headers: Mapping[str, str], body: bytes | None
+    ) -> HttpResult:
+        nonlocal order_status
+        del headers, body
+        parsed = urllib.parse.urlparse(url)
+        query = urllib.parse.parse_qs(parsed.query)
+        if parsed.path == "/fapi/v1/time":
+            return _result({"serverTime": time.time_ns() // 1_000_000})
+        if parsed.path == "/fapi/v1/positionSide/dual":
+            return _result({"dualSidePosition": False})
+        if parsed.path == "/fapi/v1/openOrders":
+            return _result([])
+        if parsed.path == "/fapi/v3/positionRisk":
+            return _result([])
+        if parsed.path == "/fapi/v1/exchangeInfo":
+            return _result(
+                {
+                    "symbols": [
+                        {
+                            "symbol": "BTCUSDT",
+                            "status": "TRADING",
+                            "filters": [
+                                {"filterType": "PRICE_FILTER", "tickSize": "0.1"},
+                                {
+                                    "filterType": "LOT_SIZE",
+                                    "minQty": "0.001",
+                                    "stepSize": "0.001",
+                                },
+                                {"filterType": "MIN_NOTIONAL", "notional": "5"},
+                            ],
+                        }
+                    ]
+                }
+            )
+        if parsed.path == "/fapi/v1/ticker/bookTicker":
+            return _result({"bidPrice": "100000", "askPrice": "100001"})
+        if parsed.path == "/fapi/v1/order/test":
+            return _result({})
+        if parsed.path == "/fapi/v1/order" and method == "POST":
+            order_status = "NEW"
+            return _result(
+                {"clientOrderId": query["newClientOrderId"][0], "status": "NEW"}
+            )
+        if parsed.path == "/fapi/v1/order" and method == "GET":
+            return _result(
+                {"clientOrderId": query["origClientOrderId"][0], "status": order_status}
+            )
+        if parsed.path == "/fapi/v1/order" and method == "DELETE":
+            order_status = "CANCELED"
+            return _result(
+                {"clientOrderId": query["origClientOrderId"][0], "status": order_status}
+            )
+        raise AssertionError((method, parsed.path))
+
+    evidence = run_testnet_order_lifecycle(
+        api_key_file=key,
+        api_secret_file=secret,
+        repository_root=repository_root,
+        transport=transport,
+    )
+
+    assert evidence["result"] == "PASS"
+    assert evidence["matching_engine_orders_created"] == 1
+    assert evidence["matching_engine_fills"] == 0
+    assert evidence["final_status"] == "CANCELED"
+
+
+def test_native_protection_fills_protects_flattens_and_cleans_algo(tmp_path: Path) -> None:
+    key = tmp_path / "key"
+    secret = tmp_path / "secret"
+    key.write_text("test-key", encoding="ascii")
+    secret.write_text("test-secret", encoding="ascii")
+    key.chmod(0o400)
+    secret.chmod(0o400)
+    repository_root = tmp_path / "repository"
+    repository_root.mkdir()
+    position = "0"
+    algo_status = "NONE"
+
+    def transport(
+        method: str, url: str, headers: Mapping[str, str], body: bytes | None
+    ) -> HttpResult:
+        nonlocal position, algo_status
+        del headers, body
+        parsed = urllib.parse.urlparse(url)
+        query = urllib.parse.parse_qs(parsed.query)
+        if parsed.path == "/fapi/v1/time":
+            return _result({"serverTime": time.time_ns() // 1_000_000})
+        if parsed.path == "/fapi/v1/positionSide/dual":
+            return _result({"dualSidePosition": False})
+        if parsed.path == "/fapi/v1/openOrders":
+            return _result([])
+        if parsed.path == "/fapi/v1/openAlgoOrders":
+            return _result(
+                []
+                if algo_status in {"NONE", "CANCELED"}
+                else [{"clientAlgoId": "algo", "algoStatus": algo_status}]
+            )
+        if parsed.path == "/fapi/v3/positionRisk":
+            return _result([] if position == "0" else [{"positionAmt": position}])
+        if parsed.path == "/fapi/v1/exchangeInfo":
+            return _result(
+                {
+                    "symbols": [
+                        {
+                            "symbol": "BTCUSDT",
+                            "status": "TRADING",
+                            "filters": [
+                                {"filterType": "PRICE_FILTER", "tickSize": "0.1"},
+                                {
+                                    "filterType": "LOT_SIZE",
+                                    "minQty": "0.001",
+                                    "stepSize": "0.001",
+                                },
+                                {
+                                    "filterType": "MARKET_LOT_SIZE",
+                                    "minQty": "0.001",
+                                    "stepSize": "0.001",
+                                },
+                                {"filterType": "MIN_NOTIONAL", "notional": "5"},
+                            ],
+                        }
+                    ]
+                }
+            )
+        if parsed.path == "/fapi/v1/ticker/bookTicker":
+            return _result({"bidPrice": "100000", "askPrice": "100001"})
+        if parsed.path == "/fapi/v1/premiumIndex":
+            return _result({"markPrice": "100000"})
+        if parsed.path == "/fapi/v1/order" and method == "POST":
+            side = query["side"][0]
+            position = "0.001" if side == "BUY" else "0"
+            return _result(
+                {
+                    "clientOrderId": query["newClientOrderId"][0],
+                    "status": "FILLED",
+                    "updateTime": 1_000,
+                }
+            )
+        if parsed.path == "/fapi/v1/algoOrder" and method == "POST":
+            algo_status = "NEW"
+            return _result(
+                {
+                    "algoId": 123,
+                    "clientAlgoId": query["clientAlgoId"][0],
+                    "algoStatus": "NEW",
+                    "createTime": 1_500,
+                }
+            )
+        if parsed.path == "/fapi/v1/algoOrder" and method == "GET":
+            return _result({"algoId": int(query["algoId"][0]), "algoStatus": algo_status})
+        if parsed.path == "/fapi/v1/algoOrder" and method == "DELETE":
+            algo_status = "CANCELED"
+            return _result({"algoId": int(query["algoId"][0]), "code": "200"})
+        raise AssertionError((method, parsed.path))
+
+    evidence = run_testnet_native_protection(
+        api_key_file=key,
+        api_secret_file=secret,
+        repository_root=repository_root,
+        transport=transport,
+    )
+
+    assert evidence["result"] == "PASS"
+    assert evidence["protection_confirmation_latency_ms"] == 500
+    assert evidence["protection_final_status"] == "CANCELED"
+    assert evidence["final_position_quantity"] == "0"

@@ -1,8 +1,8 @@
 # Implementation status
 
-Updated: `2026-07-14T12:57:45Z`
+Updated: `2026-07-14T13:15:15Z`
 
-Overall state: `OFFLINE_DEVELOPMENT_FLOW_PASS / TESTNET_CREDENTIAL_REJECTED / RISK_LOCKED`
+Overall state: `TESTNET_CORE_PROTOCOL_PASS / EXTERNAL_DURATION_GATES_PENDING / RISK_LOCKED`
 
 The trading system's offline Paper path is implemented and verified from raw market data through
 native protection. This is a development completion statement, not Testnet, Shadow, calibration,
@@ -35,7 +35,7 @@ native protection. This is a development completion statement, not Testnet, Shad
 
 ## Verified results
 
-- Full CI: 176 unit, 8 property, 2 contract and 16 security tests pass.
+- Full CI: 178 unit, 8 property, 2 contract and 16 security tests pass.
 - Additional suites: 3 replay, 18 integration, 6 fault-injection and 1 resource-profile test pass.
 - Ruff, strict mypy (84 source files), Bandit, secret scan, all 42 contract schemas/39 examples,
   14 config examples, provenance, Compose and Debian deployment validators pass.
@@ -54,21 +54,29 @@ native protection. This is a development completion statement, not Testnet, Shad
 - A bounded Testnet capability probe now validates secret-file metadata, server time,
   `exchangeInfo`, account mode, symbol margin configuration, clean account state, a non-matching
   engine `/order/test`, listen-key lifecycle and all four WebSocket routes without logging secrets.
-  Its first real run failed closed on the initial signed account call with Binance `-2015`; it sent
-  zero production requests and created zero matching-engine orders. Redacted evidence is at
+  After the credential was replaced, the real probe passed for 724 Testnet symbols, one-way/Cross
+  account configuration, a clean account, `/order/test`, listen-key create/private-upgrade/close
+  and all routed WebSocket endpoints. It sent zero production requests and created zero
+  matching-engine orders. Redacted evidence is at
   `/var/lib/ai-quant/evidence/testnet/current/safe-capability-probe.json`.
+- The real matching-engine lifecycle passed: one far-from-market BTCUSDT GTX order reached `NEW`,
+  query agreed, cancel reached `CANCELED`, and final reconciliation reported zero orders and zero
+  positions. A separate minimum-size fill/protection cycle filled the entry, confirmed a native
+  STOP_MARKET Algo order in 365ms against the 1,000ms limit, flattened with a reduce-only market
+  order and finished with zero regular orders, zero Algo orders and zero position. Neither flow
+  contacted a production endpoint. Evidence is in
+  `/var/lib/ai-quant/evidence/testnet/current/{order-lifecycle,native-protection}.json`.
 
 ## Not yet claimable
 
 The following require external facts, elapsed observation windows, credentials or human signatures
 and were deliberately not fabricated:
 
-1. Successful authenticated Binance capability probes. The currently supplied credential is
-   rejected by the Demo REST service with `-2015` (invalid key, IP, or permission); the observed
-   outbound IP is `140.245.75.36` and the local secret files themselves pass format/permission
-   checks.
-2. Real Testnet matching-engine order integration, live User Data Stream, account-mode confirmation
-   and exchange reconciliation. These remain blocked behind the failed credential probe.
+1. Continuous User Data Stream event consumption/reconnect evidence and the complete pre-registered
+   external fault/race matrix. Listen-key lifecycle and the private WebSocket upgrade pass, but a
+   received `ORDER_TRADE_UPDATE`/`ALGO_UPDATE` event transcript has not yet been claimed.
+2. The independent Testnet project database/Compose seal, remote encrypted backup/decrypt receipt
+   and isolated restore required before discarding its facts or starting calibration.
 3. A continuous qualified three-day L2 calibration dataset, signed parameter candidate and C0
    freeze.
 4. Continuous 72-hour Shadow/Testnet validation, first-live 24-hour evidence and 87-day forward OOS
