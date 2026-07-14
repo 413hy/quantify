@@ -17,7 +17,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import rfc8785
 from cryptography.exceptions import InvalidSignature
@@ -73,12 +73,25 @@ class ProtocolAcl:
 
 
 @dataclass(frozen=True, slots=True)
+class AttestationSignerPolicy:
+    key_id: str
+    public_key: Ed25519PublicKey
+    holder_uid: int
+    holder_gid: int
+    max_evidence_ttl_seconds: int
+    refresh_before_expiry_seconds: int
+    not_before: datetime
+    not_after: datetime
+
+
+@dataclass(frozen=True, slots=True)
 class RuntimeTrustBundle:
     bundle_id: str
     bundle_hash: str
     issued_at: datetime
     valid_until: datetime
     issuers: Mapping[str, IssuerPolicy]
+    attestation_signers: Mapping[str, AttestationSignerPolicy]
     callers: Mapping[str, CallerAcl]
     protocols: Mapping[str, ProtocolAcl]
 
@@ -355,6 +368,63 @@ def verify_runtime_trust_bundle(
             not_after=not_after,
         )
 
+    raw_attestation_signers = _unique_by(
+        content.get("attestation_signers"), "key_id", "TRUST_BUNDLE_ATTESTATION_INVALID"
+    )
+    if len(raw_attestation_signers) != 1:
+        raise AuthorizationDenied("TRUST_BUNDLE_ATTESTATION_INVALID")
+    attestation_signers: dict[str, AttestationSignerPolicy] = {}
+    for signer_key_id, raw in raw_attestation_signers.items():
+        not_before = _parse_time(
+            raw.get("not_before"), "TRUST_BUNDLE_ATTESTATION_INVALID"
+        )
+        not_after = _parse_time(raw.get("not_after"), "TRUST_BUNDLE_ATTESTATION_INVALID")
+        holder_uid = raw.get("holder_uid")
+        holder_gid = raw.get("holder_gid")
+        max_ttl = raw.get("max_evidence_ttl_seconds")
+        refresh_before = raw.get("refresh_before_expiry_seconds")
+        if not all(
+            isinstance(value, int) and not isinstance(value, bool)
+            for value in (holder_uid, holder_gid, max_ttl, refresh_before)
+        ):
+            raise AuthorizationDenied("TRUST_BUNDLE_ATTESTATION_INVALID")
+        holder_uid = cast(int, holder_uid)
+        holder_gid = cast(int, holder_gid)
+        max_ttl = cast(int, max_ttl)
+        refresh_before = cast(int, refresh_before)
+        if (
+            signer_key_id in revoked
+            or raw.get("purpose") != "HOST_RATE_STARTUP_EVIDENCE"
+            or raw.get("private_key_holder_service") != "host-attestation-signer"
+            or raw.get("payload")
+            != "RFC8785_JCS_UTF8_OF_CONTENT_THEN_SHA256_DIGEST_SIGNED_BY_ED25519"
+            or raw.get("revoked") is not False
+            or holder_uid < 1
+            or holder_gid < 1
+            or max_ttl < 1
+            or max_ttl > 300
+            or refresh_before < 1
+            or refresh_before >= max_ttl
+            or not (issued_at <= not_before < not_after <= valid_until)
+        ):
+            raise AuthorizationDenied("TRUST_BUNDLE_ATTESTATION_INVALID")
+        attestation_signers[signer_key_id] = AttestationSignerPolicy(
+            key_id=signer_key_id,
+            public_key=Ed25519PublicKey.from_public_bytes(
+                _decode_base64(
+                    raw.get("public_key_base64"),
+                    32,
+                    "TRUST_BUNDLE_ATTESTATION_INVALID",
+                )
+            ),
+            holder_uid=holder_uid,
+            holder_gid=holder_gid,
+            max_evidence_ttl_seconds=max_ttl,
+            refresh_before_expiry_seconds=refresh_before,
+            not_before=not_before,
+            not_after=not_after,
+        )
+
     raw_callers = _unique_by(content.get("caller_acl"), "service", "TRUST_BUNDLE_INVALID")
     expected_services = frozenset(
         service for issuer in issuers.values() for service in issuer.allowed_subject_services
@@ -411,6 +481,7 @@ def verify_runtime_trust_bundle(
         issued_at=issued_at,
         valid_until=valid_until,
         issuers=issuers,
+        attestation_signers=attestation_signers,
         callers=callers,
         protocols=protocols,
     )

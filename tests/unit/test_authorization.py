@@ -42,7 +42,9 @@ def _signature(signer: Ed25519PrivateKey, digest: bytes) -> str:
     return base64.b64encode(signer.sign(digest)).decode()
 
 
-def _signed_policy() -> tuple[
+def _signed_policy(
+    *, attestation_signer: Ed25519PrivateKey | None = None
+) -> tuple[
     dict[str, Any],
     dict[str, Any],
     str,
@@ -82,6 +84,10 @@ def _signed_policy() -> tuple[
     risk_issuer = next(item for item in content["issuers"] if item["issuer"] == "RISK_AUTHORITY")
     risk_issuer["key_id"] = "risk-authority-key-test"
     risk_issuer["public_key_base64"] = _public_base64(risk_key)
+    if attestation_signer is not None:
+        content["attestation_signers"][0]["public_key_base64"] = _public_base64(
+            attestation_signer
+        )
     bundle_digest = canonical_digest(content)
     bundle["bundle_hash"] = bundle_digest.hex()
     bundle["signature"] = {
