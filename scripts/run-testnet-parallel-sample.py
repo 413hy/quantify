@@ -29,6 +29,7 @@ def main() -> int:
     parser.add_argument("--telegram-chat-ids-file", required=True, type=Path)
     parser.add_argument("--output-directory", required=True, type=Path)
     parser.add_argument("--symbols", default="SOLUSDT,BNBUSDT,XRPUSDT")
+    parser.add_argument("--maximum-holding-seconds", type=int, default=180)
     arguments = parser.parse_args()
     symbols = tuple(symbol.strip() for symbol in arguments.symbols.split(",") if symbol.strip())
     if not 2 <= len(symbols) <= 5 or len(set(symbols)) != len(symbols):
@@ -40,6 +41,7 @@ def main() -> int:
             api_secret_file=arguments.api_secret_file,
             repository_root=arguments.repository_root,
             symbol=symbol,
+            maximum_holding_seconds=arguments.maximum_holding_seconds,
         )
 
     started_at = datetime.now(UTC)

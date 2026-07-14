@@ -34,6 +34,7 @@ SOLUSDT, BNBUSDT, XRPUSDT, DOGEUSDT and ADAUSDT every ten seconds using the chec
 only when every gate passes and selects at most one candidate per round. It enforces a five-minute
 global cooldown, 24 trades per UTC day and a -0.30 USDT daily net-loss entry stop. State is
 `/var/lib/ai-quant/evidence/testnet/campaign/current/state.json`; see `docs/testnet-campaign.md`.
+Maximum holding is 180 seconds, while native stop/take-profit can exit earlier.
 Telegram messages are now structured Chinese text.
 
 The owner requested additional parallel Testnet samples. `scripts/run-testnet-parallel-sample.py`

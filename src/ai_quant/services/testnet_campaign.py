@@ -40,7 +40,7 @@ class CampaignLimits:
     margin_budget: Decimal = Decimal("1")
     target_net_profit: Decimal = Decimal("0.1")
     maximum_net_loss: Decimal = Decimal("0.1")
-    maximum_holding_seconds: int = 30
+    maximum_holding_seconds: int = 180
 
     def __post_init__(self) -> None:
         if not 60 <= self.duration_seconds <= 604_800:
@@ -520,6 +520,7 @@ def main() -> int:
     parser.add_argument("--trade-cooldown-seconds", type=int, default=900)
     parser.add_argument("--maximum-trades-per-day", type=int, default=8)
     parser.add_argument("--daily-net-loss-limit", type=Decimal, default=Decimal("0.30"))
+    parser.add_argument("--maximum-holding-seconds", type=int, default=180)
     arguments = parser.parse_args()
     limits = CampaignLimits(
         duration_seconds=arguments.duration_seconds,
@@ -527,6 +528,7 @@ def main() -> int:
         trade_cooldown_seconds=arguments.trade_cooldown_seconds,
         maximum_trades_per_day=arguments.maximum_trades_per_day,
         daily_net_loss_limit=arguments.daily_net_loss_limit,
+        maximum_holding_seconds=arguments.maximum_holding_seconds,
     )
     arguments.lock_file.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     with arguments.lock_file.open("w", encoding="ascii") as lock:

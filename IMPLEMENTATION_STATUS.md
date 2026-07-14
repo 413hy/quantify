@@ -42,7 +42,8 @@ calibration, 72-hour, or live authorization evidence. No production exchange ord
   five 1-USDT-feasible symbols using closed 1m/5m bars, the latest 20-level book and the 500ms
   aggregate-trade window. It records every decision, selects at most one fully confirmed long per
   round while observing up to three symbols concurrently, limits activity to 24 trades per UTC day with a five-minute global cooldown and stops new
-  entries at -0.30 USDT daily net PnL. This is a wider forward-sample pool, not fabricated Top10
+  entries at -0.30 USDT daily net PnL. Maximum holding is now 180 seconds; native stop/take-profit
+  can exit earlier. This is a wider forward-sample pool, not fabricated Top10
   evidence.
 - M4 operations: bounded FastAPI control surface, session-context binding, idempotent commands,
   one-use emergency-flatten challenge, outbound-only redacted notifications, Prometheus exposition,
