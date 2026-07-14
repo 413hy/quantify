@@ -2,7 +2,7 @@
 
 - Stage: M0 — repository, contracts, configuration, migrations, audit and egress skeleton
 - Status: `IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
-- Report time: `2026-07-14T09:14:24Z`
+- Report time: `2026-07-14T09:19:39Z`
 - Implementation commits: `3a5762e37a5311f0a7faeca2e93b6c77ab8500ff`,
   `fca378cf7e4f18457f46a381e29fc8599bb5baa8`,
   `d5a394e21776957f627c9c3e7da78dfd1accf53c`,
@@ -16,7 +16,8 @@
   `b9f0d3243089a8b3ec54e2fcbc3371cacd7a51a1`,
   `c586fef1f9896c476811e46d893ca283d746433c`,
   `ead4d40234e9970c5a5f64bbb63e4ee2469a3ecb`,
-  `59108c93cae776085f0a70f06fb5c9d873704e4b`
+  `59108c93cae776085f0a70f06fb5c9d873704e4b`,
+  `53784a5a40a2f174696bf5ade93df9f725bf9c5b`
 - Implementer: `/root` engineering session
 - Independent reviewer: not assigned; a different actor with fresh context is still required
 - `CodexReviewReport`: absent by design; the implementer cannot self-sign it
@@ -43,7 +44,7 @@ metadata, and evidence.
 | M0-R08 atomic reserve/permit/nonce consume and replay denial | PASS for implemented database boundary | `migrations.log`; unit/property tests |
 | M0-R09 locked non-root container startup | PASS | `locked-runtime.log` |
 | M0-R10 full Reserve→gateway→PermitConsume→send service | PARTIAL | bounded rate/gateway IPC, v2 Reserve/Consume, exact-wire single-send core and outcome journal pass; production transport is intentionally absent |
-| M0-R11 signed startup evidence and host destination firewall | PARTIAL | independent issuer, full measurement binding, atomic publisher and monitor pass; measured-facts service, signed deployment evidence and host firewall proof remain absent |
+| M0-R11 signed startup evidence and host destination firewall | PARTIAL | root-authenticated facts assembly, independent issuer, full measurement binding, atomic publisher and monitor pass; executable collector/service, signed deployment evidence and host firewall proof remain absent |
 | M0-R12 independent fresh-context review | BLOCKED | reviewer and valid `CodexReviewReport` absent |
 
 ## Artifact and configuration identity
@@ -53,8 +54,8 @@ metadata, and evidence.
 - The earlier foundation implementation manifest hash was
   `b13e7e76e1f6ad5e08b4d2b846f7ea15cdcefab163b25db5256541f7dd60b91a`; Git commit identity is
   authoritative for the later increments.
-- Local application OCI image ID: `sha256:d5b2e06c2a44efb10669a8b3f9392a0f7df5e09f658f729d94aae07ed964c3b8`.
-- Image architecture/size: Linux arm64, 340,739,811 bytes.
+- Local application OCI image ID: `sha256:7f845e4ff20004033d6c4407eb497e45565d64c3dbb0950e38c9d5494930029f`.
+- Image architecture/size: Linux arm64, 340,742,297 bytes.
 - The earlier image was reproduced twice. This new dependency-bearing image was built repeatedly
   from cache with the same ID but has not had a fresh no-cache reproducibility run.
 - Business migration head: `0001_business_core`.
@@ -88,13 +89,14 @@ startup-evidence, or live authorization has been issued.
 | Boundary | private service files | database password and attestation key require exact `0400`, current UID, absolute non-symlink paths outside the release tree |
 | Boundary | database runtime role | `aiq_rate_authority` defaults `NOLOGIN`, has no superuser/DDL role flags, public function execute is revoked, and hardened functions carry mutations |
 | Boundary | destination tuple | authority, transport, scheme and host are an exact tuple; denied Consume replies retain non-null connection binding |
+| Boundary | root-authenticated local facts | no evidence draft is accepted; fresh root snapshot, boot ID, complete artifact/release bindings and both socket identities are remeasured before content construction |
 | Boundary | any changed binding hash, expiry, or replay | property tests deny without reopening permit |
 | Startup failure | non-root container, no network, no startup evidence | `RISK_LOCKED`, new egress false |
 | Database | business + host `upgrade → downgrade base → upgrade` | PASS on fresh disposable volumes |
 | Configuration/contracts | all recommended M0 validation targets | PASS |
 
 Primary logs and SHA-256 values are stored below this report in `tests/`, `security/`, and
-`artifacts/`. The final CI run passed 96 unit, 3 property, 2 contract, and 8 security tests. The
+`artifacts/`. The final CI run passed 97 unit, 3 property, 2 contract, and 8 security tests. The
 migration shape test and containerized migration round-trip also passed.
 
 ## Resource and security observations

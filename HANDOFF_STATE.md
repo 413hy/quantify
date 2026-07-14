@@ -1,12 +1,12 @@
 # Handoff state
 
-Updated: `2026-07-14T09:14:24Z`
+Updated: `2026-07-14T09:19:39Z`
 
 Resume in `/root/quantify/ai-quant-system`. Read `IMPLEMENTATION_STATUS.md`, ADR 0001–0003 and
 `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`. Never modify
 `/root/quantify/reference-materials`.
 
-Current implementation head is commit `59108c9`. M0 is not complete
+Current implementation head is commit `53784a5`. M0 is not complete
 or accepted. Commit `8516679` adds the executable bounded rate service, PostgreSQL v2 Reserve and
 full-bind Consume, deterministic multi-class policy ingestion, idempotent outcome/observation
 journals and durable 429/418 reconciliation. Commit `42624ef` adds closed gateway IPC validation,
@@ -40,6 +40,10 @@ revokes public function execution and hardens function search paths. The locked 
 longer receives the database bootstrap password. UDS one-way messages require a post-handler commit
 ACK, and gateway outcome failure latches closed. This implementer review is not the required
 fresh-context independent acceptance review.
+Commit `53784a5` adds the root-authenticated local-facts assembly boundary. It accepts no evidence
+draft, requires a fresh direct root-owned `0444` snapshot with its own JCS hash, independently
+remeasures boot ID, complete artifact/release bindings and both Unix sockets, and constructs the
+signable content plus exact verifier expectation. An executable collector/service is still absent.
 
 Exact verification command:
 
@@ -47,7 +51,7 @@ Exact verification command:
 cd /root/quantify/ai-quant-system && make ci && make test-migrations && make test-locked-runtime
 ```
 
-Expected: CI passes 96 unit, 3 property, 2 contract and 8 security tests; migrations pass both
+Expected: CI passes 97 unit, 3 property, 2 contract and 8 security tests; migrations pass both
 independent round-trips through host head `0009_runtime_role`, least-privilege role checks,
 multi-class Reserve,
 full-bind Consume, journaling, 429 reconciliation and lease gates; the no-network runtime returns

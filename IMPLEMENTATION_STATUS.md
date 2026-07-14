@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: `2026-07-14T09:14:24Z`
+Updated: `2026-07-14T09:19:39Z`
 
 Overall state: `M0_IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
 
@@ -81,6 +81,11 @@ Highest completed milestone: none
   functions. A transport ACK now distinguishes a committed outcome from handler failure, and any
   repeated outcome-journal failure latches the gateway closed. Exact endpoint source files,
   transport/scheme pairs and denied connection bindings are also enforced.
+- Commit `53784a5a40a2f174696bf5ade93df9f725bf9c5b` removes caller-authored startup
+  evidence drafts from the issuance boundary. A fresh root-owned `0444` local-facts snapshot is
+  strictly parsed and hash-checked; the assembler independently remeasures boot identity, complete
+  artifact/release hashes and both Unix socket identities before constructing the only signable
+  content and its matching expectation. The executable root collector/service remains absent.
 - Docker CE/Compose, Python 3.12.13 via `uv`, chrony, ripgrep and GNU time are installed for
   development. Initial chrony observations are healthy, but not a 24-hour deployment proof.
 
@@ -96,8 +101,9 @@ Detailed evidence: `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`.
    after startup evidence and destination policy exist. Multi-role endpoints remain denied because
    the frozen request contract does not provide a unique gateway-side causal derivation rule.
 3. Build the executable attestation service and root-authenticated local-facts collector around the
-   completed signer/issuer/atomic-publisher/monitor primitives; no caller-supplied draft may be
-   treated as measured host state.
+   completed local-facts assembler, signer/issuer, atomic-publisher and monitor primitives. The
+   assembler already rejects caller-authored evidence drafts; collection and service lifecycle are
+   not yet implemented.
 4. Destination-specific host DNS/firewall enforcement proving exactly one Binance socket owner and
    zero business Binance routes; current Compose validation is static only.
 5. A different actor in fresh context must independently review and issue a valid
