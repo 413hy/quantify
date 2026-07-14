@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import base64
 import copy
+import hashlib
 import json
 import os
+import socket
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -13,6 +15,10 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
+from ai_quant.binance_egress.local_facts import (
+    LocalFactsExpectation,
+    assemble_startup_content_from_local_facts,
+)
 from ai_quant.binance_egress.startup import (
     StartupEvidenceExpectation,
     StartupEvidenceMonitor,
@@ -22,6 +28,7 @@ from ai_quant.binance_egress.startup import (
     startup_measurement_hash,
     verify_startup_evidence,
 )
+from ai_quant.common.artifacts import ArtifactBindingSource, ArtifactHashMode
 from ai_quant.rate_budget.authorization import (
     AuthorizationDenied,
     RuntimeTrustBundle,
@@ -84,6 +91,138 @@ def _expectation(content: dict[str, Any]) -> StartupEvidenceExpectation:
         artifact_binding=content["artifact_binding"],
         release_binding=content["release_binding"],
     )
+
+
+def test_local_facts_assembler_remeasures_files_boot_and_sockets(
+    tmp_path: Path,
+) -> None:
+    evidence, bundle, signer = _signed_ready(tmp_path)
+    content = copy.deepcopy(evidence["content"])
+    content["database_authority"]["migration_head"] = "0009_runtime_role"
+
+    artifact_root = tmp_path / "artifacts"
+    release_root = tmp_path / "release"
+    artifact_root.mkdir()
+    release_root.mkdir()
+    artifact_sources: dict[str, ArtifactBindingSource] = {}
+    for name in content["artifact_binding"]:
+        path = artifact_root / name
+        path.write_bytes(f"artifact:{name}\n".encode())
+        content["artifact_binding"][name] = hashlib.sha256(path.read_bytes()).hexdigest()
+        artifact_sources[name] = ArtifactBindingSource(path, ArtifactHashMode.RAW_BYTES)
+
+    release_sources: dict[str, ArtifactBindingSource] = {}
+    for name in (
+        "host_control_release_manifest_hash",
+        "rate_allocator_compose_hash",
+        "gateway_compose_hash",
+        "gateway_config_hash",
+    ):
+        path = release_root / name
+        path.write_bytes(f"release:{name}\n".encode())
+        content["release_binding"][name] = hashlib.sha256(path.read_bytes()).hexdigest()
+        release_sources[name] = ArtifactBindingSource(path, ArtifactHashMode.RAW_BYTES)
+
+    boot_id_path = tmp_path / "boot-id"
+    boot_id_path.write_text(f"{content['host_boot_id']}\n", encoding="ascii")
+    socket_sources: dict[str, Path] = {}
+    listeners: list[socket.socket] = []
+    try:
+        for role, uid, gid in (
+            ("rate_allocator", 11006, 11990),
+            ("binance_gateway", 11005, 11991),
+        ):
+            path = tmp_path / f"{role}.sock"
+            listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            listener.bind(str(path))
+            listeners.append(listener)
+            os.chown(path, uid, gid)
+            path.chmod(0o660)
+            metadata = path.lstat()
+            content["sockets"][role].update(
+                {
+                    "inode": metadata.st_ino,
+                    "mode": "0660",
+                    "owner_uid": uid,
+                    "owner_gid": gid,
+                }
+            )
+            socket_sources[role] = path
+
+        measured_fields = {
+            key: value
+            for key, value in content.items()
+            if key not in {"evidence_id", "evidence_status", "issued_at", "expires_at"}
+        }
+        measured_fields["captured_at"] = "2026-07-14T00:00:00Z"
+        facts_document = {
+            "schema_version": "1.0.0",
+            "facts_hash": canonical_digest(measured_fields).hex(),
+            "facts": measured_fields,
+        }
+        facts_path = tmp_path / "root-startup-facts.json"
+        facts_path.write_text(json.dumps(facts_document), encoding="utf-8")
+        facts_path.chmod(0o444)
+        local_expectation = LocalFactsExpectation(
+            stage=content["stage"],
+            enabled_environments=frozenset(content["enabled_environments"]),
+            enabled_authorities=frozenset(content["enabled_authorities"]),
+            migration_head="0009_runtime_role",
+            host_boot_id_path=boot_id_path,
+            artifact_sources=artifact_sources,
+            release_sources=release_sources,
+            approved_artifact_roots=(artifact_root, release_root),
+            socket_sources=socket_sources,
+            peer_acl_hashes={
+                role: content["sockets"][role]["peer_acl_hash"]
+                for role in socket_sources
+            },
+        )
+        assembled, assembled_expectation = assemble_startup_content_from_local_facts(
+            facts_path,
+            trusted_facts_directory=tmp_path,
+            expectation=local_expectation,
+            evidence_id="host-startup-local-0001",
+            now=NOW,
+            ttl_seconds=300,
+        )
+        signer_policy = replace(
+            bundle.attestation_signers["host-attestation-2026q3"],
+            holder_uid=os.geteuid(),
+            holder_gid=os.getegid(),
+        )
+        local_bundle = replace(
+            bundle,
+            attestation_signers={"host-attestation-2026q3": signer_policy},
+        )
+        issued = issue_startup_evidence(
+            assembled,
+            local_bundle,
+            signer,
+            key_id="host-attestation-2026q3",
+            nonce="local-facts-issuance-0001",
+            expectation=assembled_expectation,
+            evidence_schema_path=ROOT
+            / "contracts/host-rate-startup-evidence.schema.json",
+            now=NOW,
+        )
+        assert issued["content"]["database_authority"]["migration_head"] == (
+            "0009_runtime_role"
+        )
+
+        boot_id_path.write_text("different-host-boot-0001\n", encoding="ascii")
+        with pytest.raises(AuthorizationDenied, match="LOCAL_FACTS_BINDING_MISMATCH"):
+            assemble_startup_content_from_local_facts(
+                facts_path,
+                trusted_facts_directory=tmp_path,
+                expectation=local_expectation,
+                evidence_id="host-startup-local-0002",
+                now=NOW,
+                ttl_seconds=300,
+            )
+    finally:
+        for listener in listeners:
+            listener.close()
 
 
 def test_signed_startup_evidence_is_exactly_bound_and_short_lived(tmp_path: Path) -> None:
