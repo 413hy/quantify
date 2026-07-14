@@ -14,7 +14,8 @@ ceiling, native protection and zero-state cleanup, but did not verify a profitab
 fixed-duration runner has been removed under owner-approved ADR 0006; elapsed time can no longer
 close a position. Calibration, Shadow and live gates remain pending.
 A three-day Testnet-only experimental campaign runs as `aiq-testnet-campaign.service`; it observes
-five 1-USDT-feasible symbols and can hold up to three Testnet positions in parallel with native
+five symbols and can hold up to three Testnet positions in parallel with risk-sized margin up to
+10 USDT, native
 structural stop/target protection and no elapsed-time exit. It is explicitly unvalidated and does
 not change the production `RISK_LOCKED` gate.
 A separate three-symbol parallel Testnet execution stress sample

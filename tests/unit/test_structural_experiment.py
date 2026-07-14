@@ -5,6 +5,7 @@ import pytest
 from ai_quant.binance_egress.structural_experiment import (
     plan_market_quantity,
     quantize_protection,
+    risk_adjusted_margin_budget,
 )
 from ai_quant.binance_egress.testnet_probe import TestnetProbeError as ProbeError
 from ai_quant.features.price_action import Direction
@@ -96,3 +97,24 @@ def test_short_protection_rounds_away_from_entry() -> None:
     assert stop == Decimal("100.51")
     assert target == Decimal("99.73")
     assert target < Decimal("99.98") < stop
+
+
+def test_margin_expands_but_stop_loss_budget_caps_effective_size() -> None:
+    plan = ExperimentalPlan(
+        symbol="SOLUSDT",
+        direction=Direction.LONG,
+        entry_reference=Decimal("100"),
+        stop_anchor=Decimal("99.70"),
+        target_reference=Decimal("100.20"),
+    )
+
+    margin = risk_adjusted_margin_budget(
+        plan,
+        margin_ceiling=Decimal("10"),
+        leverage=10,
+        maximum_net_loss=Decimal("0.35"),
+        taker_fee_rate=Decimal("0.0004"),
+    )
+
+    assert margin == Decimal("8.75")
+    assert margin * Decimal(10) * Decimal("0.004") == Decimal("0.35000")

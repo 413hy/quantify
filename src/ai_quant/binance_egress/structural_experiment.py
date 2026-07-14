@@ -34,7 +34,7 @@ def plan_market_quantity(
     leverage: int,
 ) -> Decimal:
     """Size at or below the margin budget, rejecting incompatible exchange minima."""
-    if reference_price <= 0 or not Decimal("0") < margin_budget <= Decimal("1"):
+    if reference_price <= 0 or not Decimal("0") < margin_budget <= Decimal("10"):
         raise TestnetProbeError("EXPERIMENT_SIZE_INPUT_INVALID")
     filters = _symbol_filters(exchange_info, symbol)
     try:
@@ -55,6 +55,31 @@ def plan_market_quantity(
     if quantity < required or quantity <= 0:
         raise TestnetProbeError("EXPERIMENT_EXCHANGE_MINIMUM_EXCEEDS_MARGIN_BUDGET")
     return quantity
+
+
+def risk_adjusted_margin_budget(
+    plan: TestnetExperimentalPlan,
+    *,
+    margin_ceiling: Decimal,
+    leverage: int,
+    maximum_net_loss: Decimal,
+    taker_fee_rate: Decimal,
+    adverse_slippage_rate: Decimal = Decimal("0.0002"),
+) -> Decimal:
+    """Shrink margin so stop, round-trip fees, and slippage fit the loss budget."""
+    if (
+        not Decimal(0) < margin_ceiling <= Decimal(10)
+        or maximum_net_loss <= 0
+        or taker_fee_rate < 0
+        or adverse_slippage_rate < 0
+    ):
+        raise TestnetProbeError("EXPERIMENT_RISK_BUDGET_INVALID")
+    stop_fraction = abs(plan.entry_reference - plan.stop_anchor) / plan.entry_reference
+    loss_fraction = stop_fraction + taker_fee_rate * Decimal(2) + adverse_slippage_rate
+    if loss_fraction <= 0:
+        raise TestnetProbeError("EXPERIMENT_RISK_BUDGET_INVALID")
+    risk_margin = maximum_net_loss / loss_fraction / Decimal(leverage)
+    return min(margin_ceiling, risk_margin)
 
 
 def quantize_protection(
@@ -89,7 +114,8 @@ def run_structural_experiment(
     api_secret_file: Path,
     repository_root: Path,
     plan: TestnetExperimentalPlan,
-    margin_budget: Decimal = Decimal("1"),
+    margin_budget: Decimal = Decimal("10"),
+    maximum_net_loss: Decimal = Decimal("0.35"),
     stop_requested: Callable[[], bool] = lambda: False,
     sleep: Callable[[float], None] = time.sleep,
 ) -> dict[str, Any]:
@@ -115,17 +141,26 @@ def run_structural_experiment(
         raise TestnetProbeError("CHANGE_INITIAL_LEVERAGE_RESPONSE_MISMATCH")
     exchange_info = client.exchange_info()
     ticker = client.book_ticker(symbol)
+    commission_document = client.commission_rate(symbol)
     try:
         price_key = "askPrice" if plan.direction is Direction.LONG else "bidPrice"
         reference = Decimal(str(ticker[price_key]))
         tick_size = Decimal(str(_symbol_filters(exchange_info, symbol)["PRICE_FILTER"]["tickSize"]))
+        taker_fee_rate = Decimal(str(commission_document["takerCommissionRate"]))
     except (KeyError, ArithmeticError) as exc:
         raise TestnetProbeError("TEST_SYMBOL_FILTERS_INVALID") from exc
+    effective_margin_budget = risk_adjusted_margin_budget(
+        plan,
+        margin_ceiling=margin_budget,
+        leverage=leverage,
+        maximum_net_loss=maximum_net_loss,
+        taker_fee_rate=taker_fee_rate,
+    )
     quantity = plan_market_quantity(
         exchange_info,
         symbol=symbol,
         reference_price=reference,
-        margin_budget=margin_budget,
+        margin_budget=effective_margin_budget,
         leverage=leverage,
     )
     entry_side = "BUY" if plan.direction is Direction.LONG else "SELL"
@@ -234,6 +269,8 @@ def run_structural_experiment(
         "direction": plan.direction,
         "initial_leverage": leverage,
         "margin_budget": format(margin_budget, "f"),
+        "effective_margin_budget": format(effective_margin_budget, "f"),
+        "maximum_net_loss_budget": format(maximum_net_loss, "f"),
         "quantity": format(quantity, "f"),
         "entry_price": format(actual_entry, "f"),
         "stop_trigger": format(stop_trigger, "f"),
