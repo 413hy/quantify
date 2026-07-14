@@ -2,13 +2,14 @@
 
 - Stage: M0 — repository, contracts, configuration, migrations, audit and egress skeleton
 - Status: `IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
-- Report time: `2026-07-14T08:23:41Z`
+- Report time: `2026-07-14T08:26:34Z`
 - Implementation commits: `3a5762e37a5311f0a7faeca2e93b6c77ab8500ff`,
   `fca378cf7e4f18457f46a381e29fc8599bb5baa8`,
   `d5a394e21776957f627c9c3e7da78dfd1accf53c`,
   `0b8dc507522596cc9ba8659b56cbb96744f7c375`,
   `8516679`, `42624ef909aa25cc4aa7c46c392a7c856eaa82f3`, `46865c3`,
-  `411f4da41d1067fe6985a2e8da25bc1bfb136e56`
+  `411f4da41d1067fe6985a2e8da25bc1bfb136e56`,
+  `b8bc2816c0118784d60267a7ee2648f12d37c66b`
 - Implementer: `/root` engineering session
 - Independent reviewer: not assigned; a different actor with fresh context is still required
 - `CodexReviewReport`: absent by design; the implementer cannot self-sign it
@@ -70,13 +71,14 @@ startup-evidence, or live authorization has been issued.
 | Accounting | gateway journal and header reconciliation | outcome/observation idempotency, replay denial, observed max and durable 429 block pass |
 | Audit | Reserve/Consume decisions | same-transaction append-only journals pass; mutation is rejected |
 | Boundary | startup attestation trust | config-root reuse and wrong signatures deny; only the trust-bundle signer and frozen holder UID/GID may issue |
+| Boundary | Compose service identity | realtime/execution/gateway/rate/signer use frozen UID/GID values; attestation key is granted only to 11007 at `0400` |
 | Boundary | any changed binding hash, expiry, or replay | property tests deny without reopening permit |
 | Startup failure | non-root container, no network, no startup evidence | `RISK_LOCKED`, new egress false |
 | Database | business + host `upgrade → downgrade base → upgrade` | PASS on fresh disposable volumes |
 | Configuration/contracts | all recommended M0 validation targets | PASS |
 
 Primary logs and SHA-256 values are stored below this report in `tests/`, `security/`, and
-`artifacts/`. The final CI run passed 60 unit, 3 property, 2 contract, and 2 security tests. The
+`artifacts/`. The final CI run passed 60 unit, 3 property, 2 contract, and 4 security tests. The
 migration shape test and containerized migration round-trip also passed.
 
 ## Resource and security observations

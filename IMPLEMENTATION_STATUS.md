@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: `2026-07-14T08:23:41Z`
+Updated: `2026-07-14T08:26:34Z`
 
 Overall state: `M0_IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
 
@@ -48,6 +48,10 @@ Highest completed milestone: none
   the host configuration trust root. Only the single dedicated signer in the signed capability
   trust bundle may sign it; the issuer enforces the frozen UID/GID, owner-only out-of-repository
   Ed25519 key, schema, 300-second ceiling and immediate independent re-verification.
+- Commit `b8bc2816c0118784d60267a7ee2648f12d37c66b` binds the Compose services to
+  their frozen trust-boundary identities (`11001`, `11002`, `11005`, `11006`, `11007`), aligns the
+  hot-path name with `realtime-engine`, and restricts the attestation key grant to UID/GID 11007 at
+  mode `0400`. Static policy and independent security tests reject drift.
 - Docker CE/Compose, Python 3.12.13 via `uv`, chrony, ripgrep and GNU time are installed for
   development. Initial chrony observations are healthy, but not a 24-hour deployment proof.
 
