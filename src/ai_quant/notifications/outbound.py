@@ -8,6 +8,7 @@ from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 _SECRET = re.compile(r"(?i)(api[_-]?key|secret|token|password|signature)\s*[:=]\s*([^\s,;]+)")
 
@@ -55,6 +56,7 @@ class OutboundNotifier:
     def render(notification: Notification) -> str:
         safe_summary = _SECRET.sub(r"\1=[REDACTED]", notification.summary)
         digest = hashlib.sha256(safe_summary.encode()).hexdigest()[:12]
+        beijing_time = notification.occurred_at.astimezone(ZoneInfo("Asia/Shanghai"))
         severity_label = {
             "INFO": "🟢 信息",
             "NOTICE": "🔵 提醒",
@@ -70,7 +72,7 @@ class OutboundNotifier:
             "━━━━━━━━━━━━━━━━\n"
             f"级别: {severity_label}\n"
             f"事件: {notification.event_type}\n"
-            f"时间: {notification.occurred_at.isoformat()}\n"
+            f"北京时间: {beijing_time:%Y-%m-%d %H:%M:%S}\n"
             "\n📋 详情\n"
             f"{safe_summary}\n"
             "\n🔎 处理指引\n"

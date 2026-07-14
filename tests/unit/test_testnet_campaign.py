@@ -8,7 +8,12 @@ import pytest
 import ai_quant.strategy.testnet_baseline as baseline
 from ai_quant.features.order_flow import OrderFlowFrame
 from ai_quant.features.price_action import Direction, PriceActionFrame, Regime, Structure
-from ai_quant.services.testnet_campaign import CampaignLimits, _summary_text, campaign_trade_allowed
+from ai_quant.services.testnet_campaign import (
+    CampaignLimits,
+    _select_candidate,
+    _summary_text,
+    campaign_trade_allowed,
+)
 from ai_quant.strategy.testnet_baseline import evaluate_testnet_baseline
 
 
@@ -130,6 +135,7 @@ def test_testnet_baseline_accepts_only_fully_confirmed_long(
     assert decision.eligible
     assert decision.direction is Direction.LONG
     assert decision.reason_codes == ()
+    assert _select_candidate([decision]) is decision
 
 
 def test_campaign_summary_translates_runtime_and_reason_codes_to_chinese() -> None:

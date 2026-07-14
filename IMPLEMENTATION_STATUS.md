@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: `2026-07-14T14:56:36Z`
+Updated: `2026-07-14T15:14:06Z`
 
 Overall state: `TESTNET_CORE_PROTOCOL_PASS / EXTERNAL_DURATION_GATES_PENDING / RISK_LOCKED`
 
@@ -38,10 +38,12 @@ calibration, 72-hour, or live authorization evidence. No production exchange ord
   margin ceiling, replans from the actual fill, places native stop/take-profit protection, enforces
   a 30-second time exit and proves final zero orders/position. It is a protocol-validation runner,
   not a blind repeated-entry strategy.
-- A three-day Testnet campaign service now applies the checked-in unvalidated PA baseline to closed
-  1m/5m bars and confirms it with the latest 20-level book plus the 500ms aggregate-trade window.
-  It records every decision, trades only on full long confirmation, limits activity to eight trades
-  per UTC day with a 15-minute cooldown and stops new entries at -0.30 USDT daily net PnL.
+- A three-day Testnet campaign service now applies the checked-in unvalidated PA baseline across
+  five 1-USDT-feasible symbols using closed 1m/5m bars, the latest 20-level book and the 500ms
+  aggregate-trade window. It records every decision, selects at most one fully confirmed long per
+  round while observing up to three symbols concurrently, limits activity to 24 trades per UTC day with a five-minute global cooldown and stops new
+  entries at -0.30 USDT daily net PnL. This is a wider forward-sample pool, not fabricated Top10
+  evidence.
 - M4 operations: bounded FastAPI control surface, session-context binding, idempotent commands,
   one-use emergency-flatten challenge, outbound-only redacted notifications, Prometheus exposition,
   alert/runbook mapping, checksummed backup manifests and append-only operational migrations.
@@ -50,8 +52,9 @@ calibration, 72-hour, or live authorization evidence. No production exchange ord
   receipts, replay rejection and sender-side pinned host/receipt keys. The legacy schema `1.0.0`
   receipt remains compatible but cannot satisfy the stronger remote-decryption gate by itself.
 - Telegram delivery now has a concrete outbound-only HTTPS sender loaded from root-only token and
-  chat-ID files. Messages use a structured Chinese format; no update polling or inbound command
-  surface is implemented.
+  chat-ID files. Messages use a structured Chinese format and Beijing time; trade results include
+  entry/protection prices, realized PnL, fees, net result, protection latency and final exposure.
+  No update polling or inbound command surface is implemented.
 - Later-stage offline orchestration: fresh-context AI/rule authority and three-dry-run recovery,
   immutable continuous validation gates, 90-day research thresholds, FIFO/single-concurrency monthly
   iteration and quota deferral.
@@ -104,8 +107,15 @@ calibration, 72-hour, or live authorization evidence. No production exchange ord
   net PnL was -0.01099535 USDT. Final ordinary orders, Algo orders and position were all zero, with
   zero production endpoint requests. Evidence is at
   `/var/lib/ai-quant/evidence/testnet/current/sol-micro-scalp.json`.
+- A separate three-symbol parallel Testnet execution sample ran SOLUSDT, BNBUSDT and XRPUSDT with
+  independent 1-USDT margin ceilings. All three completed their native protection lifecycle and
+  reconciled zero orders/Algo orders/positions. None hit stop or target; all reached the 30-second
+  time exit. Net results were -0.00742656, -0.00525511 and -0.00930724 USDT respectively, mostly
+  commission. The sample is explicitly classified `EXECUTION_STRESS_NOT_STRATEGY_SIGNAL`; its
+  Chinese per-trade and aggregate Telegram notifications passed. Evidence is under
+  `/var/lib/ai-quant/evidence/testnet/parallel/20260714-sample-01/`.
 - `aiq-testnet-campaign.service` is enabled and active for a three-day Testnet observation ending
-  `2026-07-17T14:54:13Z`. Its first observation correctly rejected entry because PA/OF/spread gates
+  `2026-07-17T15:09:21Z`. Its first multi-symbol round correctly rejected entry because PA/OF/spread gates
   were not met; the account remained at zero regular orders, zero Algo orders and zero position.
   State and append-only observations are under
   `/var/lib/ai-quant/evidence/testnet/campaign/current/`.

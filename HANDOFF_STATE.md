@@ -1,6 +1,6 @@
 # Handoff state
 
-Updated: `2026-07-14T14:56:36Z`
+Updated: `2026-07-14T15:14:06Z`
 
 Resume in `/root/quantify/ai-quant-system`. Debian 12 Bookworm/aarch64 is the sole supported host.
 Do not modify `/root/quantify/reference-materials`; the copied contract/config provenance validator
@@ -29,11 +29,18 @@ this runner without a calibrated gross-edge-qualified signal; the measured outco
 that unscreened repetition can accumulate fees even when the lifecycle is correct.
 
 The Testnet-only `aiq-testnet-campaign.service` is enabled and running for three days. It evaluates
-SOLUSDT once per minute using the checked-in unvalidated 1m/5m PA baseline and conservative OF
-confirmation, but calls the bounded micro-position runner only when every gate passes. It enforces
-a 15-minute cooldown, eight trades per UTC day and a -0.30 USDT daily net-loss entry stop. State is
+SOLUSDT, BNBUSDT, XRPUSDT, DOGEUSDT and ADAUSDT every ten seconds using the checked-in unvalidated
+1m/5m PA baseline and conservative OF confirmation with at most three parallel observation workers, but calls the bounded micro-position runner
+only when every gate passes and selects at most one candidate per round. It enforces a five-minute
+global cooldown, 24 trades per UTC day and a -0.30 USDT daily net-loss entry stop. State is
 `/var/lib/ai-quant/evidence/testnet/campaign/current/state.json`; see `docs/testnet-campaign.md`.
 Telegram messages are now structured Chinese text.
+
+The owner requested additional parallel Testnet samples. `scripts/run-testnet-parallel-sample.py`
+ran SOLUSDT, BNBUSDT and XRPUSDT concurrently with one bounded position per symbol. All three timed
+out after 30 seconds rather than hitting stop/target, ended at -0.00742656/-0.00525511/-0.00930724
+USDT net and reconciled fully flat. These are execution stress samples, not strategy-qualified
+trades. Do not combine them with strategy win-rate statistics.
 
 Business migrations now end at `0004_operations` and contain append-only market-data, risk,
 execution, command, incident, notification and backup evidence. The pre-existing host-control tree

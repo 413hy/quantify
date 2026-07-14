@@ -126,7 +126,9 @@ def evaluate_testnet_baseline(
         reasons.append("OF_TRADE_IMBALANCE_INSUFFICIENT")
     if order_flow.cvd_notional <= 0:
         reasons.append("OF_CVD_NOT_POSITIVE")
-    if spread_bps > Decimal("3.00"):
+    # This live Testnet baseline uses the documented 10 bps universe ceiling as a
+    # current-snapshot proxy. Formal eligibility still requires the 15-minute median.
+    if spread_bps > Decimal("10.00"):
         reasons.append("SPREAD_TOO_WIDE")
     return TestnetBaselineDecision(
         eligible=not reasons,

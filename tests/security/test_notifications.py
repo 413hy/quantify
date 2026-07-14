@@ -31,6 +31,7 @@ def test_notification_is_outbound_only_redacted_and_deduplicated() -> None:
     assert "runbooks/08_DATA_RECOVERY.md" in delivered[0]
     assert "🤖 AI 量化系统通知" in delivered[0]
     assert "级别: 🚨 紧急" in delivered[0]
+    assert "北京时间: 2026-07-14 18:00:00" in delivered[0]
     assert "📋 详情" in delivered[0]
     assert "🔎 处理指引" in delivered[0]
 

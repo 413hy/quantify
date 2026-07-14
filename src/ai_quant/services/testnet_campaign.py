@@ -8,6 +8,7 @@ import json
 import os
 import signal
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -23,7 +24,10 @@ from ai_quant.notifications import (
     TelegramFileConfig,
     TelegramSender,
 )
-from ai_quant.strategy.testnet_baseline import evaluate_testnet_baseline
+from ai_quant.strategy.testnet_baseline import (
+    TestnetBaselineDecision,
+    evaluate_testnet_baseline,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,7 +85,7 @@ class TestnetCampaign:
         chat_ids_file: Path,
         evidence_directory: Path,
         state_file: Path,
-        symbol: str,
+        symbols: tuple[str, ...],
         limits: CampaignLimits,
     ) -> None:
         self.api_key_file = api_key_file
@@ -89,7 +93,11 @@ class TestnetCampaign:
         self.repository_root = repository_root
         self.evidence_directory = evidence_directory
         self.state_file = state_file
-        self.symbol = symbol
+        if not symbols or len(symbols) > 10 or len(set(symbols)) != len(symbols):
+            raise ValueError("campaign symbols must contain 1 to 10 unique entries")
+        if any(not symbol.isalnum() or symbol != symbol.upper() for symbol in symbols):
+            raise ValueError("campaign symbols are invalid")
+        self.symbols = symbols
         self.limits = limits
         config = TelegramFileConfig.load(token_file, chat_ids_file)
         self.notifier = OutboundNotifier(TelegramSender(config))
@@ -107,7 +115,7 @@ class TestnetCampaign:
             severity="INFO",
             event_type="测试网策略观察已启动",
             summary=(
-                f"交易对: {self.symbol}\n"
+                f"候选池: {', '.join(self.symbols)}\n"
                 f"计划运行: {self.limits.duration_seconds // 86_400} 天\n"
                 f"评估间隔: {self.limits.evaluation_interval_seconds} 秒\n"
                 f"单次保证金上限: {self.limits.margin_budget} USDT\n"
@@ -169,54 +177,72 @@ class TestnetCampaign:
 
     def _evaluate_once(self, state: dict[str, Any]) -> dict[str, Any]:
         _, server_offset_ms = self.client.synchronize_time()
-        one_minute_klines = self.client.klines(self.symbol, "1m", limit=120)
-        five_minute_klines = self.client.klines(self.symbol, "5m", limit=120)
-        depth = self.client.depth(self.symbol, limit=20)
-        aggregate_trades = self.client.aggregate_trades(self.symbol, limit=100)
-        server_time_ms = int(time.time() * 1_000) + server_offset_ms
-        decision = evaluate_testnet_baseline(
-            symbol=self.symbol,
-            server_time_ms=server_time_ms,
-            one_minute_klines=one_minute_klines,
-            five_minute_klines=five_minute_klines,
-            depth=depth,
-            aggregate_trades=aggregate_trades,
-        )
-        event = decision.evidence()
-        event["record_type"] = "SIGNAL_OBSERVATION"
-        self._append_event(event)
-        state["observation_count"] = int(state["observation_count"]) + 1
-        state["last_observed_at"] = event["observed_at"]
-        state["last_reason_codes"] = event["reason_codes"]
-        self._reset_daily_state_if_needed(state, decision.observed_at)
-        if decision.eligible:
+        worker_count = min(3, len(self.symbols))
+        with ThreadPoolExecutor(
+            max_workers=worker_count, thread_name_prefix="testnet-observation"
+        ) as executor:
+            futures = {
+                symbol: executor.submit(self._observe_symbol, symbol, server_offset_ms)
+                for symbol in self.symbols
+            }
+            decisions = [futures[symbol].result() for symbol in self.symbols]
+        reason_codes: dict[str, list[str]] = {}
+        for decision in decisions:
+            event = decision.evidence()
+            event["record_type"] = "SIGNAL_OBSERVATION"
+            self._append_event(event)
+            state["observation_count"] = int(state["observation_count"]) + 1
+            state["last_observed_at"] = event["observed_at"]
+            reason_codes[decision.symbol] = list(decision.reason_codes)
+        state["evaluation_round_count"] = int(state["evaluation_round_count"]) + 1
+        state["last_reason_codes"] = reason_codes
+        latest_observed_at = max(decision.observed_at for decision in decisions)
+        self._reset_daily_state_if_needed(state, latest_observed_at)
+        selected = _select_candidate(decisions)
+        if selected is not None:
             last_trade = (
                 _parse_time(str(state["last_trade_at"])) if state.get("last_trade_at") else None
             )
             allowed, reason = campaign_trade_allowed(
-                now=decision.observed_at,
+                now=selected.observed_at,
                 last_trade_at=last_trade,
                 daily_trade_count=int(state["daily_trade_count"]),
                 daily_net_pnl=Decimal(str(state["daily_net_pnl"])),
                 limits=self.limits,
             )
             if allowed:
-                result = self._execute_trade()
-                state = self._record_trade(state, result, decision.observed_at)
+                result = self._execute_trade(selected.symbol)
+                state = self._record_trade(state, result, selected.observed_at, selected.symbol)
             else:
-                event["record_type"] = "SIGNAL_BLOCKED_BY_CAMPAIGN_LIMIT"
-                event["campaign_limit_reason"] = reason
-                self._append_event(event)
+                blocked = selected.evidence()
+                blocked["record_type"] = "SIGNAL_BLOCKED_BY_CAMPAIGN_LIMIT"
+                blocked["campaign_limit_reason"] = reason
+                self._append_event(blocked)
         state["updated_at"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
         _atomic_write_json(self.state_file, state)
         return state
 
-    def _execute_trade(self) -> dict[str, Any]:
+    def _observe_symbol(self, symbol: str, server_offset_ms: int) -> TestnetBaselineDecision:
+        one_minute_klines = self.client.klines(symbol, "1m", limit=120)
+        five_minute_klines = self.client.klines(symbol, "5m", limit=120)
+        depth = self.client.depth(symbol, limit=20)
+        aggregate_trades = self.client.aggregate_trades(symbol, limit=100)
+        server_time_ms = int(time.time() * 1_000) + server_offset_ms
+        return evaluate_testnet_baseline(
+            symbol=symbol,
+            server_time_ms=server_time_ms,
+            one_minute_klines=one_minute_klines,
+            five_minute_klines=five_minute_klines,
+            depth=depth,
+            aggregate_trades=aggregate_trades,
+        )
+
+    def _execute_trade(self, symbol: str) -> dict[str, Any]:
         result = run_testnet_micro_scalp(
             api_key_file=self.api_key_file,
             api_secret_file=self.api_secret_file,
             repository_root=self.repository_root,
-            symbol=self.symbol,
+            symbol=symbol,
             margin_budget=self.limits.margin_budget,
             target_net_profit=self.limits.target_net_profit,
             maximum_net_loss=self.limits.maximum_net_loss,
@@ -227,7 +253,11 @@ class TestnetCampaign:
         return result
 
     def _record_trade(
-        self, state: dict[str, Any], result: dict[str, Any], occurred_at: datetime
+        self,
+        state: dict[str, Any],
+        result: dict[str, Any],
+        occurred_at: datetime,
+        symbol: str,
     ) -> dict[str, Any]:
         net = Decimal(str(result["net_pnl"]))
         state["trade_count"] = int(state["trade_count"]) + 1
@@ -237,12 +267,24 @@ class TestnetCampaign:
         state["last_trade_at"] = occurred_at.isoformat().replace("+00:00", "Z")
         if bool(result["target_achieved"]):
             state["target_hit_count"] = int(state["target_hit_count"]) + 1
+        target_achieved = "是" if bool(result["target_achieved"]) else "否"
         summary = (
-            f"交易对: {self.symbol}\n"
+            f"交易对: {symbol}\n"
+            "方向: 做多\n"
+            "环境: Binance Testnet\n"
+            f"数量: {result['quantity']}\n"
             f"退出原因: {_exit_reason_cn(str(result['exit_reason']))}\n"
+            f"入场价: {result['entry_price']}\n"
+            f"止盈触发价: {result['target_trigger']}\n"
+            f"止损触发价: {result['stop_trigger']}\n"
+            f"达到目标: {target_achieved}\n"
+            f"已实现盈亏: {result['realized_pnl']} USDT\n"
+            f"手续费: {result['commission_paid']} USDT\n"
             f"本单净结果: {net} USDT\n"
             f"累计净结果: {state['cumulative_net_pnl']} USDT\n"
             f"保证金: {result['actual_initial_margin']} USDT\n"
+            f"止损确认延迟: {result['stop_confirmation_latency_ms']} ms\n"
+            f"止盈确认延迟: {result['take_profit_confirmation_latency_ms']} ms\n"
             f"剩余订单: {result['final_open_order_count']}\n"
             f"剩余条件单: {result['final_open_algo_order_count']}\n"
             f"剩余持仓: {result['final_position_quantity']}"
@@ -296,16 +338,28 @@ class TestnetCampaign:
             os.fsync(handle.fileno())
 
     def _load_or_create_state(self) -> dict[str, Any]:
+        prior_campaign: dict[str, object] | None = None
         if self.state_file.exists():
             loaded: object = json.loads(self.state_file.read_text(encoding="utf-8"))
             if not isinstance(loaded, dict) or not all(isinstance(key, str) for key in loaded):
                 raise ValueError("campaign state document is invalid")
             document = cast(dict[str, Any], loaded)
-            if document.get("status") == "RUNNING" and document.get("symbol") == self.symbol:
+            if document.get("status") == "RUNNING" and document.get("symbols") == list(
+                self.symbols
+            ):
                 document["limits"] = self._limits_document()
                 document["validation_status"] = "UNVALIDATED_TESTNET_BASELINE"
                 _atomic_write_json(self.state_file, document)
                 return document
+            prior_campaign = {
+                "started_at": document.get("started_at"),
+                "updated_at": document.get("updated_at"),
+                "symbol": document.get("symbol"),
+                "symbols": document.get("symbols"),
+                "observation_count": document.get("observation_count", 0),
+                "trade_count": document.get("trade_count", 0),
+                "cumulative_net_pnl": document.get("cumulative_net_pnl", "0"),
+            }
         now = datetime.now(UTC)
         state: dict[str, Any] = {
             "schema_version": "1.0.0",
@@ -313,13 +367,14 @@ class TestnetCampaign:
             "environment": "testnet",
             "strategy": "TESTNET_UNVALIDATED_PA_OF_BASELINE_V1",
             "validation_status": "UNVALIDATED_TESTNET_BASELINE",
-            "symbol": self.symbol,
+            "symbols": list(self.symbols),
             "started_at": now.isoformat().replace("+00:00", "Z"),
             "ends_at": (now + timedelta(seconds=self.limits.duration_seconds))
             .isoformat()
             .replace("+00:00", "Z"),
             "updated_at": now.isoformat().replace("+00:00", "Z"),
             "observation_count": 0,
+            "evaluation_round_count": 0,
             "trade_count": 0,
             "target_hit_count": 0,
             "cumulative_net_pnl": "0",
@@ -331,6 +386,7 @@ class TestnetCampaign:
             "daily_net_pnl": "0",
             "production_endpoint_requests": 0,
             "limits": self._limits_document(),
+            "prior_campaign": prior_campaign,
         }
         _atomic_write_json(self.state_file, state)
         return state
@@ -345,6 +401,8 @@ class TestnetCampaign:
             "target_net_profit": format(self.limits.target_net_profit, "f"),
             "maximum_net_loss": format(self.limits.maximum_net_loss, "f"),
             "maximum_holding_seconds": self.limits.maximum_holding_seconds,
+            "maximum_parallel_observations": min(3, len(self.symbols)),
+            "maximum_candidates_per_round": 1,
         }
 
 
@@ -358,10 +416,11 @@ def _summary_text(state: dict[str, Any]) -> str:
         "STOPPED": "已停止",
         "COMPLETED": "已完成",
     }.get(str(state["status"]), str(state["status"]))
-    reasons = "、".join(_reason_code_cn(str(code)) for code in state["last_reason_codes"])
+    reasons = _reason_summary(state["last_reason_codes"])
     return (
         f"运行状态: {status}\n"
         f"信号评估: {observations} 次\n"
+        f"评估轮次: {state.get('evaluation_round_count', observations)} 轮\n"
         f"实际交易: {trades} 单\n"
         f"达到目标: {hits} 单 ({hit_rate.quantize(Decimal('0.01'))}%)\n"
         f"累计净结果: {state['cumulative_net_pnl']} USDT\n"
@@ -390,6 +449,40 @@ def _reason_code_cn(reason: str) -> str:
         "OF_CVD_NOT_POSITIVE": "成交量差未转正",
         "SPREAD_TOO_WIDE": "买卖点差过宽",
     }.get(reason, reason)
+
+
+def _reason_summary(value: object) -> str:
+    if isinstance(value, dict):
+        lines: list[str] = []
+        for symbol, codes in value.items():
+            if not isinstance(symbol, str) or not isinstance(codes, list):
+                continue
+            translated = "、".join(_reason_code_cn(str(code)) for code in codes[:3])
+            lines.append(f"{symbol}: {translated or '通过'}")
+        return "\n".join(lines)
+    if isinstance(value, list):
+        return "、".join(_reason_code_cn(str(code)) for code in value)
+    return ""
+
+
+def _select_candidate(
+    decisions: list[TestnetBaselineDecision],
+) -> TestnetBaselineDecision | None:
+    eligible = [decision for decision in decisions if decision.eligible]
+    if not eligible:
+        return None
+
+    def rank(decision: TestnetBaselineDecision) -> tuple[Decimal, str]:
+        flow = decision.order_flow
+        score = (
+            flow.book_imbalance
+            + flow.trade_imbalance
+            + flow.microprice_mid_bps / Decimal(10)
+            - decision.spread_bps / Decimal(10)
+        )
+        return -score, decision.symbol
+
+    return sorted(eligible, key=rank)[0]
 
 
 def _parse_time(value: str) -> datetime:
@@ -421,7 +514,7 @@ def main() -> int:
     parser.add_argument("--evidence-directory", required=True, type=Path)
     parser.add_argument("--state-file", required=True, type=Path)
     parser.add_argument("--lock-file", required=True, type=Path)
-    parser.add_argument("--symbol", default="SOLUSDT")
+    parser.add_argument("--symbols", default="SOLUSDT,BNBUSDT,XRPUSDT,DOGEUSDT,ADAUSDT")
     parser.add_argument("--duration-seconds", type=int, default=259_200)
     parser.add_argument("--evaluation-interval-seconds", type=int, default=60)
     parser.add_argument("--trade-cooldown-seconds", type=int, default=900)
@@ -450,7 +543,9 @@ def main() -> int:
             chat_ids_file=arguments.telegram_chat_ids_file,
             evidence_directory=arguments.evidence_directory,
             state_file=arguments.state_file,
-            symbol=arguments.symbol,
+            symbols=tuple(
+                symbol.strip() for symbol in arguments.symbols.split(",") if symbol.strip()
+            ),
             limits=limits,
         )
 
