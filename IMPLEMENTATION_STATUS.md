@@ -153,7 +153,8 @@ Detailed evidence: `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`.
    `CodexReviewReport` with zero open P0/P1 before M0 acceptance.
 6. Complete the owner-gated activation of the implemented Debian bootstrap bundle. The exact lock,
    hardening set, controlled `quantctl` and audited plan/apply/prove/verify flow now exist. Before
-   apply, the owner must create a current off-host backup of commit `306163a`, provide only the two
+   apply, the owner must create a current off-host backup bound to the then-current committed HEAD,
+   provide only the two
    public keys described in `docs/deployment/debian-bootstrap.md`, sign the exact generated plan
    off-host and prove a second `aiqops` SSH session. SSH is detected as port 22 and the owner-confirmed
    fixed client source is `171.221.123.164/32`; neither firewall nor SSH policy has been changed.

@@ -156,7 +156,8 @@ of that correction and still includes the 24-hour clock/network/static-IP record
 firewall proof, signed inputs, restore/heartbeat checks and independent review.
 
 Frozen runbook 01's Debian bootstrap release implementation is now present at commit `306163a`.
-It remains inactive until a current off-host backup binds that commit, the owner provides the two
+It remains inactive until a current off-host backup binds the then-current committed release HEAD,
+the owner provides the two
 documented public keys, signs the exact plan off-host and proves a second `aiqops` SSH session. The
 detected SSH port is 22 and the owner-confirmed client source is `171.221.123.164/32`. No SSH,
 firewall, Docker data-root or package mutation has occurred.
