@@ -1,213 +1,76 @@
 # Implementation status
 
-Updated: `2026-07-14T11:40:53Z`
+Updated: `2026-07-14T12:31:30Z`
 
-Overall state: `M0_IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
+Overall state: `OFFLINE_DEVELOPMENT_FLOW_PASS / EXTERNAL_VALIDATION_PENDING / RISK_LOCKED`
 
-Highest completed milestone: none
+The trading system's offline Paper path is implemented and verified from raw market data through
+native protection. This is a development completion statement, not Testnet, Shadow, calibration,
+72-hour, or live authorization evidence. No real exchange order was sent.
 
-## Completed and evidenced
+## Implemented
 
-- All three outer hashes and all internal manifests/inventories match; sources remain read-only.
-- Full required-document reading and machine audit are complete. Only two immutable broken anchors
-  remain, with no additional source defect.
-- Implementation commit `3a5762e37a5311f0a7faeca2e93b6c77ab8500ff` establishes the M0
-  repository, exact dependency lock, immutable contract/config copies, validators, independent
-  migrations, initial audit tables, Compose lifecycle boundaries, a one-shot permit consume model,
-  locked Unix-socket runtime, tests, SBOM and security evidence.
-- All recommended M0 validation commands pass. Both database trees reproduce
-  `upgrade → downgrade base → upgrade`; atomic permit consumption grants once and denies replay.
-- The non-root container starts with no network and returns only `RISK_LOCKED` when startup evidence
-  is absent.
-- Commit `fca378cf7e4f18457f46a381e29fc8599bb5baa8` adds PostgreSQL-authoritative,
-  multi-window atomic Reserve. Signed-runtime endpoint policy, caller allowlist, catalog hash,
-  cost/ceiling, fencing, request idempotency and one-time capability nonce are checked under row
-  locks. Tests prove one charge on retry and fail-closed denial for replay, caller, fencing, catalog
-  and blocked-window violations.
-- Commit `d5a394e21776957f627c9c3e7da78dfd1accf53c` adds a closed signed-runtime
-  capability trust-bundle loader, config-root/capability Ed25519 verification over RFC 8785 JCS
-  hashes, full causal binding checks, Linux `SO_PEERCRED` caller/protocol ACLs, and durable
-  PostgreSQL epoch leases. Competing owners and expired/stale leases deny Reserve and Consume.
-- Commit `0b8dc507522596cc9ba8659b56cbb96744f7c375` adds signed endpoint-catalog
-  source/hash/identity/tier verification, bounded one-request length-prefixed Unix framing, duplicate
-  JSON-key rejection, runtime-directory/socket-mode enforcement, and a rate admission application
-  that closes endpoint, facts, capability, protocol direction and kernel peer before authority calls.
-- Commit `8516679` connects that boundary to PostgreSQL v2 atomic Reserve/Consume, stores exact
-  signed endpoint payloads and deterministic multi-class cost vectors, journals gateway outcomes and
-  observations idempotently, reconciles header maxima, and persists 429/418 blocks across restart.
-  The executable rate service verifies exact active policy/window coverage before taking its lease.
-- Commit `42624ef909aa25cc4aa7c46c392a7c856eaa82f3` adds gateway closed-schema IPC,
-  `SO_PEERCRED` caller binding, authority-to-host and catalog wire identity checks, exact prepared
-  wire/canonical/parameter/permit binding, Consume-before-one-send orchestration, SendOutcome, and
-  short-lived signed startup-evidence verification. Its transport remains injection-only and is not
-  enabled by Compose.
-- Commit `46865c3` adds append-only Reserve/Consume decision journals written in the same database
-  transaction as the decision; audit failure rolls back a grant. Disposable migration tests prove
-  both journals reject mutation.
-- Commit `411f4da41d1067fe6985a2e8da25bc1bfb136e56` isolates startup evidence from
-  the host configuration trust root. Only the single dedicated signer in the signed capability
-  trust bundle may sign it; the issuer enforces the frozen UID/GID, owner-only out-of-repository
-  Ed25519 key, schema, 300-second ceiling and immediate independent re-verification.
-- Commit `b8bc2816c0118784d60267a7ee2648f12d37c66b` binds the Compose services to
-  their frozen trust-boundary identities (`11001`, `11002`, `11005`, `11006`, `11007`), aligns the
-  hot-path name with `realtime-engine`, and restricts the attestation key grant to UID/GID 11007 at
-  mode `0400`. Static policy and independent security tests reject drift.
-- Commit `cc87fda6df0373dec2300a8bbf5616cd74838628` closes the final pre-send
-  allocator-response boundary. Gateway validates the complete rate UDS schema and exact allocator
-  instance, correlation, permit, connection, fencing, request/facts/capability hashes and bounded
-  deadline; every valid-but-mismatched grant is journaled `NOT_SENT` and transport remains at zero.
-- Commit `35cfb59287ee2051a6c3fa095673eff7c178974a` binds both sides of local IPC to
-  attested identities. Clients verify socket inode/owner/group/mode before and after connect plus
-  server `SO_PEERCRED`; servers require root-owned SGID runtime directories and exact socket owner.
-  Compose grants only the frozen `11990/11991` shared socket groups.
-- Commit `bd79957e59aac0828c32ba76ca342d71808842ad` binds every measured startup
-  fact (including WAL/migration, socket identities, network policy, observations and integrity) in
-  one local measurement hash, verifies before atomic fsync/rename publication, and re-reads and
-  re-verifies the immutable `0444` evidence before controlled operations. Compose exposes exactly
-  one evidence writer and one read-only gateway consumer.
-- Commit `b9f0d3243089a8b3ec54e2fcbc3371cacd7a51a1` moves the config-root fingerprint
-  out of ordinary environment control. Both keyring and SHA-256 pin must be direct root-owned
-  `0444` files in a non-symlink, non-writable `/etc/ai-quant/trust` boundary; only rate, signer and
-  gateway receive that directory, read-only.
-- Commit `c586fef1f9896c476811e46d893ca283d746433c` makes runtime JSON/YAML parsing
-  reject duplicate keys and adds exact artifact binding verification for raw schema bytes, JCS of a
-  complete document, and JCS of a signed document's `content`. Coverage gaps, symlinks, path escape,
-  read-time replacement and hash mismatch all fail closed.
-- Commits `ead4d40` and `59108c93cae776085f0a70f06fb5c9d873704e4b` close the database
-  secret and durable-notification findings from an implementation-context review. Service secrets
-  now require absolute, non-symlink, current-UID `0400` files outside the release tree; the rate
-  service builds only the fixed `aiq_rate_authority` target from a password file. Migration `0009`
-  creates that role as `NOLOGIN`/non-superuser with narrow grants and hardened security-definer
-  functions. A transport ACK now distinguishes a committed outcome from handler failure, and any
-  repeated outcome-journal failure latches the gateway closed. Exact endpoint source files,
-  transport/scheme pairs and denied connection bindings are also enforced.
-- Commit `53784a5a40a2f174696bf5ade93df9f725bf9c5b` removes caller-authored startup
-  evidence drafts from the issuance boundary. A fresh root-owned `0444` local-facts snapshot is
-  strictly parsed and hash-checked; the assembler independently remeasures boot identity, complete
-  artifact/release hashes and both Unix socket identities before constructing the only signable
-  content and its matching expectation.
-- Commit `d3711e0284ce1def8cb9a37f95b117c3da0a905a` adds the executable fail-closed
-  attestation issuer around that boundary. It reloads the protected plan, trust bundle and private
-  key for every refresh, binds the actually used keyring/trust/schema files to the evidence, issues
-  at most every 60 seconds, publishes atomically, and deletes the last evidence on handled stop or
-  refresh failure. Compose remains locked; real deployment inputs are absent.
-- Commit `fcbcba230d75327ae155e1717fe23dc661a2debd` makes that non-activation an
-  executable Compose policy: the signer command must remain `locked_process`/`RISK_LOCKED` until
-  deployment facts and gates exist, and an independent security test pins the same boundary.
-- Commit `4b71424c0f0fd0f385d3d2f1f6a89088f2cb1d9e` adds the root-only local-facts
-  collector. It closes dynamic-source coverage, requires fresh root-owned hashed measurements,
-  remeasures artifacts, release files, image digests, boot ID and sockets, validates the immutable
-  evidence Schema, and atomically publishes `0444 root:root`; the signer independently repeats the
-  source and binding checks.
-- Commit `632fd52b7470291abfb9c5712de891582ecffebc` adds all six deployment
-  measurement producer boundaries. Migration `0010_local_measurements` exposes one fixed,
-  read-only database/WAL/fencing/integrity snapshot; authority journals, live Docker+nftables,
-  two complete bootstrap traces and readiness are independently closed before all six root source
-  files are published with one exact capture timestamp. It also corrects startup observation time
-  ordering so real observations precede evidence issuance while remaining short-lived.
-- Commit `123428d8754cdfa162a0bb854583521a66386320` closes the offline host
-  orchestration gap. A root-only cycle verifies signed connection/catalog inputs and their source
-  bytes, reads database/journal/block state through the narrow role, inspects live Docker/nftables,
-  validates dual bootstrap traces, probes both UDS peers and publishes all six sources as one
-  generation. Two hardened but uninstalled Debian systemd units, a fixed local PostgreSQL Unix
-  socket and a non-applying destination nftables renderer are statically checked. Invalid local
-  clients no longer terminate the rate service. No unit or firewall rule was activated.
-- Commit `543791d761eb21112562338395673736545f2ee9` corrects a least-privilege
-  discrepancy found during evidence review. The runtime role no longer has blanket table-read or
-  function-execute access: five operational tables and six callable functions are explicit, while
-  observation journals and authority blocks are available to measurement only through fixed
-  security-definer readers. Disposable migration tests exercise both readers under `SET ROLE`.
-- Commit `306163aefdf4ae22dbef0ff6c1359088eeb31683` supplies the audited Debian host
-  bootstrap release boundary. It locks 14 direct apt packages to exact versions and SHA-256 values,
-  pins the Debian snapshot and Docker signing identities, pins Cosign and a fail-closed controlled
-  `quantctl`, covers sshd/nftables/Docker/journald/chrony/sysctl/limits with a hash manifest, and
-  implements read-only plan, short-lived Ed25519 approval, two-stage apply, independent `aiqops`
-  SSH proof, rollback and redacted verify evidence. CI exercises the non-mutating plan and rejects a
-  broad SSH source range. The bundle is not applied: owner keys, off-host backup evidence and a
-  second SSH session are deliberately required first.
-- Commit `e3159e5` adds a root-owned, hash-chained 24-hour Debian deployment baseline collector and
-  hardened unit artifact. It independently samples two HTTPS public-IP witnesses, Debian/Docker DNS,
-  the OCI default gateway RTT/loss and chrony offset, and rejects record tampering, boot changes,
-  public-IP changes, gaps over 90 seconds or clock offset over 50 ms. A transient non-activating
-  measurement run started at `2026-07-14T11:40:53Z`; its first complete sample agreed on server
-  egress IPv4 `140.245.75.36`, clock offset `0.018604 ms`, zero gateway loss and no sample error.
-  This does not replace the later approved 24-hour measurement to actual Binance destinations.
-- ADR 0004 records the owner's explicit platform correction: Debian 12 Bookworm/aarch64 on Oracle
-  Cloud is the sole deployment target. The live host matches that profile and the read-only Debian
-  platform verifier passes; the original source archives remain immutable for provenance.
-- Docker CE/Compose, Python 3.12.13 via `uv`, chrony, ripgrep and GNU time are installed for
-  development. Initial chrony observations are healthy, but not a 24-hour deployment proof.
+- M0 foundation: immutable contracts/configuration, Debian 12 Bookworm/aarch64 platform amendment,
+  independent databases, host rate authority, bounded gateway contracts, startup evidence and
+  fail-closed no-network runtime remain intact.
+- M1 market data: strict raw depth/trade records, snapshot plus `U/u/pu` reconstruction, duplicate
+  handling, whole-book invalidation on gaps/crossed/empty books, warm-up gate, hourly UTC
+  Parquet/Zstd, append-only daily manifests, Ed25519 remote receipts, verified-only retention and
+  deterministic archive replay.
+- M2 strategy: exact Decimal Type-7 Top-10 ranking, two-confirmation/60-minute/5.00 hysteresis,
+  managed positions, closed-bar PA primitives, normal-quantity-only Order Flow, PA/OF conflict
+  rejection, 1000ms signals, all-in net-edge evaluation and a shared live/replay strategy core.
+- M3 risk/execution: multiplier-aware hard limits, floor-to-step sizing, STANDARD/ALGO namespaces,
+  append-only order projection, exact Algo status mapping, response classification, 5-second UNKNOWN
+  reconciliation, conservative fills, 1000ms protection monitoring and restart reconciliation.
+- M4 operations: bounded FastAPI control surface, session-context binding, idempotent commands,
+  one-use emergency-flatten challenge, outbound-only redacted notifications, Prometheus exposition,
+  alert/runbook mapping, checksummed backup manifests and append-only operational migrations.
+- Later-stage offline orchestration: fresh-context AI/rule authority and three-dry-run recovery,
+  immutable continuous validation gates, 90-day research thresholds, FIFO/single-concurrency monthly
+  iteration and quota deferral.
+- Business database head is `0004_operations`; host-control head remains
+  `0010_local_measurements`. Both trees pass `upgrade -> downgrade base -> upgrade` in disposable
+  PostgreSQL/TimescaleDB containers.
 
-Detailed evidence: `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`.
+## Verified results
 
-## M0 work still required
+- Full CI: 174 unit, 8 property, 2 contract and 16 security tests pass.
+- Additional suites: 3 replay, 18 integration, 6 fault-injection and 1 resource-profile test pass.
+- Ruff, strict mypy (84 source files), Bandit, secret scan, all 42 contract schemas/39 examples,
+  14 config examples, provenance, Compose and Debian deployment validators pass.
+- Runtime dependency audit covers 45 packages and reports zero known vulnerabilities. A reproducible
+  CycloneDX SBOM and audit JSON are under `evidence/build/current/`.
+- Debian verifier passes on Debian 12 Bookworm, aarch64, 2 vCPU, approximately 12 GiB RAM and OCI.
+- Container runtime test returns `RISK_LOCKED`, `new_egress_allowed=false`, `network=none`.
+- `make paper-flow` deterministically produces a BTCUSDT Paper signal, approves quantity `1.9`,
+  fills it conservatively, confirms full native protection, performs zero external requests and
+  leaves runtime state `RISK_LOCKED`.
 
-1. Provision the `aiq_rate_authority` LOGIN/password out of band, real signed runtime
-   catalog/trust/policy/window inputs, and prove the executable rate service startup on the
-   authorized Debian 12 deployment target; until then Compose stays locked and receives no database
-   credential.
-2. Implement and independently review the production exact-wire transport and gateway service only
-   after startup evidence and destination policy exist. Multi-role endpoints remain denied because
-   the frozen request contract does not provide a unique gateway-side causal derivation rule.
-3. Provision the implemented six-source systemd cycle with real signed connection profiles,
-   network policy, bootstrap traces and UDS services, then prove collector/issuer lifecycle on the
-   qualified deployment target. The staged units are not installed or enabled and the locked
-   Compose services cannot yet supply real probes.
-4. Resolve real destination addresses, independently review and apply the generated nftables table,
-   then prove exactly one Binance socket owner and zero business Binance routes. The renderer and
-   `nft --check` pass, but no host rule was applied and documentation-only addresses are not proof.
-5. A different actor in fresh context must independently review and issue a valid
-   `CodexReviewReport` with zero open P0/P1 before M0 acceptance.
-6. Complete the owner-gated activation of the implemented Debian bootstrap bundle. The exact lock,
-   hardening set, controlled `quantctl` and audited plan/apply/prove/verify flow now exist. Before
-   apply, the owner must create a current off-host backup bound to the then-current committed HEAD,
-   provide only the two
-   public keys described in `docs/deployment/debian-bootstrap.md`, sign the exact generated plan
-   off-host and prove a second `aiqops` SSH session. SSH is detected as port 22 and the owner-confirmed
-   fixed client source is `171.221.123.164/32`; neither firewall nor SSH policy has been changed.
+## Not yet claimable
 
-## Current blockers
+The following require external facts, elapsed observation windows, credentials or human signatures
+and were deliberately not fabricated:
 
-| ID | Scope | Blocker | Required resolution |
-|---|---|---|---|
-| BLK-001 | M5 Testnet and later validation | Official Testnet WS base is `wss://demo-fstream.binance.com`; frozen schemas require routed `fstream.binancefuture.com` hosts | Owner-approved baseline amendment or current primary-source/account evidence |
-| BLK-002 | M2 Codex execution, M9 | Exact `gpt-5.6` absent from current authenticated Codex catalog; substitution prohibited | Wait for catalog availability or explicit baseline change |
-| BLK-004 | Deployment/M6+ | Generic 24-hour static-IP/clock/DNS/gateway collection is running, but not yet complete; actual approved Binance RTT, independent backtest, remote storage, restore, heartbeat, credential-isolation and signature evidence remain absent | Let the current baseline complete, then complete the remaining deployment preflight after destination approval; no secrets requested now |
-| BLK-005 | M0 acceptance and every later milestone | Independent fresh-context reviewer absent | Perform independent review after the remaining M0 implementation |
-| BLK-006 | M0 host bootstrap activation | Bundle implementation and static verification pass; current off-host backup evidence, owner approval public key, operator SSH public key, signed plan and second-session proof are absent | Supply the documented public inputs, sign the plan off-host, then perform two-stage apply/verify |
+1. Actual Binance destination/network qualification, current API capability probes and the frozen
+   Testnet hostname conflict resolution.
+2. Real Testnet order integration, live User Data Stream, account-mode and exchange reconciliation.
+3. A continuous qualified three-day L2 calibration dataset, signed parameter candidate and C0
+   freeze.
+4. Continuous 72-hour Shadow/Testnet validation, first-live 24-hour evidence and 87-day forward OOS
+   results.
+5. Owner signatures, production/Testnet/archive/notification credentials, remote object storage,
+   off-host restore evidence and an independent fresh-context acceptance review.
+6. Production activation. It remains unauthorized and locked.
 
-Resolved baseline item: `BLK-003` is closed by owner-approved ADR 0004. Debian 12 is now the sole
-supported platform; OS matching alone does not satisfy deployment qualification.
+These are validation/deployment inputs, not hidden unfinished offline implementation. The software
+will continue to reject new real orders until the corresponding gates are supplied and passed.
 
-## M0–M9 plan
-
-| Milestone | Status |
-|---|---|
-| M0 repository/contracts/config/migrations/audit/host control/gateway | IN PROGRESS; offline rate/gateway/attestation/collector boundaries implemented, deployment sources/network/review outstanding |
-| M1 market data/order book/quality/archive/replay | NOT STARTED; M0 acceptance required |
-| M2 PA/OF/Top10/cost/Codex orchestration/unified backtest | NOT STARTED; Codex portion blocked by model catalog |
-| M3 risk/order state/user stream/native protection/reconciliation | NOT STARTED |
-| M4 local control/notifications/monitoring/backup/archive/heartbeat | NOT STARTED |
-| M5 complete validation | NOT STARTED; Testnet portion blocked by endpoint conflict |
-| M6 three-day calibration/candidates only | BLOCKED by earlier milestones and deployment gates |
-| M7 fresh validation/C0 freeze/72-hour dual validation | BLOCKED |
-| M8 signed experimental live/forward/90-day decision | BLOCKED |
-| M9 monthly selection/review/canary/promotion/rollback | BLOCKED |
-
-## Credentials and deployment state
-
-No Binance, OpenAI, Telegram, database, archive, heartbeat or signing production credential has
-been requested or injected. Only ephemeral random database passwords were created for disposable
-local migration tests and removed by cleanup traps. No exchange API connection, account probe,
-order, Testnet runtime, shadow runtime, deployment or live action has occurred.
-
-Deployment authorization: `NOT_AUTHORIZED`. Runtime default: `RISK_LOCKED`.
-
-## Next exact command
+## Reproduce
 
 ```bash
-cd /root/quantify/ai-quant-system && make validate-debian-platform validate-deployment validate-nftables-policy && make ci && make test-migrations && make test-locked-runtime
+cd /root/quantify/ai-quant-system
+make ci test-replay test-integration test-fault test-resource
+make test-migrations test-locked-runtime paper-flow
+make sbom scan
 ```
-
-After this baseline re-verifies, continue M0 with deployment-safe attestation issuance and host
-network enforcement evidence. Do not start M1 or enable a transport.

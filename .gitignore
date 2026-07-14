@@ -8,6 +8,8 @@ __pycache__/
 htmlcov/
 dist/
 build/
+!evidence/build/
+!evidence/build/**
 *.egg-info/
 .env
 .env.*
@@ -15,4 +17,3 @@ build/
 secrets/
 artifacts/**
 !artifacts/.gitkeep
-

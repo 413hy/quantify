@@ -69,6 +69,28 @@ docker exec "${RUN_ID}-host-postgres-1" psql -U aiq_host_control_test \
   | grep -qx '0010_local_measurements:0:0:0:0'
 docker exec "${RUN_ID}-business-postgres-1" psql -U aiq_business_test -d aiq_business_test -Atc \
   "SELECT extversion FROM pg_extension WHERE extname='timescaledb'" | grep -Eq '^2\.'
+docker exec "${RUN_ID}-business-postgres-1" psql -U aiq_business_test -d aiq_business_test -Atc \
+  "SELECT count(*) FROM information_schema.tables
+    WHERE table_schema='market'
+      AND table_name IN (
+        'raw_archive_objects','remote_archive_receipts','data_manifests',
+        'data_quality_intervals'
+      )" | grep -qx '4'
+docker exec "${RUN_ID}-business-postgres-1" psql -U aiq_business_test -d aiq_business_test -Atc \
+  "SELECT count(*) FROM information_schema.tables
+    WHERE table_schema='trading'
+      AND table_name IN (
+        'risk_decisions','risk_reservation_events','order_intents','account_snapshots',
+        'position_snapshots','protection_observations'
+      )" | grep -qx '6'
+docker exec "${RUN_ID}-business-postgres-1" psql -U aiq_business_test -d aiq_business_test -Atc \
+  "SELECT count(*) FROM information_schema.tables
+    WHERE table_schema='control'
+      AND table_name IN (
+        'command_requests','command_events','flatten_challenges',
+        'flatten_challenge_consumptions','incident_events','notification_deliveries',
+        'backup_manifests'
+      )" | grep -qx '7'
 docker exec "${RUN_ID}-redis-1" redis-cli ping | grep -qx PONG
 
 printf 'database invariants PASS\n'

@@ -6,9 +6,11 @@ UV := uv
 	validate-docs validate-endpoint-catalog validate-binance-connection-contract \
 	validate-capability-trust-bundle validate-mandatory-endpoint-inventory \
 	test-rate-budget-contract test-binance-gateway-contract test-host-rate-startup-evidence \
-	test-migrations test-locked-runtime test-unit test-property test-contract test-security security-scan \
+	test-migrations test-locked-runtime test-unit test-property test-contract test-security test-replay \
+	test-integration test-fault test-resource test-auto-iteration test-model-selection \
+	test-quota-deferral-fifo security-scan sbom scan \
 	compose-check validate-platform-amendment validate-debian-platform validate-deployment \
-	validate-nftables-policy build ci
+	validate-nftables-policy paper-flow build ci
 
 help:
 	@sed -n 's/^\([a-zA-Z0-9_-]*\):.*$$/\1/p' Makefile | sort
@@ -82,9 +84,47 @@ test-security:
 test-property:
 	$(UV) run pytest -q tests/property
 
+test-replay:
+	$(UV) run pytest -q tests/replay
+
+test-integration:
+	$(UV) run pytest -q tests/integration
+
+test-fault:
+	$(UV) run pytest -q tests/fault
+
+test-resource:
+	$(UV) run pytest -q tests/resource
+
+test-auto-iteration:
+	$(UV) run pytest -q tests/unit/test_iteration_queue.py
+
+test-model-selection:
+	$(UV) run pytest -q tests/integration/test_ai_rule_authority.py
+
+test-quota-deferral-fifo:
+	$(UV) run pytest -q tests/unit/test_iteration_queue.py -k quota
+
+paper-flow:
+	rm -rf /tmp/aiq-paper-flow
+	$(UV) run python scripts/run-paper-flow.py --workdir /tmp/aiq-paper-flow
+
 security-scan:
 	$(UV) run bandit -q -r src
 	$(UV) run python scripts/validate/secret_scan.py
+
+sbom:
+	mkdir -p evidence/build/current
+	$(UV) run cyclonedx-py environment .venv/bin/python --pyproject pyproject.toml \
+		--output-reproducible --of JSON -o evidence/build/current/python-sbom.cdx.json
+
+scan:
+	mkdir -p evidence/build/current
+	$(UV) export --frozen --no-dev --no-emit-project --no-hashes \
+		--format requirements-txt --output-file evidence/build/current/runtime-requirements.txt
+	$(UV) run pip-audit --requirement evidence/build/current/runtime-requirements.txt \
+		--no-deps --strict --progress-spinner off \
+		--format json --output evidence/build/current/pip-audit.json
 
 compose-check:
 	$(UV) run python scripts/validate/compose.py
