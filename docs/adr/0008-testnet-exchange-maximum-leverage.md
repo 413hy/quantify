@@ -1,6 +1,6 @@
 # ADR 0008: 隔离的 Testnet 交易所最大杠杆实验
 
-- 状态：Accepted
+- 状态：Superseded by ADR 0009
 - 日期：2026-07-15
 - 范围：Binance USDⓈ-M Futures Testnet experiment only
 
@@ -12,7 +12,7 @@ Testnet 模型。原项目风险契约和普通杠杆修改接口固定拒绝 10
 
 ## 决策
 
-新增只属于精确 Testnet 客户端的实验杠杆方法。结构实验执行器在每次入场前读取该币种
+本 ADR 当时新增只属于精确 Testnet 客户端的实验杠杆方法。结构实验执行器在每次入场前读取该币种
 `leverageBracket`，选择当前返回的最高 `initialLeverage`，上限 125 倍；单笔保证金仍不
 超过 1 USDT。普通 `change_initial_leverage`、生产风险模型、能力探针和所有生产准入仍
 保持 10 倍硬上限。

@@ -21,8 +21,9 @@ SOLUSDT、BNBUSDT、XRPUSDT、DOGEUSDT 和 ADAUSDT 的闭合 1 分钟/5 分钟 K
 - 退出只依赖 Binance 原生 `STOP_MARKET`、`TAKE_PROFIT_MARKET`，或操作员停止服务时的
   reduce-only 平仓。没有按持仓秒数到期平仓。
 
-高杠杆只存在于精确 Testnet 客户端的独立实验方法中。生产风险模型、能力探针和普通杠杆
-修改接口继续执行 10 倍硬上限；这一例外不能解锁或传播到生产环境。
+杠杆策略为 `EXCHANGE_MAXIMUM`：Testnet 和未来生产都不再施加项目自定义倍数上限，每次
+必须读取当前币种、账户及名义仓位对应的 Binance bracket。生产环境的校准、签名和
+`RISK_LOCKED` 准入门槛仍独立存在，杠杆规则变更本身不会启用真钱交易。
 
 信号实验不再受“历史费用后收益必须为正”这一生产准入条件阻断。严格 PA/OF 基线的
 `entry_verdict=REJECT` 仍保留在观察证据中，用于区分生产准入结论和 owner 明确授权的

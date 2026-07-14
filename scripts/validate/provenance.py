@@ -9,10 +9,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = Path("/root/quantify/reference-materials/vps-archive/vps")
 SCOPES = ("contracts", "config", "runbooks", "diagrams")
-OWNER_AMENDMENT = Path("docs/adr/0006-remove-time-based-position-exit.md")
+OWNER_AMENDMENTS = (
+    Path("docs/adr/0006-remove-time-based-position-exit.md"),
+    Path("docs/adr/0009-exchange-maximum-leverage-all-environments.md"),
+)
 OWNER_AMENDED_FILES = {
+    Path("config/binance-mandatory-endpoint-inventory.example.json"),
+    Path("config/binance-mandatory-endpoint-inventory.schema.json"),
     Path("config/price-action.example.yaml"),
     Path("config/price-action.schema.json"),
+    Path("config/risk.example.yaml"),
+    Path("config/risk.schema.json"),
+    Path("contracts/domain-events.schema.json"),
     Path("contracts/examples/trade-plan-entry.json"),
     Path("contracts/trade-plan.schema.json"),
 }
@@ -26,8 +34,9 @@ def main() -> int:
     failures: list[str] = []
     count = 0
     amended = 0
-    if not (ROOT / OWNER_AMENDMENT).is_file():
-        failures.append(f"owner amendment missing: {OWNER_AMENDMENT}")
+    for owner_amendment in OWNER_AMENDMENTS:
+        if not (ROOT / owner_amendment).is_file():
+            failures.append(f"owner amendment missing: {owner_amendment}")
     for scope in SCOPES:
         source_files = {
             p.relative_to(SOURCE / scope) for p in (SOURCE / scope).rglob("*") if p.is_file()

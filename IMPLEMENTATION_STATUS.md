@@ -31,9 +31,11 @@ calibration, 72-hour, or live authorization evidence. No production exchange ord
 - The runtime `SHRUNK_MARKOUT_CELL_MEAN_V1` lookup now uses the frozen parent order, signed Decimal
   means, minimum observation thresholds and deterministic shrinkage. Missing exact and parent
   support returns `NET_EDGE_EVIDENCE_INCOMPLETE`; it never invents zero edge.
-- Risk hard caps are validated inside Python as well as Schema. A direct 100x/125x caller is rejected,
-  and a per-order margin budget is converted to a floor-quantized quantity ceiling. The current
-  requested operating ceiling is 1 USDT of margin and remains subordinate to all risk/edge gates.
+- Monetary and position-count hard caps are validated inside Python as well as Schema. Leverage is
+  not a project hard cap: callers must supply the current exchange-selected value within Binance's
+  protocol range, while the per-order margin budget is converted to a floor-quantized quantity
+  ceiling. The current requested operating ceiling is 1 USDT of margin and remains subordinate to
+  all risk/edge gates.
 - The earlier bounded Testnet micro-position and parallel pressure runners have been removed under
   ADR 0006 because they used elapsed time as an exit. Their historical evidence remains auditable,
   but no current command can open a position through that non-strategy path.
@@ -104,8 +106,9 @@ calibration, 72-hour, or live authorization evidence. No production exchange ord
   order and finished with zero regular orders, zero Algo orders and zero position. Neither flow
   contacted a production endpoint. Evidence is in
   `/var/lib/ai-quant/evidence/testnet/current/{order-lifecycle,native-protection}.json`.
-- The Testnet risk-profile probe queried the current account fee and leverage-bracket facts, then set
-  BTCUSDT to the project hard cap of 10x (exchange-reported maximum 125x). It created no matching
+- The historical Testnet risk-profile probe queried the current account fee and leverage-bracket facts, then set
+  BTCUSDT to the former project cap of 10x (exchange-reported maximum 125x). ADR 0009 now supersedes
+  that cap with dynamic `EXCHANGE_MAXIMUM`. The historical probe created no matching
   order and ended flat. A subsequent minimum-fill cycle confirmed both native Algo orders: stop in
   387ms and take-profit in 626ms, then reduce-only flattened and reconciled zero ordinary orders,
   zero Algo orders and zero position. Evidence is under
@@ -124,13 +127,17 @@ calibration, 72-hour, or live authorization evidence. No production exchange ord
   Chinese per-trade and aggregate Telegram notifications passed. Evidence is under
   `/var/lib/ai-quant/evidence/testnet/parallel/20260714-sample-01/`.
 - `aiq-testnet-campaign.service` is enabled for a three-day, owner-authorized Testnet experiment.
-  It can hold up to three different symbols in parallel, each within 1 USDT margin at the project
-  isolated Testnet-only exchange-maximum initial leverage while keeping margin near 1 USDT. The
-  ordinary client and production risk model retain the 10x cap. Estimated stop, fees and slippage
+  It can hold up to three different symbols in parallel, each using the exchange-maximum initial
+  leverage while keeping margin near 1 USDT. ADR 0009 applies the same
+  dynamic exchange-maximum policy to future production. Estimated stop, fees and slippage
   remain within 0.35 USDT per trade, with native protection and no elapsed-time exit.
   Results remain unvalidated and do not unlock production trading.
   State and append-only observations are under
   `/var/lib/ai-quant/evidence/testnet/campaign/current/`.
+- The shared risk configuration no longer represents leverage as a project hard/configured cap.
+  TradePlan requires `EXCHANGE_MAXIMUM`, the selected initial leverage, bracket hash/observation
+  time and a freshness limit. The mandatory Production/Testnet endpoint inventory includes both
+  leverage-bracket query and initial-leverage change.
 - A real external archive roundtrip to the isolated receiver passed. The sender encrypted an exact
   L2 Parquet object with age/X25519; the remote endpoint recomputed its ciphertext hash, decrypted
   it, matched the plaintext hash, opened 21 Parquet columns, matched one row and schema `1.0.0`, and

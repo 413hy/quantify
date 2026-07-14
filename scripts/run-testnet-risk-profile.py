@@ -34,7 +34,6 @@ def main() -> int:
     parser.add_argument("--repository-root", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--symbol", default="BTCUSDT")
-    parser.add_argument("--project-leverage-cap", type=int, default=10)
     args = parser.parse_args()
     try:
         evidence = run_testnet_risk_profile(
@@ -42,7 +41,6 @@ def main() -> int:
             api_secret_file=args.api_secret_file,
             repository_root=args.repository_root,
             symbol=args.symbol,
-            project_leverage_cap=args.project_leverage_cap,
         )
     except TestnetProbeError as exc:
         _write_evidence(

@@ -280,7 +280,9 @@ def test_native_protection_fills_protects_flattens_and_cleans_algo(tmp_path: Pat
     assert evidence["final_position_quantity"] == "0"
 
 
-def test_risk_profile_selects_project_cap_and_records_current_costs(tmp_path: Path) -> None:
+def test_risk_profile_selects_exchange_maximum_and_records_current_costs(
+    tmp_path: Path,
+) -> None:
     key = tmp_path / "key"
     secret = tmp_path / "secret"
     key.write_text("test-key", encoding="ascii")
@@ -344,10 +346,10 @@ def test_risk_profile_selects_project_cap_and_records_current_costs(tmp_path: Pa
         transport=transport,
     )
 
-    assert changed_to == 10
+    assert changed_to == 125
     assert evidence["exchange_maximum_initial_leverage"] == 125
-    assert evidence["project_leverage_cap"] == 10
-    assert evidence["selected_initial_leverage"] == 10
+    assert evidence["leverage_policy"] == "EXCHANGE_MAXIMUM"
+    assert evidence["selected_initial_leverage"] == 125
     assert evidence["maker_commission_rate"] == "0.0002"
     assert evidence["taker_commission_rate"] == "0.0004"
     assert evidence["matching_engine_orders_created"] == 0

@@ -63,7 +63,7 @@
     "max200Decimal": { "type": "string", "pattern": "^(0|[01](?:\\.[0-9]{1,18})?|2(?:\\.0{1,18})?)$" },
     "max400Decimal": { "type": "string", "pattern": "^(0|[0-3](?:\\.[0-9]{1,18})?|4(?:\\.0{1,18})?)$" },
     "max500Decimal": { "type": "string", "pattern": "^(0|[0-4](?:\\.[0-9]{1,18})?|5(?:\\.0{1,18})?)$" },
-    "max1000Decimal": { "type": "string", "pattern": "^(0|[0-9](?:\\.[0-9]{1,18})?|10(?:\\.0{1,18})?)$" },
+    "exchangeLeverageDecimal": { "type": "string", "pattern": "^(0|(?:[0-9]|[1-9][0-9]|1[01][0-9]|12[0-5])(?:\\.[0-9]{1,18})?)$" },
     "reasonCodes": {
       "type": "array",
       "minItems": 0,
@@ -606,7 +606,7 @@
     "riskPayload": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["risk_decision_id", "decision_kind", "entry_mode", "signal_id", "position_id", "incident_id", "operator_command_id", "account_projection_version", "risk_config_hash", "edge_evaluation", "verdict", "requested_quantity", "approved_quantity", "risk_multiplier", "initial_stop_risk_pct", "total_open_risk_pct", "cluster_risk_pct", "daily_net_loss_pct", "intraday_drawdown_pct", "effective_leverage", "concurrent_positions", "primary_reason", "reason_codes"],
+      "required": ["risk_decision_id", "decision_kind", "entry_mode", "signal_id", "position_id", "incident_id", "operator_command_id", "account_projection_version", "risk_config_hash", "edge_evaluation", "verdict", "requested_quantity", "approved_quantity", "risk_multiplier", "initial_stop_risk_pct", "total_open_risk_pct", "cluster_risk_pct", "daily_net_loss_pct", "intraday_drawdown_pct", "leverage_policy", "effective_leverage", "concurrent_positions", "primary_reason", "reason_codes"],
       "properties": {
         "risk_decision_id": { "$ref": "#/$defs/id" },
         "decision_kind": { "enum": ["ENTRY", "STRATEGY_EXIT", "PROTECTIVE_EXIT", "RISK_EXIT", "OPERATOR_FLATTEN", "RECONCILIATION_REPAIR"] },
@@ -627,6 +627,7 @@
         "cluster_risk_pct": { "$ref": "#/$defs/nonNegativeDecimal" },
         "daily_net_loss_pct": { "$ref": "#/$defs/nonNegativeDecimal" },
         "intraday_drawdown_pct": { "$ref": "#/$defs/nonNegativeDecimal" },
+        "leverage_policy": { "const": "EXCHANGE_MAXIMUM" },
         "effective_leverage": { "$ref": "#/$defs/nonNegativeDecimal" },
         "concurrent_positions": { "type": "integer", "minimum": 0 },
         "primary_reason": { "$ref": "#/$defs/reasonCodes/items" },
@@ -673,7 +674,7 @@
               "cluster_risk_pct": { "$ref": "#/$defs/max100Decimal" },
               "daily_net_loss_pct": { "$ref": "#/$defs/max400Decimal" },
               "intraday_drawdown_pct": { "$ref": "#/$defs/max500Decimal" },
-              "effective_leverage": { "$ref": "#/$defs/max1000Decimal" },
+              "effective_leverage": { "$ref": "#/$defs/exchangeLeverageDecimal" },
               "concurrent_positions": { "type": "integer", "maximum": 10 },
               "edge_evaluation": { "type": "object", "properties": { "verdict": { "const": "PASS" }, "reason_code": { "const": "NET_EDGE_SUFFICIENT" } } },
               "primary_reason": { "const": "RISK_APPROVED" },
@@ -690,7 +691,7 @@
               "cluster_risk_pct": { "$ref": "#/$defs/max010Decimal" },
               "daily_net_loss_pct": { "$ref": "#/$defs/max040Decimal" },
               "intraday_drawdown_pct": { "$ref": "#/$defs/max050Decimal" },
-              "effective_leverage": { "$ref": "#/$defs/max100Decimal" }
+              "effective_leverage": { "$ref": "#/$defs/exchangeLeverageDecimal" }
             }
           }
         },

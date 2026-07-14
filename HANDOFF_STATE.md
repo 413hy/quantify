@@ -1,6 +1,6 @@
 # Handoff state
 
-Updated: `2026-07-14T15:14:06Z`
+Updated: `2026-07-14T16:29:53Z`
 
 Resume in `/root/quantify/ai-quant-system`. Debian 12 Bookworm/aarch64 is the sole supported host.
 Do not modify `/root/quantify/reference-materials`; the copied contract/config provenance validator
@@ -18,9 +18,12 @@ The complete offline Paper trading path is implemented across these packages:
 - `demo.paper_flow`
 
 The latest review added deterministic existing-position exits, native stop/take-profit pair
-planning, the frozen hierarchical gross-edge runtime lookup, a 1 USDT margin quantity ceiling and
-Python-level enforcement of the immutable 10x leverage cap. The Testnet BTCUSDT risk profile is set
-to 10x; this is the maximum allowed by this project, not the exchange-reported 125x maximum.
+planning, the frozen hierarchical gross-edge runtime lookup and a 1 USDT margin quantity ceiling.
+Owner amendment ADR 0009 removes the erroneous project 10x limit in every environment: leverage is
+now `EXCHANGE_MAXIMUM`, dynamically bound to the current Binance account/symbol/notional bracket.
+The shared risk configuration has no leverage member in `hard_caps` or `configured_limits`;
+TradePlan requires the selected exchange maximum plus bracket hash/time freshness evidence, and the
+mandatory Production/Testnet endpoint inventory includes both bracket query and leverage change.
 
 The historical SOLUSDT protocol sample used 0.92460000 USDT margin at 10x and ended at
 -0.01099535 USDT net after commission, with zero remaining orders or position. Owner-approved ADR
@@ -30,9 +33,9 @@ is retained only as historical lifecycle evidence.
 The Testnet-only `aiq-testnet-campaign.service` is enabled as an owner-authorized experimental
 execution process. It evaluates SOLUSDT, BNBUSDT, XRPUSDT, DOGEUSDT and ADAUSDT every ten seconds,
 can hold three different symbols in parallel and uses about 1 USDT margin with the symbol's current
-Testnet maximum initial leverage (isolated from the production 10x cap), a 0.35 USDT estimated loss
-budget, and
-installs native structural stop/target protection without an elapsed-time exit. Strict baseline
+Testnet maximum initial leverage (the same policy specified for future production), a 0.35 USDT
+estimated loss budget, and installs native structural stop/target protection without an elapsed-time
+exit. Strict baseline
 production rejection remains recorded separately; experiment results are unvalidated. State is
 `/var/lib/ai-quant/evidence/testnet/campaign/current/state.json`; see `docs/testnet-campaign.md`.
 Telegram messages are structured Chinese text.

@@ -9,9 +9,19 @@ from hypothesis import strategies as st
 from ai_quant.risk.sizing import (
     ConfiguredRiskLimits,
     RiskSizingInput,
+    effective_limits,
     maximum_quantity_for_margin_budget,
     size_entry,
 )
+
+
+def test_risk_multiplier_does_not_reduce_exchange_selected_leverage() -> None:
+    limits = effective_limits(
+        ConfiguredRiskLimits(effective_leverage=Decimal("75")), Decimal("0.10")
+    )
+
+    assert limits.effective_leverage == Decimal("75")
+    assert limits.per_trade_initial_stop_pct == Decimal("0.0005")
 
 
 @given(
@@ -49,7 +59,7 @@ def test_approved_quantity_never_exceeds_any_risk_budget(
         assert decision.quantity % request.step_size == 0
         assert (
             decision.quantity * request.entry_assumption
-            <= request.equity * Decimal(10) * multiplier
+            <= request.equity * Decimal(125)
         )
 
 
@@ -87,8 +97,6 @@ def test_risk_multiplier_scales_money_limits_but_not_position_count() -> None:
         {"correlation_cluster_risk_pct": Decimal("0.0101")},
         {"utc_daily_net_loss_pct": Decimal("0.0401")},
         {"intraday_equity_drawdown_pct": Decimal("0.0501")},
-        {"effective_leverage": Decimal("10.01")},
-        {"effective_leverage": Decimal("100")},
         {"concurrent_positions": 11},
     ],
 )
@@ -97,20 +105,26 @@ def test_python_callers_cannot_bypass_immutable_risk_caps(changes: dict[str, obj
         ConfiguredRiskLimits(**changes)  # type: ignore[arg-type]
 
 
+@pytest.mark.parametrize("leverage", [Decimal("0"), Decimal("125.01"), Decimal("1000")])
+def test_exchange_selected_leverage_must_fit_protocol_range(leverage: Decimal) -> None:
+    with pytest.raises(ValueError, match="protocol range"):
+        ConfiguredRiskLimits(effective_leverage=leverage)
+
+
 def test_one_usdt_margin_budget_is_a_ceiling_and_never_rounds_up() -> None:
     quantity = maximum_quantity_for_margin_budget(
         margin_budget=Decimal("1"),
-        initial_leverage=Decimal("10"),
+        initial_leverage=Decimal("125"),
         entry_price=Decimal("103"),
         step_size=Decimal("0.001"),
     )
-    assert quantity == Decimal("0.097")
-    assert quantity * Decimal("103") <= Decimal("10")
+    assert quantity == Decimal("1.213")
+    assert quantity * Decimal("103") <= Decimal("125")
 
-    with pytest.raises(ValueError, match="hard cap"):
+    with pytest.raises(ValueError, match="protocol range"):
         maximum_quantity_for_margin_budget(
             margin_budget=Decimal("1"),
-            initial_leverage=Decimal("125"),
+            initial_leverage=Decimal("125.01"),
             entry_price=Decimal("103"),
             step_size=Decimal("0.001"),
         )

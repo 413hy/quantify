@@ -74,10 +74,13 @@
             { "type": "null" },
             {
               "type": "object", "additionalProperties": false,
-              "required": ["requested_initial_risk_pct", "leverage_cap", "correlation_cluster", "expected_gross_edge_bps", "expected_total_cost_bps", "expected_net_edge_bps"],
+              "required": ["requested_initial_risk_pct", "leverage_policy", "selected_initial_leverage", "leverage_bracket_hash", "leverage_bracket_observed_at", "correlation_cluster", "expected_gross_edge_bps", "expected_total_cost_bps", "expected_net_edge_bps"],
               "properties": {
                 "requested_initial_risk_pct": { "$ref": "#/$defs/maxRisk" },
-                "leverage_cap": { "type": "integer", "minimum": 1, "maximum": 10 },
+                "leverage_policy": { "const": "EXCHANGE_MAXIMUM" },
+                "selected_initial_leverage": { "type": "integer", "minimum": 1, "maximum": 125, "description": "Maximum currently returned for the account/symbol/notional bracket; 125 is only the Binance protocol boundary" },
+                "leverage_bracket_hash": { "$ref": "#/$defs/sha256" },
+                "leverage_bracket_observed_at": { "type": "string", "format": "date-time" },
                 "correlation_cluster": { "type": "string", "pattern": "^[A-Z0-9_:-]{2,64}$" },
                 "expected_gross_edge_bps": { "$ref": "#/$defs/decimal" },
                 "expected_total_cost_bps": { "$ref": "#/$defs/nonNegativeDecimal" },
@@ -91,9 +94,10 @@
             { "type": "null" },
             {
               "type": "object", "additionalProperties": false,
-              "required": ["max_context_age_ms", "max_price_drift_bps", "require_book_healthy", "require_symbol_active", "require_positive_net_edge"],
+              "required": ["max_context_age_ms", "max_leverage_bracket_age_ms", "max_price_drift_bps", "require_book_healthy", "require_symbol_active", "require_positive_net_edge"],
               "properties": {
                 "max_context_age_ms": { "type": "integer", "minimum": 1, "maximum": 60000 },
+                "max_leverage_bracket_age_ms": { "type": "integer", "minimum": 1, "maximum": 60000 },
                 "max_price_drift_bps": { "$ref": "#/$defs/nonNegativeDecimal" },
                 "require_book_healthy": { "const": true },
                 "require_symbol_active": { "const": true },

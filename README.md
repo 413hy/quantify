@@ -4,7 +4,7 @@ This is the isolated implementation repository for the AI quantitative trading s
 
 Current state: the offline Paper development path and core Binance Testnet protocol flow are
 implemented and verified. ADR 0005 endpoints, authenticated capability checks, actual
-place/query/cancel, bounded Testnet leverage configuration, native STOP_MARKET and
+place/query/cancel, exchange-maximum Testnet leverage configuration, native STOP_MARKET and
 TAKE_PROFIT_MARKET protection, reduce-only flatten and final zero-state reconciliation pass.
 Deterministic position-exit precedence and the frozen hierarchical gross-edge lookup are now
 implemented; missing calibration observations still reject entry. The external encrypted archive
@@ -15,7 +15,7 @@ fixed-duration runner has been removed under owner-approved ADR 0006; elapsed ti
 close a position. Calibration, Shadow and live gates remain pending.
 A three-day Testnet-only experimental campaign runs as `aiq-testnet-campaign.service`; it observes
 five symbols and can hold up to three Testnet positions in parallel with about 1 USDT margin and an
-isolated Testnet-only exchange-maximum-leverage experiment, native
+exchange-maximum-leverage policy (also specified for future production), native
 structural stop/target protection and no elapsed-time exit. It is explicitly unvalidated and does
 not change the production `RISK_LOCKED` gate.
 A separate three-symbol parallel Testnet execution stress sample

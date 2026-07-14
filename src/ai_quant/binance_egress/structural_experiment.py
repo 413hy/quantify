@@ -136,7 +136,7 @@ def run_structural_experiment(
         raise TestnetProbeError("TESTNET_SYMBOL_NOT_CLEAN")
 
     leverage = exchange_maximum_initial_leverage(client.leverage_brackets(symbol), symbol)
-    changed = client.change_testnet_experiment_leverage(symbol, leverage)
+    changed = client.change_initial_leverage(symbol, leverage)
     if changed.get("symbol") != symbol or changed.get("leverage") != leverage:
         raise TestnetProbeError("CHANGE_INITIAL_LEVERAGE_RESPONSE_MISMATCH")
     exchange_info = client.exchange_info()
@@ -268,7 +268,7 @@ def run_structural_experiment(
         "symbol": symbol,
         "direction": plan.direction,
         "initial_leverage": leverage,
-        "leverage_policy": "EXCHANGE_MAXIMUM_TESTNET_ONLY",
+        "leverage_policy": "EXCHANGE_MAXIMUM",
         "margin_budget": format(margin_budget, "f"),
         "effective_margin_budget": format(effective_margin_budget, "f"),
         "maximum_net_loss_budget": format(maximum_net_loss, "f"),

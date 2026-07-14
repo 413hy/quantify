@@ -4,12 +4,24 @@
   "title": "Risk Configuration",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "config_status", "currency", "risk_multiplier", "hard_caps", "configured_limits", "loss_streak", "initial_live", "position_sizing", "native_protection", "kill_switch"],
+  "required": ["schema_version", "config_status", "currency", "risk_multiplier", "leverage_policy", "hard_caps", "configured_limits", "loss_streak", "initial_live", "position_sizing", "native_protection", "kill_switch"],
   "properties": {
     "schema_version": { "const": "1.0.0" },
     "config_status": { "enum": ["APPROVED_BASELINE", "SIGNED_OVERRIDE"] },
     "currency": { "const": "USDT" },
     "risk_multiplier": { "enum": ["0.10", "0.50", "1.00"] },
+    "leverage_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["selection", "project_cap_enabled", "protocol_parameter_maximum", "bracket_binding", "missing_or_stale_action"],
+      "properties": {
+        "selection": { "const": "EXCHANGE_MAXIMUM" },
+        "project_cap_enabled": { "const": false },
+        "protocol_parameter_maximum": { "const": "125.00", "description": "Binance USD-M API parameter boundary, not a project leverage cap" },
+        "bracket_binding": { "const": "LATEST_SYMBOL_ACCOUNT_NOTIONAL" },
+        "missing_or_stale_action": { "const": "REJECT_NEW_ENTRY" }
+      }
+    },
     "hard_caps": { "$ref": "#/$defs/hardCaps" },
     "configured_limits": { "$ref": "#/$defs/configuredLimits" },
     "loss_streak": {
@@ -91,28 +103,26 @@
     "hardCaps": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["per_trade_initial_stop_pct", "total_open_risk_pct", "correlation_cluster_risk_pct", "utc_daily_net_loss_pct", "intraday_equity_drawdown_pct", "effective_leverage", "concurrent_positions"],
+      "required": ["per_trade_initial_stop_pct", "total_open_risk_pct", "correlation_cluster_risk_pct", "utc_daily_net_loss_pct", "intraday_equity_drawdown_pct", "concurrent_positions"],
       "properties": {
         "per_trade_initial_stop_pct": { "const": "0.50" },
         "total_open_risk_pct": { "const": "2.00" },
         "correlation_cluster_risk_pct": { "const": "1.00" },
         "utc_daily_net_loss_pct": { "const": "4.00" },
         "intraday_equity_drawdown_pct": { "const": "5.00" },
-        "effective_leverage": { "const": "10.00" },
         "concurrent_positions": { "const": 10 }
       }
     },
     "configuredLimits": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["per_trade_initial_stop_pct", "total_open_risk_pct", "correlation_cluster_risk_pct", "utc_daily_net_loss_pct", "intraday_equity_drawdown_pct", "effective_leverage", "concurrent_positions"],
+      "required": ["per_trade_initial_stop_pct", "total_open_risk_pct", "correlation_cluster_risk_pct", "utc_daily_net_loss_pct", "intraday_equity_drawdown_pct", "concurrent_positions"],
       "properties": {
         "per_trade_initial_stop_pct": { "type": "string", "pattern": "^(0|0\\.[0-4][0-9]{0,3}|0\\.5(?:0{0,3})?)$", "x-quant-decimalMaximum": "0.50" },
         "total_open_risk_pct": { "type": "string", "pattern": "^(0|[01](?:\\.[0-9]{1,4})?|2(?:\\.0{1,4})?)$", "x-quant-decimalMaximum": "2.00" },
         "correlation_cluster_risk_pct": { "type": "string", "pattern": "^(0|0\\.[0-9]{1,4}|1(?:\\.0{1,4})?)$", "x-quant-decimalMaximum": "1.00" },
         "utc_daily_net_loss_pct": { "type": "string", "pattern": "^(0|[0-3](?:\\.[0-9]{1,4})?|4(?:\\.0{1,4})?)$", "x-quant-decimalMaximum": "4.00" },
         "intraday_equity_drawdown_pct": { "type": "string", "pattern": "^(0|[0-4](?:\\.[0-9]{1,4})?|5(?:\\.0{1,4})?)$", "x-quant-decimalMaximum": "5.00" },
-        "effective_leverage": { "type": "string", "pattern": "^(0|[0-9](?:\\.[0-9]{1,4})?|10(?:\\.0{1,4})?)$", "x-quant-decimalMaximum": "10.00" },
         "concurrent_positions": { "type": "integer", "minimum": 0, "maximum": 10 }
       }
     }

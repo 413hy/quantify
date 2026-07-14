@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import ROUND_FLOOR, Decimal
 
+BINANCE_USDM_LEVERAGE_PROTOCOL_MAXIMUM = Decimal("125")
+
 
 @dataclass(frozen=True, slots=True)
 class ConfiguredRiskLimits:
@@ -13,7 +15,7 @@ class ConfiguredRiskLimits:
     correlation_cluster_risk_pct: Decimal = Decimal("0.010")
     utc_daily_net_loss_pct: Decimal = Decimal("0.040")
     intraday_equity_drawdown_pct: Decimal = Decimal("0.050")
-    effective_leverage: Decimal = Decimal("10")
+    effective_leverage: Decimal = Decimal("125")
     concurrent_positions: int = 10
 
     def __post_init__(self) -> None:
@@ -23,10 +25,11 @@ class ConfiguredRiskLimits:
             (self.correlation_cluster_risk_pct, Decimal("0.010")),
             (self.utc_daily_net_loss_pct, Decimal("0.040")),
             (self.intraday_equity_drawdown_pct, Decimal("0.050")),
-            (self.effective_leverage, Decimal("10")),
         )
         if any(value < 0 or value > cap for value, cap in values_and_caps):
             raise ValueError("configured risk limit exceeds immutable hard cap")
+        if not 1 <= self.effective_leverage <= BINANCE_USDM_LEVERAGE_PROTOCOL_MAXIMUM:
+            raise ValueError("exchange-selected leverage exceeds Binance protocol range")
         if not 0 <= self.concurrent_positions <= 10:
             raise ValueError("configured position count exceeds immutable hard cap")
 
@@ -51,7 +54,9 @@ def effective_limits(configured: ConfiguredRiskLimits, multiplier: Decimal) -> E
         correlation_cluster_risk_pct=(configured.correlation_cluster_risk_pct * multiplier),
         utc_daily_net_loss_pct=configured.utc_daily_net_loss_pct * multiplier,
         intraday_equity_drawdown_pct=(configured.intraday_equity_drawdown_pct * multiplier),
-        effective_leverage=configured.effective_leverage * multiplier,
+        # Leverage follows the current exchange/account bracket. The risk
+        # multiplier scales loss budgets, not the exchange-selected initial leverage.
+        effective_leverage=configured.effective_leverage,
         concurrent_positions=configured.concurrent_positions,
     )
 
@@ -99,8 +104,8 @@ def maximum_quantity_for_margin_budget(
     """Convert a per-order margin ceiling to a floor-quantized quantity cap."""
     if margin_budget <= 0 or entry_price <= 0 or step_size <= 0:
         raise ValueError("margin sizing inputs must be positive")
-    if initial_leverage < 1 or initial_leverage > Decimal("10"):
-        raise ValueError("initial leverage exceeds immutable hard cap")
+    if not 1 <= initial_leverage <= BINANCE_USDM_LEVERAGE_PROTOCOL_MAXIMUM:
+        raise ValueError("initial leverage exceeds Binance protocol range")
     raw_quantity = margin_budget * initial_leverage / entry_price
     return (raw_quantity / step_size).to_integral_value(rounding=ROUND_FLOOR) * step_size
 

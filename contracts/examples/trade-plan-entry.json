@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "plan_hash": "302dfbe9b2b9e1ffad875efce60f20a13d79c2a3cb3369fe80adbe8f5d540f2a",
+  "plan_hash": "ef292060a7853a1ed63f47fef82e4a621c5e224e209012e7e00d13d6bc25c9fe",
   "content": {
     "plan_id": "018f53c0-1234-7abc-8def-123456789013",
     "analysis_cycle_id": "018f53c0-1234-7abc-8def-123456789014",
@@ -51,7 +51,10 @@
     },
     "risk_request": {
       "requested_initial_risk_pct": "0.5",
-      "leverage_cap": 10,
+      "leverage_policy": "EXCHANGE_MAXIMUM",
+      "selected_initial_leverage": 125,
+      "leverage_bracket_hash": "9999999999999999999999999999999999999999999999999999999999999999",
+      "leverage_bracket_observed_at": "2026-07-14T13:00:30Z",
       "correlation_cluster": "BTC_BETA",
       "expected_gross_edge_bps": "8.5",
       "expected_total_cost_bps": "2.5",
@@ -59,6 +62,7 @@
     },
     "market_revalidation": {
       "max_context_age_ms": 60000,
+      "max_leverage_bracket_age_ms": 60000,
       "max_price_drift_bps": "2",
       "require_book_healthy": true,
       "require_symbol_active": true,

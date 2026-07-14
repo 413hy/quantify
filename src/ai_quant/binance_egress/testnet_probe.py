@@ -287,8 +287,8 @@ class BinanceTestnetClient:
         )
 
     def change_initial_leverage(self, symbol: str, leverage: int) -> dict[str, Any]:
-        if not 1 <= leverage <= 10:
-            raise TestnetProbeError("PROJECT_LEVERAGE_CAP_EXCEEDED")
+        if not 1 <= leverage <= 125:
+            raise TestnetProbeError("EXCHANGE_LEVERAGE_RANGE_INVALID")
         return _json_object(
             self._call(
                 "POST",
@@ -297,22 +297,6 @@ class BinanceTestnetClient:
                 signed=True,
             ),
             "CHANGE_INITIAL_LEVERAGE",
-        )
-
-    def change_testnet_experiment_leverage(
-        self, symbol: str, leverage: int
-    ) -> dict[str, Any]:
-        """Set exchange-permitted leverage for the isolated Testnet experiment only."""
-        if not 1 <= leverage <= 125:
-            raise TestnetProbeError("TESTNET_EXPERIMENT_LEVERAGE_INVALID")
-        return _json_object(
-            self._call(
-                "POST",
-                "/fapi/v1/leverage",
-                params={"symbol": symbol, "leverage": leverage},
-                signed=True,
-            ),
-            "CHANGE_TESTNET_EXPERIMENT_LEVERAGE",
         )
 
     def open_orders(self, symbol: str) -> list[dict[str, Any]]:
@@ -759,12 +743,9 @@ def run_testnet_risk_profile(
     api_secret_file: Path,
     repository_root: Path,
     symbol: str = "BTCUSDT",
-    project_leverage_cap: int = 10,
     transport: Transport = _urllib_transport,
 ) -> dict[str, Any]:
-    """Read current fee/bracket facts and set the bounded Testnet leverage profile."""
-    if not 1 <= project_leverage_cap <= 10:
-        raise TestnetProbeError("PROJECT_LEVERAGE_CAP_EXCEEDED")
+    """Read current fee/bracket facts and select the exchange maximum leverage."""
     started_at = datetime.now(UTC)
     api_key = _credential(api_key_file, repository_root)
     api_secret = _credential(api_secret_file, repository_root)
@@ -790,7 +771,7 @@ def run_testnet_risk_profile(
         exchange_maximum = max(int(item["initialLeverage"]) for item in bracket_rows)
     except (KeyError, TypeError, ValueError) as exc:
         raise TestnetProbeError("LEVERAGE_BRACKET_INVALID_RESPONSE") from exc
-    selected_leverage = min(project_leverage_cap, exchange_maximum)
+    selected_leverage = exchange_maximum
     if selected_leverage < 1:
         raise TestnetProbeError("LEVERAGE_BRACKET_INVALID_RESPONSE")
 
@@ -834,7 +815,7 @@ def run_testnet_risk_profile(
         "matching_engine_orders_created": 0,
         "symbol": symbol,
         "exchange_maximum_initial_leverage": exchange_maximum,
-        "project_leverage_cap": project_leverage_cap,
+        "leverage_policy": "EXCHANGE_MAXIMUM",
         "selected_initial_leverage": selected_leverage,
         "max_notional_value": max_notional,
         "maker_commission_rate": format(maker_rate, "f"),
