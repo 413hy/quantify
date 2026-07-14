@@ -18,6 +18,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from ai_quant.binance_egress.local_facts import (
     LocalFactsExpectation,
     assemble_startup_content_from_local_facts,
+    load_local_facts_plan,
 )
 from ai_quant.binance_egress.startup import (
     StartupEvidenceExpectation,
@@ -35,6 +36,11 @@ from ai_quant.rate_budget.authorization import (
     canonical_digest,
     verify_runtime_trust_bundle,
 )
+from ai_quant.services import attestation as attestation_service
+from ai_quant.services.attestation import (
+    AttestationRuntimeArtifacts,
+    issue_and_publish_once,
+)
 from tests.unit.test_authorization import _signed_policy
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -44,10 +50,13 @@ NOW = datetime(2026, 7, 14, tzinfo=UTC)
 def _signed_ready(
     tmp_path: Path,
 ) -> tuple[dict[str, Any], RuntimeTrustBundle, Ed25519PrivateKey]:
-    del tmp_path
     signer = Ed25519PrivateKey.generate()
     bundle_document, keyring, keyring_hash, _ = _signed_policy(
         attestation_signer=signer
+    )
+    (tmp_path / "runtime-trust-bundle.json").write_text(
+        json.dumps(bundle_document),
+        encoding="utf-8",
     )
     bundle = verify_runtime_trust_bundle(
         bundle_document,
@@ -95,6 +104,7 @@ def _expectation(content: dict[str, Any]) -> StartupEvidenceExpectation:
 
 def test_local_facts_assembler_remeasures_files_boot_and_sockets(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     evidence, bundle, signer = _signed_ready(tmp_path)
     content = copy.deepcopy(evidence["content"])
@@ -106,10 +116,27 @@ def test_local_facts_assembler_remeasures_files_boot_and_sockets(
     release_root.mkdir()
     artifact_sources: dict[str, ArtifactBindingSource] = {}
     for name in content["artifact_binding"]:
-        path = artifact_root / name
-        path.write_bytes(f"artifact:{name}\n".encode())
-        content["artifact_binding"][name] = hashlib.sha256(path.read_bytes()).hexdigest()
-        artifact_sources[name] = ArtifactBindingSource(path, ArtifactHashMode.RAW_BYTES)
+        if name == "startup_evidence_schema_hash":
+            path = ROOT / "contracts/host-rate-startup-evidence.schema.json"
+            hash_mode = ArtifactHashMode.RAW_BYTES
+            observed_hash = hashlib.sha256(path.read_bytes()).hexdigest()
+        elif name in {"host_config_trust_root_hash", "trust_bundle_content_hash"}:
+            if name == "trust_bundle_content_hash":
+                path = tmp_path / "runtime-trust-bundle.json"
+                artifact_document = json.loads(path.read_text(encoding="utf-8"))
+            else:
+                path = artifact_root / f"{name}.json"
+                artifact_document = {"content": {"artifact": name}}
+                path.write_text(json.dumps(artifact_document), encoding="utf-8")
+            hash_mode = ArtifactHashMode.JCS_CONTENT
+            observed_hash = canonical_digest(artifact_document["content"]).hex()
+        else:
+            path = artifact_root / name
+            path.write_bytes(f"artifact:{name}\n".encode())
+            hash_mode = ArtifactHashMode.RAW_BYTES
+            observed_hash = hashlib.sha256(path.read_bytes()).hexdigest()
+        content["artifact_binding"][name] = observed_hash
+        artifact_sources[name] = ArtifactBindingSource(path, hash_mode)
 
     release_sources: dict[str, ArtifactBindingSource] = {}
     for name in (
@@ -171,13 +198,54 @@ def test_local_facts_assembler_remeasures_files_boot_and_sockets(
             host_boot_id_path=boot_id_path,
             artifact_sources=artifact_sources,
             release_sources=release_sources,
-            approved_artifact_roots=(artifact_root, release_root),
+            approved_artifact_roots=(
+                tmp_path,
+                artifact_root,
+                release_root,
+                ROOT / "contracts",
+            ),
             socket_sources=socket_sources,
             peer_acl_hashes={
                 role: content["sockets"][role]["peer_acl_hash"]
                 for role in socket_sources
             },
         )
+        plan_document = {
+            "schema_version": "1.0.0",
+            "facts_path": str(facts_path),
+            "trusted_facts_directory": str(tmp_path),
+            "stage": local_expectation.stage,
+            "enabled_environments": sorted(local_expectation.enabled_environments),
+            "enabled_authorities": sorted(local_expectation.enabled_authorities),
+            "migration_head": local_expectation.migration_head,
+            "host_boot_id_path": str(local_expectation.host_boot_id_path),
+            "artifact_sources": {
+                name: {"path": str(source.path), "hash_mode": source.hash_mode.value}
+                for name, source in artifact_sources.items()
+            },
+            "release_sources": {
+                name: {"path": str(source.path), "hash_mode": source.hash_mode.value}
+                for name, source in release_sources.items()
+            },
+            "approved_artifact_roots": [
+                str(tmp_path),
+                str(artifact_root),
+                str(release_root),
+                str(ROOT / "contracts"),
+            ],
+            "socket_sources": {
+                name: str(path) for name, path in socket_sources.items()
+            },
+            "peer_acl_hashes": dict(local_expectation.peer_acl_hashes),
+        }
+        plan_path = tmp_path / "attestation-plan.json"
+        plan_path.write_text(json.dumps(plan_document), encoding="utf-8")
+        plan_path.chmod(0o444)
+        loaded_plan = load_local_facts_plan(
+            plan_path,
+            trusted_plan_directory=tmp_path,
+        )
+        assert loaded_plan.expectation == local_expectation
         assembled, assembled_expectation = assemble_startup_content_from_local_facts(
             facts_path,
             trusted_facts_directory=tmp_path,
@@ -195,20 +263,101 @@ def test_local_facts_assembler_remeasures_files_boot_and_sockets(
             bundle,
             attestation_signers={"host-attestation-2026q3": signer_policy},
         )
-        issued = issue_startup_evidence(
-            assembled,
-            local_bundle,
-            signer,
-            key_id="host-attestation-2026q3",
-            nonce="local-facts-issuance-0001",
-            expectation=assembled_expectation,
-            evidence_schema_path=ROOT
-            / "contracts/host-rate-startup-evidence.schema.json",
+        output_directory = tmp_path / "attestation-output"
+        output_directory.mkdir()
+        output_directory.chmod(0o2775)
+        runtime_artifacts = AttestationRuntimeArtifacts(
+            keyring_path=artifact_sources["host_config_trust_root_hash"].path,
+            keyring_schema_path=artifact_sources[
+                "verification_keyring_schema_hash"
+            ].path,
+            trust_bundle_path=artifact_sources["trust_bundle_content_hash"].path,
+            trust_bundle_schema_path=artifact_sources["trust_bundle_schema_hash"].path,
+            startup_evidence_schema_path=artifact_sources[
+                "startup_evidence_schema_hash"
+            ].path,
+        )
+        issued = issue_and_publish_once(
+            plan_path=plan_path,
+            trusted_plan_directory=tmp_path,
+            trust_bundle=local_bundle,
+            signer_key=signer,
+            runtime_artifacts=runtime_artifacts,
+            evidence_output_path=output_directory / "host-rate-startup-evidence.json",
+            forbidden_repository_root=ROOT,
             now=NOW,
         )
         assert issued["content"]["database_authority"]["migration_head"] == (
             "0009_runtime_role"
         )
+        assert assembled_expectation.measurement_hash == startup_measurement_hash(assembled)
+        with pytest.raises(
+            AuthorizationDenied,
+            match="ATTESTATION_RUNTIME_ARTIFACT_BINDING_MISMATCH",
+        ):
+            issue_and_publish_once(
+                plan_path=plan_path,
+                trusted_plan_directory=tmp_path,
+                trust_bundle=local_bundle,
+                signer_key=signer,
+                runtime_artifacts=replace(
+                    runtime_artifacts,
+                    startup_evidence_schema_path=ROOT / "config/rate-budget.schema.json",
+                ),
+                evidence_output_path=output_directory
+                / "wrong-schema-startup-evidence.json",
+                forbidden_repository_root=ROOT,
+                now=NOW,
+            )
+        with pytest.raises(
+            AuthorizationDenied,
+            match="ATTESTATION_TRUST_BUNDLE_BINDING_MISMATCH",
+        ):
+            issue_and_publish_once(
+                plan_path=plan_path,
+                trusted_plan_directory=tmp_path,
+                trust_bundle=replace(local_bundle, bundle_hash="0" * 64),
+                signer_key=signer,
+                runtime_artifacts=runtime_artifacts,
+                evidence_output_path=output_directory
+                / "wrong-bundle-startup-evidence.json",
+                forbidden_repository_root=ROOT,
+                now=NOW,
+            )
+
+        service_output = output_directory / "service-startup-evidence.json"
+        monkeypatch.setattr(
+            attestation_service,
+            "EVIDENCE_OUTPUT_PATH",
+            service_output,
+        )
+        monkeypatch.setattr(
+            attestation_service,
+            "TRUSTED_PLAN_DIRECTORY",
+            tmp_path,
+        )
+        monkeypatch.setattr(
+            attestation_service,
+            "_runtime_material",
+            lambda _now: (local_bundle, signer, runtime_artifacts),
+        )
+        monkeypatch.setattr(attestation_service, "_utc_now", lambda: NOW)
+        monkeypatch.setattr(attestation_service.signal, "signal", lambda *_args: None)
+
+        def stop_after_first_refresh(seconds: float) -> None:
+            assert seconds == 60
+            raise RuntimeError("refresh stop")
+
+        monkeypatch.setattr(attestation_service.time, "sleep", stop_after_first_refresh)
+        monkeypatch.setenv("AIQ_ATTESTATION_PLAN_FILE", str(plan_path))
+        monkeypatch.setenv(
+            "AIQ_STARTUP_EVIDENCE_SCHEMA_FILE",
+            str(ROOT / "contracts/host-rate-startup-evidence.schema.json"),
+        )
+        monkeypatch.setenv("AIQ_STARTUP_EVIDENCE_FILE", str(service_output))
+        with pytest.raises(RuntimeError, match="refresh stop"):
+            attestation_service.run()
+        assert not service_output.exists()
 
         boot_id_path.write_text("different-host-boot-0001\n", encoding="ascii")
         with pytest.raises(AuthorizationDenied, match="LOCAL_FACTS_BINDING_MISMATCH"):
@@ -220,6 +369,9 @@ def test_local_facts_assembler_remeasures_files_boot_and_sockets(
                 now=NOW,
                 ttl_seconds=300,
             )
+        plan_path.chmod(0o644)
+        with pytest.raises(AuthorizationDenied, match="TRUST_ROOT_FILE_UNSAFE"):
+            load_local_facts_plan(plan_path, trusted_plan_directory=tmp_path)
     finally:
         for listener in listeners:
             listener.close()

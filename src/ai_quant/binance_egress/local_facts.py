@@ -14,7 +14,11 @@ from ai_quant.binance_egress.startup import (
     StartupEvidenceExpectation,
     startup_measurement_hash,
 )
-from ai_quant.common.artifacts import ArtifactBindingSource, verify_artifact_bindings
+from ai_quant.common.artifacts import (
+    ArtifactBindingSource,
+    ArtifactHashMode,
+    verify_artifact_bindings,
+)
 from ai_quant.common.config import ConfigurationError, load_strict_document
 from ai_quant.rate_budget.authorization import (
     AuthorizationDenied,
@@ -66,6 +70,137 @@ class LocalFactsExpectation:
     approved_artifact_roots: Sequence[Path]
     socket_sources: Mapping[str, Path]
     peer_acl_hashes: Mapping[str, str]
+
+
+@dataclass(frozen=True, slots=True)
+class LocalFactsPlan:
+    facts_path: Path
+    trusted_facts_directory: Path
+    expectation: LocalFactsExpectation
+
+
+def _absolute_path(value: object) -> Path:
+    if not isinstance(value, str):
+        raise AuthorizationDenied("LOCAL_FACTS_PLAN_INVALID")
+    path = Path(value)
+    if not path.is_absolute():
+        raise AuthorizationDenied("LOCAL_FACTS_PLAN_INVALID")
+    return path
+
+
+def _unique_strings(value: object) -> frozenset[str]:
+    if (
+        not isinstance(value, list)
+        or not value
+        or not all(isinstance(item, str) for item in value)
+        or len(set(value)) != len(value)
+    ):
+        raise AuthorizationDenied("LOCAL_FACTS_PLAN_INVALID")
+    return frozenset(value)
+
+
+def _artifact_sources(value: object) -> Mapping[str, ArtifactBindingSource]:
+    raw = _mapping(value)
+    sources: dict[str, ArtifactBindingSource] = {}
+    for name, source_value in raw.items():
+        source = _mapping(source_value)
+        if not isinstance(name, str) or set(source) != {"path", "hash_mode"}:
+            raise AuthorizationDenied("LOCAL_FACTS_PLAN_INVALID")
+        hash_mode_value = source.get("hash_mode")
+        if not isinstance(hash_mode_value, str):
+            raise AuthorizationDenied("LOCAL_FACTS_PLAN_INVALID")
+        try:
+            hash_mode = ArtifactHashMode(hash_mode_value)
+        except ValueError as exc:
+            raise AuthorizationDenied("LOCAL_FACTS_PLAN_INVALID") from exc
+        sources[name] = ArtifactBindingSource(
+            path=_absolute_path(source.get("path")),
+            hash_mode=hash_mode,
+        )
+    if not sources:
+        raise AuthorizationDenied("LOCAL_FACTS_PLAN_INVALID")
+    return sources
+
+
+def _path_mapping(value: object) -> Mapping[str, Path]:
+    raw = _mapping(value)
+    if not all(isinstance(name, str) for name in raw):
+        raise AuthorizationDenied("LOCAL_FACTS_PLAN_INVALID")
+    return {name: _absolute_path(path) for name, path in raw.items()}
+
+
+def load_local_facts_plan(
+    plan_path: Path,
+    *,
+    trusted_plan_directory: Path,
+) -> LocalFactsPlan:
+    """Load the root-authorized stage, source and measurement-file plan."""
+    assert_root_owned_0444(plan_path, trusted_directory=trusted_plan_directory)
+    try:
+        loaded = load_strict_document(plan_path)
+    except ConfigurationError as exc:
+        raise AuthorizationDenied("LOCAL_FACTS_PLAN_INVALID") from exc
+    plan = _mapping(loaded)
+    required = {
+        "schema_version",
+        "facts_path",
+        "trusted_facts_directory",
+        "stage",
+        "enabled_environments",
+        "enabled_authorities",
+        "migration_head",
+        "host_boot_id_path",
+        "artifact_sources",
+        "release_sources",
+        "approved_artifact_roots",
+        "socket_sources",
+        "peer_acl_hashes",
+    }
+    if set(plan) != required or plan.get("schema_version") != "1.0.0":
+        raise AuthorizationDenied("LOCAL_FACTS_PLAN_INVALID")
+    stage = plan.get("stage")
+    migration_head = plan.get("migration_head")
+    roots = plan.get("approved_artifact_roots")
+    peer_acl_hashes = _mapping(plan.get("peer_acl_hashes"))
+    if (
+        not isinstance(stage, str)
+        or not isinstance(migration_head, str)
+        or not _ID.fullmatch(migration_head)
+        or not isinstance(roots, list)
+        or not roots
+        or not all(isinstance(value, str) for value in peer_acl_hashes.values())
+        or not all(isinstance(name, str) for name in peer_acl_hashes)
+        or any(
+            len(value) != 64
+            or any(character not in "0123456789abcdef" for character in value)
+            for value in peer_acl_hashes.values()
+        )
+    ):
+        raise AuthorizationDenied("LOCAL_FACTS_PLAN_INVALID")
+    artifact_sources = _artifact_sources(plan.get("artifact_sources"))
+    release_sources = _artifact_sources(plan.get("release_sources"))
+    if set(release_sources) != _RELEASE_HASH_FIELDS:
+        raise AuthorizationDenied("LOCAL_FACTS_PLAN_INVALID")
+    trusted_facts_directory = _absolute_path(plan.get("trusted_facts_directory"))
+    facts_path = _absolute_path(plan.get("facts_path"))
+    if facts_path.parent != trusted_facts_directory:
+        raise AuthorizationDenied("LOCAL_FACTS_PLAN_INVALID")
+    return LocalFactsPlan(
+        facts_path=facts_path,
+        trusted_facts_directory=trusted_facts_directory,
+        expectation=LocalFactsExpectation(
+            stage=stage,
+            enabled_environments=_unique_strings(plan.get("enabled_environments")),
+            enabled_authorities=_unique_strings(plan.get("enabled_authorities")),
+            migration_head=migration_head,
+            host_boot_id_path=_absolute_path(plan.get("host_boot_id_path")),
+            artifact_sources=artifact_sources,
+            release_sources=release_sources,
+            approved_artifact_roots=tuple(_absolute_path(root) for root in roots),
+            socket_sources=_path_mapping(plan.get("socket_sources")),
+            peer_acl_hashes=dict(peer_acl_hashes),
+        ),
+    )
 
 
 def _time(value: object) -> datetime:
