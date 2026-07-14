@@ -75,7 +75,84 @@ def upgrade() -> None:
           TO aiq_rate_authority;
         """
     )
+    op.execute(
+        """
+        CREATE FUNCTION rate_control.read_startup_observations(
+            requested_authorities varchar[],
+            requested_after timestamptz
+        ) RETURNS TABLE(payload jsonb, payload_hash char(64), occurred_at timestamptz)
+        LANGUAGE sql
+        STABLE
+        SECURITY DEFINER
+        SET search_path TO pg_catalog, rate_control
+        AS $$
+          SELECT observation.payload, observation.payload_hash,
+                 observation.occurred_at
+            FROM rate_control.observations AS observation
+           WHERE observation.observation_type IN (
+             'ServerTimeObservation',
+             'ExchangeRateLimitObservation',
+             'ConnectionStateObservation'
+           )
+             AND requested_after IS NOT NULL
+             AND observation.endpoint_authority = ANY(requested_authorities)
+             AND observation.occurred_at >= GREATEST(
+               requested_after,
+               clock_timestamp() - interval '300 seconds'
+             )
+           ORDER BY observation.occurred_at, observation.message_id
+        $$;
+        REVOKE ALL ON FUNCTION rate_control.read_startup_observations(varchar[],timestamptz)
+          FROM PUBLIC;
+
+        REVOKE SELECT ON ALL TABLES IN SCHEMA rate_control
+          FROM aiq_rate_authority;
+        GRANT SELECT ON rate_control.fencing_state,
+                        rate_control.endpoint_runtime_policies,
+                        rate_control.rate_windows,
+                        rate_control.allocations,
+                        rate_control.permits
+          TO aiq_rate_authority;
+
+        REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA rate_control
+          FROM aiq_rate_authority;
+        DO $$
+        DECLARE
+            function_identity text;
+        BEGIN
+            FOR function_identity IN
+                SELECT procedure.oid::regprocedure::text
+                  FROM pg_proc AS procedure
+                  JOIN pg_namespace AS namespace
+                    ON namespace.oid = procedure.pronamespace
+                 WHERE namespace.nspname = 'rate_control'
+                   AND procedure.proname IN (
+                     'acquire_fencing_lease',
+                     'reserve_permit_v2',
+                     'consume_permit_v2',
+                     'record_gateway_message',
+                     'read_startup_measurements',
+                     'read_startup_observations'
+                   )
+            LOOP
+                EXECUTE format(
+                  'GRANT EXECUTE ON FUNCTION %s TO aiq_rate_authority',
+                  function_identity
+                );
+            END LOOP;
+        END $$;
+        """
+    )
 
 
 def downgrade() -> None:
-    op.execute("DROP FUNCTION rate_control.read_startup_measurements()")
+    op.execute(
+        """
+        GRANT SELECT ON ALL TABLES IN SCHEMA rate_control
+          TO aiq_rate_authority;
+        GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA rate_control
+          TO aiq_rate_authority;
+        DROP FUNCTION rate_control.read_startup_observations(varchar[],timestamptz);
+        DROP FUNCTION rate_control.read_startup_measurements();
+        """
+    )

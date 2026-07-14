@@ -83,7 +83,8 @@ docker exec "${RUN_ID}-host-postgres-1" psql -U aiq_host_control_test \
   -d aiq_host_rate_control_test -Atc \
   "SELECT has_schema_privilege('aiq_rate_authority','rate_control','USAGE')||':'||
           has_table_privilege('aiq_rate_authority','rate_control.rate_windows','SELECT')||':'||
-          has_table_privilege('aiq_rate_authority','rate_control.rate_windows','UPDATE')||':'||
+          has_table_privilege('aiq_rate_authority','rate_control.observations','SELECT')||':'||
+          has_table_privilege('aiq_rate_authority','rate_control.authority_blocks','SELECT')||':'||
           has_table_privilege(
             'aiq_rate_authority','rate_control.reservation_decisions','INSERT')||':'||
           has_function_privilege(
@@ -93,8 +94,26 @@ docker exec "${RUN_ID}-host-postgres-1" psql -U aiq_host_control_test \
           has_function_privilege(
             'aiq_rate_authority',
             'rate_control.read_startup_measurements()',
-            'EXECUTE')" \
-  | grep -qx 'true:true:false:true:true:true'
+            'EXECUTE')||':'||
+          has_function_privilege(
+            'aiq_rate_authority',
+            'rate_control.read_startup_observations(character varying[],timestamp with time zone)',
+            'EXECUTE')||':'||
+          (SELECT count(*) FROM pg_proc AS procedure
+            JOIN pg_namespace AS namespace ON namespace.oid=procedure.pronamespace
+           WHERE namespace.nspname='rate_control'
+             AND has_function_privilege('aiq_rate_authority',procedure.oid,'EXECUTE'))" \
+  | grep -qx 'true:true:false:false:true:true:true:true:6'
+docker exec "${RUN_ID}-host-postgres-1" psql -v ON_ERROR_STOP=1 \
+  -U aiq_host_control_test -d aiq_host_rate_control_test -Atc \
+  "SET ROLE aiq_rate_authority;
+   SELECT jsonb_array_length(
+     rate_control.read_startup_measurements()->'active_authority_blocks'
+   );
+   SELECT count(*) FROM rate_control.read_startup_observations(
+     ARRAY['BINANCE_PRODUCTION_FAPI']::varchar[], clock_timestamp() - interval '5 seconds'
+   );
+   RESET ROLE" | grep -E '^[0]$' | wc -l | grep -qx '2'
 docker exec "${RUN_ID}-host-postgres-1" psql -U aiq_host_control_test \
   -d aiq_host_rate_control_test -Atc \
   "SELECT bool_and(prosecdef AND proconfig @> ARRAY['search_path=pg_catalog, rate_control'])||':'||

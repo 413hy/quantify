@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import copy
 from contextlib import nullcontext
+from datetime import UTC, datetime
 from typing import Any, cast
 
 import pytest
 
 from ai_quant.binance_egress.database_measurements import (
     INTEGRITY_QUERY_HASH,
+    collect_authority_observations,
     collect_database_measurements,
     validate_database_measurement_snapshot,
 )
@@ -135,3 +137,38 @@ def test_database_measurement_closes_sorted_authority_blocks() -> None:
         match="DATABASE_BLOCK_MEASUREMENT_INVALID",
     ):
         validate_database_measurement_snapshot(snapshot)
+
+
+def test_authority_journal_uses_only_fixed_security_definer_reader() -> None:
+    statements: list[tuple[str, object]] = []
+
+    class Cursor:
+        def __enter__(self) -> Cursor:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def execute(self, statement: str, parameters: object = None) -> None:
+            statements.append((statement, parameters))
+
+        def fetchall(self) -> list[dict[str, object]]:
+            return []
+
+    class Connection:
+        def transaction(self) -> Any:
+            return nullcontext()
+
+        def cursor(self) -> Cursor:
+            return Cursor()
+
+    with pytest.raises(AuthorizationDenied, match="AUTHORITY_MEASUREMENT_MISSING"):
+        collect_authority_observations(
+            cast(Any, Connection()),
+            enabled_authorities=frozenset({"BINANCE_PRODUCTION_FAPI"}),
+            stream_profiles={},
+            now=datetime(2026, 7, 14, tzinfo=UTC),
+        )
+    assert len(statements) == 2
+    assert "read_startup_observations" in statements[1][0]
+    assert "FROM rate_control.observations" not in statements[1][0]

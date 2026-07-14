@@ -193,15 +193,7 @@ def collect_authority_observations(
         cursor.execute(
             """
             SELECT payload,payload_hash,occurred_at
-              FROM rate_control.observations
-             WHERE observation_type IN (
-               'ServerTimeObservation',
-               'ExchangeRateLimitObservation',
-               'ConnectionStateObservation'
-             )
-               AND endpoint_authority = ANY(%s)
-               AND occurred_at >= %s
-             ORDER BY occurred_at,message_id
+              FROM rate_control.read_startup_observations(%s,%s)
             """,
             (sorted(enabled_authorities), floor),
         )
