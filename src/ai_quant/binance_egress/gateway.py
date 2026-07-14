@@ -23,8 +23,15 @@ from ai_quant.rate_budget.authorization import (
 )
 from ai_quant.rate_budget.policy import EndpointPolicy, RuntimeEndpointCatalog
 
-PRODUCTION_HOSTS = frozenset({"fapi.binance.com", "fstream.binance.com", "ws-fapi.binance.com"})
 TESTNET_HOSTS_BLOCKED_PENDING_ADR = True
+_PRODUCTION_DESTINATIONS = {
+    ("BINANCE_PRODUCTION_FAPI", "REST"): ("https", "fapi.binance.com"),
+    ("BINANCE_PRODUCTION_FAPI", "WS_API"): ("wss", "ws-fapi.binance.com"),
+    ("BINANCE_PRODUCTION_FSTREAM", "MARKET_STREAM_CONTROL"): (
+        "wss",
+        "fstream.binance.com",
+    ),
+}
 
 
 class GatewayDenied(RuntimeError):
@@ -524,15 +531,6 @@ class GatewaySendApplication:
         if endpoint is None:
             raise GatewayDenied("LOCAL_REQUEST_INVALID")
         validate_destination(request)
-        expected_host = {
-            ("BINANCE_PRODUCTION_FAPI", "REST"): "fapi.binance.com",
-            ("BINANCE_PRODUCTION_FAPI", "WS_API"): "ws-fapi.binance.com",
-            ("BINANCE_PRODUCTION_FSTREAM", "MARKET_STREAM_CONTROL"): (
-                "fstream.binance.com"
-            ),
-        }.get((request.endpoint_authority, request.transport))
-        if expected_host is None or request.host != expected_host:
-            raise GatewayDenied("LOCAL_REQUEST_INVALID")
         if not request.created_at.astimezone(UTC) <= now < request.expires_at.astimezone(UTC):
             raise GatewayDenied("LOCAL_REQUEST_INVALID")
         facts = validate_request_against_endpoint(request, endpoint)
@@ -653,15 +651,17 @@ class GatewaySendApplication:
             ),
             "result_receipt_hash": receipt if outcome == "SENT_DEFINITE_RESULT" else None,
         }
+        last_error: Exception | None = None
         for _ in range(3):
             try:
                 self._rate_client.notify(document)
                 break
-            except (OSError, TimeoutError, ConnectionError):
+            except Exception as exc:
+                last_error = exc
                 continue
         else:
             self._outcome_journal_failed = True
-            raise GatewayDenied("ALLOCATOR_UNAVAILABLE")
+            raise GatewayDenied("ALLOCATOR_UNAVAILABLE") from last_error
         return document
 
     def _result(
@@ -722,10 +722,15 @@ def _timestamp(value: datetime) -> str:
 def validate_destination(request: ClosedGatewayRequest) -> None:
     if request.environment == "testnet" and TESTNET_HOSTS_BLOCKED_PENDING_ADR:
         raise GatewayDenied("TESTNET_ENDPOINT_BASELINE_CONFLICT")
-    if request.environment == "production" and request.host not in PRODUCTION_HOSTS:
+    expected = _PRODUCTION_DESTINATIONS.get(
+        (request.endpoint_authority, request.transport)
+    )
+    if (
+        request.environment not in {"shadow", "paper", "production"}
+        or expected is None
+        or (request.scheme, request.host) != expected
+    ):
         raise GatewayDenied("DESTINATION_NOT_ALLOWLISTED")
-    if request.environment == "production" and request.scheme not in {"https", "wss"}:
-        raise GatewayDenied("SCHEME_NOT_ALLOWLISTED")
 
 
 def send_once[T](

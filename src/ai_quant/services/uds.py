@@ -17,6 +17,7 @@ from ai_quant.rate_budget.authorization import PeerCredentials, peer_credentials
 RATE_FRAME_MAX_BYTES = 1_048_576
 UDS_FRAME_HARD_MAX_BYTES = 16_777_216
 FRAME_HEADER_BYTES = 4
+NOTIFY_COMMITTED_ACK = b"\x06"
 
 
 class UdsProtocolError(ValueError):
@@ -176,6 +177,10 @@ class BoundedUnixServer:
             response = self._handler(request, credentials)
             if response is not None:
                 peer.sendall(encode_frame(response, max_bytes=self._max_frame_bytes))
+            else:
+                # EOF alone is ambiguous: it is also produced when the handler raises.
+                # A transport-level ACK is emitted only after the durable handler returns.
+                peer.sendall(NOTIFY_COMMITTED_ACK)
         finally:
             peer.close()
 
@@ -227,8 +232,10 @@ class BoundedUnixClient:
         with self._connected() as peer:
             peer.sendall(encode_frame(document, max_bytes=self._max_frame_bytes))
             peer.shutdown(socket.SHUT_WR)
+            if peer.recv(1) != NOTIFY_COMMITTED_ACK:
+                raise UdsProtocolError("NOTIFY_COMMIT_NOT_ACKNOWLEDGED")
             if peer.recv(1) != b"":
-                raise UdsProtocolError("ONE_WAY_RESPONSE_FORBIDDEN")
+                raise UdsProtocolError("NOTIFY_TRAILING_RESPONSE_FORBIDDEN")
 
     def _connected(self) -> socket.socket:
         self._validate_socket_path()

@@ -9,6 +9,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
+from ai_quant.common.artifacts import (
+    ArtifactBindingSource,
+    ArtifactHashMode,
+    verify_artifact_bindings,
+)
 from ai_quant.common.config import validate_config
 from ai_quant.rate_budget.authorization import (
     AuthorizationDenied,
@@ -171,21 +176,36 @@ def verify_endpoint_catalog(
     if not isinstance(raw_sources, list) or not raw_sources:
         raise AuthorizationDenied("ENDPOINT_SOURCE_INVALID")
     source_hashes: set[str] = set()
+    expected_sources: dict[str, str] = {}
+    source_files: dict[str, ArtifactBindingSource] = {}
     for item in raw_sources:
         source = _mapping(item, "ENDPOINT_SOURCE_INVALID")
         relative = source.get("artifact_path")
         expected_hash = source.get("sha256")
-        if not isinstance(relative, str) or not isinstance(expected_hash, str):
+        if (
+            not isinstance(relative, str)
+            or not isinstance(expected_hash, str)
+            or relative in expected_sources
+        ):
             raise AuthorizationDenied("ENDPOINT_SOURCE_INVALID")
-        artifact = (source_artifact_root / relative).resolve()
-        root = source_artifact_root.resolve()
-        if not artifact.is_relative_to(root) or not artifact.is_file():
-            raise AuthorizationDenied("ENDPOINT_SOURCE_INVALID")
-        if hashlib.sha256(artifact.read_bytes()).hexdigest() != expected_hash:
-            raise AuthorizationDenied("ENDPOINT_SOURCE_HASH_MISMATCH")
         if expected_hash in source_hashes:
             raise AuthorizationDenied("ENDPOINT_SOURCE_INVALID")
         source_hashes.add(expected_hash)
+        expected_sources[relative] = expected_hash
+        source_files[relative] = ArtifactBindingSource(
+            path=source_artifact_root / relative,
+            hash_mode=ArtifactHashMode.RAW_BYTES,
+        )
+    try:
+        verify_artifact_bindings(
+            expected_sources,
+            source_files,
+            approved_roots=(source_artifact_root,),
+        )
+    except AuthorizationDenied as exc:
+        if exc.reason_code == "ARTIFACT_BINDING_MISMATCH":
+            raise AuthorizationDenied("ENDPOINT_SOURCE_HASH_MISMATCH") from exc
+        raise AuthorizationDenied("ENDPOINT_SOURCE_INVALID") from exc
 
     raw_contracts = content.get("endpoint_contracts")
     if not isinstance(raw_contracts, list) or not raw_contracts:

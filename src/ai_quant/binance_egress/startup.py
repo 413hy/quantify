@@ -20,6 +20,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from jsonschema import Draft202012Validator, FormatChecker
 
 from ai_quant.common.config import validate_config
+from ai_quant.common.private_files import read_private_file
 from ai_quant.rate_budget.authorization import (
     AuthorizationDenied,
     RuntimeTrustBundle,
@@ -72,19 +73,14 @@ def load_attestation_private_key(
     forbidden_repository_root: Path,
 ) -> Ed25519PrivateKey:
     """Load an owner-only Ed25519 PEM key outside the repository tree."""
-    if path.is_symlink():
-        raise AuthorizationDenied("ATTESTATION_PRIVATE_KEY_UNSAFE")
-    metadata = path.stat()
-    resolved = path.resolve()
-    if (
-        not stat.S_ISREG(metadata.st_mode)
-        or stat.S_IMODE(metadata.st_mode) != 0o400
-        or metadata.st_uid != os.geteuid()
-        or resolved.is_relative_to(forbidden_repository_root.resolve())
-    ):
-        raise AuthorizationDenied("ATTESTATION_PRIVATE_KEY_UNSAFE")
+    encoded_key = read_private_file(
+        path,
+        forbidden_repository_root=forbidden_repository_root,
+        maximum_bytes=16_384,
+        unsafe_reason="ATTESTATION_PRIVATE_KEY_UNSAFE",
+    )
     try:
-        loaded = serialization.load_pem_private_key(path.read_bytes(), password=None)
+        loaded = serialization.load_pem_private_key(encoded_key, password=None)
     except (ValueError, TypeError) as exc:
         raise AuthorizationDenied("ATTESTATION_PRIVATE_KEY_INVALID") from exc
     if not isinstance(loaded, Ed25519PrivateKey):

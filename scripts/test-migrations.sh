@@ -64,6 +64,40 @@ docker exec "${RUN_ID}-redis-1" redis-cli ping | grep -qx PONG
 
 printf 'database invariants PASS\n'
 
+docker exec "${RUN_ID}-host-postgres-1" psql -U aiq_host_control_test \
+  -d aiq_host_rate_control_test -Atc \
+  "SELECT rolcanlogin||':'||rolsuper||':'||rolcreatedb||':'||rolcreaterole||':'||
+          rolreplication||':'||rolbypassrls
+     FROM pg_roles WHERE rolname='aiq_rate_authority'" \
+  | grep -qx 'false:false:false:false:false:false'
+docker exec "${RUN_ID}-host-postgres-1" psql -U aiq_host_control_test \
+  -d aiq_host_rate_control_test -Atc \
+  "SELECT has_schema_privilege('aiq_rate_authority','rate_control','USAGE')||':'||
+          has_table_privilege('aiq_rate_authority','rate_control.rate_windows','SELECT')||':'||
+          has_table_privilege('aiq_rate_authority','rate_control.rate_windows','UPDATE')||':'||
+          has_table_privilege(
+            'aiq_rate_authority','rate_control.reservation_decisions','INSERT')||':'||
+          has_function_privilege(
+            'aiq_rate_authority',
+            'rate_control.acquire_fencing_lease(character varying,bigint,integer)',
+            'EXECUTE')" \
+  | grep -qx 'true:true:false:true:true'
+docker exec "${RUN_ID}-host-postgres-1" psql -U aiq_host_control_test \
+  -d aiq_host_rate_control_test -Atc \
+  "SELECT bool_and(prosecdef AND proconfig @> ARRAY['search_path=pg_catalog, rate_control'])||':'||
+          bool_and(NOT EXISTS (
+            SELECT 1
+              FROM aclexplode(COALESCE(
+                procedure.proacl,acldefault('f',procedure.proowner)
+              )) AS privilege
+             WHERE privilege.grantee=0 AND privilege.privilege_type='EXECUTE'
+          ))
+     FROM pg_proc AS procedure
+     JOIN pg_namespace AS namespace ON namespace.oid=procedure.pronamespace
+    WHERE namespace.nspname='rate_control'" \
+  | grep -qx 'true:true'
+printf 'least-privilege runtime database role PASS\n'
+
 HASH_A="$(printf 'a%.0s' {1..64})"
 HASH_B="$(printf 'b%.0s' {1..64})"
 HASH_C="$(printf 'c%.0s' {1..64})"

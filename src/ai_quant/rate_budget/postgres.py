@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-import stat
 import uuid
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -12,9 +10,11 @@ from pathlib import Path
 from typing import Any
 
 import psycopg
+from psycopg.conninfo import make_conninfo
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
+from ai_quant.common.private_files import read_private_file
 from ai_quant.rate_budget.authorization import (
     AuthorizationDenied,
     PeerCredentials,
@@ -51,61 +51,38 @@ def _timestamp(value: datetime) -> str:
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
-def load_database_dsn(path: Path, *, forbidden_repository_root: Path) -> str:
-    """Read a bounded DSN from an exact private file outside the release tree."""
-    if not path.is_absolute():
-        raise AuthorizationDenied("RATE_DATABASE_DSN_FILE_UNSAFE")
+def load_database_password(path: Path, *, forbidden_repository_root: Path) -> str:
+    """Read the runtime role password from the frozen password-file boundary."""
+    raw_credential = read_private_file(
+        path,
+        forbidden_repository_root=forbidden_repository_root,
+        maximum_bytes=1024,
+        unsafe_reason="RATE_DATABASE_PASSWORD_FILE_UNSAFE",
+    )
     try:
-        resolved = path.resolve(strict=True)
-        repository_root = forbidden_repository_root.resolve(strict=True)
-    except OSError as exc:
-        raise AuthorizationDenied("RATE_DATABASE_DSN_FILE_UNSAFE") from exc
-    if resolved != path or resolved.is_relative_to(repository_root):
-        raise AuthorizationDenied("RATE_DATABASE_DSN_FILE_UNSAFE")
-
-    file_descriptor: int | None = None
-    try:
-        file_descriptor = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
-        metadata = os.fstat(file_descriptor)
-        if (
-            not stat.S_ISREG(metadata.st_mode)
-            or stat.S_IMODE(metadata.st_mode) != 0o400
-            or metadata.st_uid != os.geteuid()
-            or metadata.st_size < 1
-            or metadata.st_size > 4096
-        ):
-            raise AuthorizationDenied("RATE_DATABASE_DSN_FILE_UNSAFE")
-        chunks: list[bytes] = []
-        remaining = 4097
-        while remaining:
-            chunk = os.read(file_descriptor, remaining)
-            if not chunk:
-                break
-            chunks.append(chunk)
-            remaining -= len(chunk)
-        raw_dsn = b"".join(chunks)
-        final_metadata = os.fstat(file_descriptor)
-        if (
-            len(raw_dsn) != metadata.st_size
-            or final_metadata.st_dev != metadata.st_dev
-            or final_metadata.st_ino != metadata.st_ino
-            or final_metadata.st_size != metadata.st_size
-            or final_metadata.st_mtime_ns != metadata.st_mtime_ns
-            or final_metadata.st_ctime_ns != metadata.st_ctime_ns
-        ):
-            raise AuthorizationDenied("RATE_DATABASE_DSN_FILE_UNSAFE")
-    except OSError as exc:
-        raise AuthorizationDenied("RATE_DATABASE_DSN_FILE_UNSAFE") from exc
-    finally:
-        if file_descriptor is not None:
-            os.close(file_descriptor)
-    try:
-        dsn = raw_dsn.decode("utf-8").strip()
+        credential = raw_credential.decode("utf-8")
     except UnicodeDecodeError as exc:
-        raise AuthorizationDenied("RATE_DATABASE_DSN_INVALID") from exc
-    if not dsn or "\n" in dsn or "\r" in dsn:
-        raise AuthorizationDenied("RATE_DATABASE_DSN_INVALID")
-    return dsn
+        raise AuthorizationDenied("RATE_DATABASE_PASSWORD_INVALID") from exc
+    if credential.endswith("\n"):
+        credential = credential[:-1]
+    if not credential or "\n" in credential or "\r" in credential:
+        raise AuthorizationDenied("RATE_DATABASE_PASSWORD_INVALID")
+    return credential
+
+
+def host_control_database_dsn(credential: str) -> str:
+    """Construct the only permitted allocator database target from fixed values."""
+    if not credential or "\n" in credential or "\r" in credential:
+        raise AuthorizationDenied("RATE_DATABASE_PASSWORD_INVALID")
+    return make_conninfo(
+        host="host-control-postgres",
+        port=5432,
+        dbname="aiq_host_rate_control",
+        user="aiq_rate_authority",
+        password=credential,
+        connect_timeout=5,
+        application_name="aiq-rate-budget",
+    )
 
 
 class PostgresRateAuthority:
@@ -607,7 +584,7 @@ class PostgresRateAuthority:
             "request_message_id": request["message_id"],
             "permit_id": request["permit_id"],
             "decision": result["decision"],
-            "gateway_connection_id": request["gateway_connection_id"] if granted else None,
+            "gateway_connection_id": request["gateway_connection_id"],
             "canonical_request_hash": request["canonical_request_hash"],
             "gateway_derived_parameter_hash": request["gateway_derived_parameter_hash"],
             "gateway_derived_wire_bytes_hash": request["gateway_derived_wire_bytes_hash"],

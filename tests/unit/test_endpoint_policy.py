@@ -178,6 +178,19 @@ def test_catalog_source_hash_mismatch_is_rejected(tmp_path: Path) -> None:
         _verify(catalog, keyring, keyring_hash, tmp_path)
 
 
+def test_catalog_source_symlink_is_rejected_even_with_matching_bytes(
+    tmp_path: Path,
+) -> None:
+    catalog, keyring, keyring_hash, _ = _signed_documents(tmp_path)
+    source = tmp_path / "source.txt"
+    replacement = tmp_path / "replacement.txt"
+    source.replace(replacement)
+    source.symlink_to(replacement)
+
+    with pytest.raises(AuthorizationDenied, match="ENDPOINT_SOURCE_INVALID"):
+        _verify(catalog, keyring, keyring_hash, tmp_path)
+
+
 def test_catalog_duplicate_wire_identity_is_rejected(tmp_path: Path) -> None:
     catalog, keyring, keyring_hash, signer = _signed_documents(tmp_path)
     changed = copy.deepcopy(catalog)

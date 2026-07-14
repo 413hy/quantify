@@ -45,6 +45,7 @@ def main() -> int:
     failures: list[str] = []
     gateway_count = 0
     production_secret_consumers: list[str] = []
+    host_database_bootstrap_secret_consumers: list[str] = []
     attestation_secret_consumers: list[str] = []
     attestation_evidence_mounts: dict[str, bool] = {}
     trust_root_mounts: dict[str, bool] = {}
@@ -90,6 +91,8 @@ def main() -> int:
             secret_sources = {_secret_source(grant) for grant in secrets}
             if "binance_production_api_secret" in secret_sources:
                 production_secret_consumers.append(name)
+            if "host_control_db_password" in secret_sources:
+                host_database_bootstrap_secret_consumers.append(name)
             if "host_attestation_key" in secret_sources:
                 attestation_secret_consumers.append(name)
                 if secrets != [ATTESTATION_SECRET_GRANT]:
@@ -121,6 +124,11 @@ def main() -> int:
         failures.append(
             "production Binance secret consumers must be exactly execution-service, got "
             f"{production_secret_consumers}"
+        )
+    if host_database_bootstrap_secret_consumers != ["host-control-postgres"]:
+        failures.append(
+            "host database bootstrap secret consumers must be exactly host-control-postgres, got "
+            f"{host_database_bootstrap_secret_consumers}"
         )
     if attestation_secret_consumers != ["host-attestation-signer"]:
         failures.append(

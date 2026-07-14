@@ -10,7 +10,11 @@ from pathlib import Path
 from ai_quant.rate_budget.application import RateBudgetApplication
 from ai_quant.rate_budget.authorization import load_pinned_sha256, load_runtime_trust_bundle
 from ai_quant.rate_budget.policy import load_runtime_endpoint_catalog
-from ai_quant.rate_budget.postgres import PostgresRateAuthority, load_database_dsn
+from ai_quant.rate_budget.postgres import (
+    PostgresRateAuthority,
+    host_control_database_dsn,
+    load_database_password,
+)
 from ai_quant.services.locked_process import validated_socket_path
 from ai_quant.services.uds import BoundedUnixServer, UnixSocketServerExpectation
 
@@ -54,11 +58,12 @@ def run() -> None:
         source_artifact_root=_path("AIQ_ENDPOINT_SOURCE_ARTIFACT_ROOT"),
         now=now,
     )
+    database_credential = load_database_password(
+        _path("AIQ_HOST_CONTROL_DB_PASSWORD_FILE"),
+        forbidden_repository_root=Path("/app"),
+    )
     authority = PostgresRateAuthority(
-        dsn=load_database_dsn(
-            _path("AIQ_HOST_CONTROL_DATABASE_DSN_FILE"),
-            forbidden_repository_root=Path("/app"),
-        ),
+        dsn=host_control_database_dsn(database_credential),
         instance_id=os.environ["AIQ_RATE_ALLOCATOR_INSTANCE_ID"],
     )
     authority.assert_runtime_ready(catalog)

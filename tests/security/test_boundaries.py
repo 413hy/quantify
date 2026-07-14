@@ -87,6 +87,26 @@ def test_attestation_private_key_is_granted_only_to_its_fixed_holder() -> None:
     }
 
 
+def test_host_database_bootstrap_secret_is_not_exposed_to_rate_service() -> None:
+    document = yaml.safe_load(
+        (ROOT / "deploy/host-control.compose.yaml").read_text(encoding="utf-8")
+    )
+    consumers = {
+        name
+        for name, service in document["services"].items()
+        if any(
+            (grant.get("source") if isinstance(grant, dict) else grant)
+            == "host_control_db_password"
+            for grant in service.get("secrets", [])
+        )
+    }
+    assert consumers == {"host-control-postgres"}
+    rate_environment = document["services"]["rate-budget-service"].get(
+        "environment", {}
+    )
+    assert "AIQ_HOST_CONTROL_DB_PASSWORD_FILE" not in rate_environment
+
+
 def test_attestation_evidence_has_one_writer_and_one_read_only_consumer() -> None:
     mounts: dict[str, bool] = {}
     for path in (ROOT / "deploy").glob("*.yaml"):

@@ -17,7 +17,8 @@ from ai_quant.rate_budget.authorization import (
 from ai_quant.rate_budget.postgres import (
     PostgresRateAuthority,
     RuntimeCost,
-    load_database_dsn,
+    host_control_database_dsn,
+    load_database_password,
 )
 from tests.unit.test_authorization import _signed_policy
 from tests.unit.test_endpoint_policy import _signed_documents, _verify
@@ -86,49 +87,54 @@ def _authority(cursor: FakeCursor) -> PostgresRateAuthority:
     return authority
 
 
-def test_private_dsn_file_is_required(tmp_path: Path) -> None:
-    path = tmp_path / "host-dsn"
-    path.write_text("postgresql:///host-control", encoding="utf-8")
+def test_private_database_password_file_is_required(tmp_path: Path) -> None:
+    path = tmp_path / "host-password"
+    path.write_text("fixture-value\n", encoding="utf-8")
     path.chmod(0o400)
-    assert (
-        load_database_dsn(path, forbidden_repository_root=ROOT)
-        == "postgresql:///host-control"
-    )
+    loaded_value = load_database_password(path, forbidden_repository_root=ROOT)
+    assert loaded_value == "fixture-value"
+    dsn = host_control_database_dsn(loaded_value)
+    assert "host=host-control-postgres" in dsn
+    assert "dbname=aiq_host_rate_control" in dsn
+    assert "user=aiq_rate_authority" in dsn
+    assert "connect_timeout=5" in dsn
     path.chmod(0o600)
-    with pytest.raises(ValueError, match="RATE_DATABASE_DSN_FILE_UNSAFE"):
-        load_database_dsn(path, forbidden_repository_root=ROOT)
+    with pytest.raises(ValueError, match="RATE_DATABASE_PASSWORD_FILE_UNSAFE"):
+        load_database_password(path, forbidden_repository_root=ROOT)
 
 
-def test_dsn_file_rejects_relative_symlink_and_repository_paths(tmp_path: Path) -> None:
-    path = tmp_path / "host-dsn"
-    path.write_text("postgresql:///host-control", encoding="utf-8")
+def test_database_password_rejects_relative_symlink_and_repository_paths(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "host-password"
+    path.write_text("fixture-value", encoding="utf-8")
     path.chmod(0o400)
-    link = tmp_path / "host-dsn-link"
+    link = tmp_path / "host-password-link"
     link.symlink_to(path)
 
     for candidate, repository_root in (
-        (Path("host-dsn"), ROOT),
+        (Path("host-password"), ROOT),
         (link, ROOT),
         (path, tmp_path),
     ):
-        with pytest.raises(ValueError, match="RATE_DATABASE_DSN_FILE_UNSAFE"):
-            load_database_dsn(
+        with pytest.raises(ValueError, match="RATE_DATABASE_PASSWORD_FILE_UNSAFE"):
+            load_database_password(
                 candidate,
                 forbidden_repository_root=repository_root,
             )
 
 
-def test_dsn_file_must_belong_to_current_service_identity(
+def test_database_password_must_belong_to_current_service_identity(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    path = tmp_path / "host-dsn"
-    path.write_text("postgresql:///host-control", encoding="utf-8")
+    path = tmp_path / "host-password"
+    path.write_text("fixture-value", encoding="utf-8")
     path.chmod(0o400)
-    monkeypatch.setattr("ai_quant.rate_budget.postgres.os.geteuid", lambda: 2**31 - 1)
+    monkeypatch.setattr("ai_quant.common.private_files.os.geteuid", lambda: 2**31 - 1)
 
-    with pytest.raises(ValueError, match="RATE_DATABASE_DSN_FILE_UNSAFE"):
-        load_database_dsn(path, forbidden_repository_root=ROOT)
+    with pytest.raises(ValueError, match="RATE_DATABASE_PASSWORD_FILE_UNSAFE"):
+        load_database_password(path, forbidden_repository_root=ROOT)
 
 
 def test_reserve_uses_v2_and_returns_contract_complete_allocations() -> None:

@@ -12,6 +12,7 @@ import pytest
 
 from ai_quant.rate_budget.authorization import PeerCredentials
 from ai_quant.services.uds import (
+    NOTIFY_COMMITTED_ACK,
     BoundedUnixClient,
     BoundedUnixServer,
     UdsProtocolError,
@@ -116,7 +117,9 @@ def test_server_socket_mode_and_cleanup(tmp_path: Path) -> None:
     assert not socket_path.exists()
 
 
-def test_server_sends_no_frame_for_one_way_message(tmp_path: Path) -> None:
+def test_server_acknowledges_one_way_message_only_after_handler_returns(
+    tmp_path: Path,
+) -> None:
     socket_path = tmp_path / "rate.sock"
     server = _server(tmp_path, lambda request, peer: None)
     server.start()
@@ -127,12 +130,56 @@ def test_server_sends_no_frame_for_one_way_message(tmp_path: Path) -> None:
         client.settimeout(1)
         client.connect(str(socket_path))
         client.sendall(encode_frame({"message_type": "HeaderObservation"}))
+        client.shutdown(socket.SHUT_WR)
+        assert client.recv(1) == NOTIFY_COMMITTED_ACK
         assert client.recv(1) == b""
     finally:
         client.close()
         worker.join(timeout=1)
         server.close()
     assert not worker.is_alive()
+
+
+def test_notify_rejects_eof_from_a_failed_handler(tmp_path: Path) -> None:
+    socket_path = tmp_path / "rate.sock"
+
+    def failed_handler(
+        request: Mapping[str, Any],
+        peer: PeerCredentials,
+    ) -> None:
+        raise ValueError("durable write failed")
+
+    server = _server(tmp_path, failed_handler)
+    server.start()
+    metadata = socket_path.stat()
+    client = BoundedUnixClient(
+        socket_path,
+        peer_expectation=UnixSocketPeerExpectation(
+            inode=metadata.st_ino,
+            owner_uid=metadata.st_uid,
+            owner_gid=metadata.st_gid,
+            peer_uid=os.geteuid(),
+            peer_gid=os.getegid(),
+        ),
+    )
+    errors: list[Exception] = []
+
+    def serve_failed_request() -> None:
+        try:
+            server.serve_one()
+        except Exception as exc:
+            errors.append(exc)
+
+    worker = threading.Thread(target=serve_failed_request)
+    worker.start()
+    try:
+        with pytest.raises(UdsProtocolError, match="NOTIFY_COMMIT_NOT_ACKNOWLEDGED"):
+            client.notify({"message_type": "SendOutcome"})
+        worker.join(timeout=1)
+    finally:
+        server.close()
+    assert not worker.is_alive()
+    assert len(errors) == 1
 
 
 def test_bounded_client_supports_request_and_one_way_message(tmp_path: Path) -> None:

@@ -143,6 +143,30 @@ def test_non_allowlisted_production_host_never_calls_transport() -> None:
     assert calls == 0
 
 
+def test_transport_scheme_mismatch_never_calls_transport() -> None:
+    now = datetime(2026, 7, 14, tzinfo=UTC)
+    request = make_request(now).model_copy(update={"scheme": "wss"})
+    grant = make_grant(request, now)
+    calls = 0
+
+    def transport(_: ClosedGatewayRequest) -> None:
+        nonlocal calls
+        calls += 1
+
+    with pytest.raises(GatewayDenied, match="DESTINATION_NOT_ALLOWLISTED"):
+        send_once(
+            request,
+            grant,
+            transport,
+            now=now,
+            expected_permit_id="permit-1",
+            expected_fencing_epoch=1,
+            expected_operation_facts_hash=H,
+            expected_capability_payload_hash=H,
+        )
+    assert calls == 0
+
+
 def test_testnet_is_frozen_pending_endpoint_adr() -> None:
     now = datetime(2026, 7, 14, tzinfo=UTC)
     request = make_request(now, host="demo-fstream.binance.com", environment="testnet")
@@ -189,6 +213,7 @@ class FakeRateClient:
         self.requests: list[dict[str, Any]] = []
         self.notifications: list[dict[str, Any]] = []
         self.response_overrides: dict[str, Any] = {}
+        self.notify_failures = 0
 
     def request(self, document: dict[str, Any]) -> dict[str, Any]:
         self.requests.append(document)
@@ -203,7 +228,7 @@ class FakeRateClient:
             "request_message_id": document["message_id"],
             "permit_id": document["permit_id"],
             "decision": "CONSUME_GRANTED",
-            "gateway_connection_id": None,
+            "gateway_connection_id": document["gateway_connection_id"],
             "canonical_request_hash": document["canonical_request_hash"],
             "gateway_derived_parameter_hash": document["gateway_derived_parameter_hash"],
             "gateway_derived_wire_bytes_hash": document["gateway_derived_wire_bytes_hash"],
@@ -221,6 +246,9 @@ class FakeRateClient:
         return response
 
     def notify(self, document: dict[str, Any]) -> None:
+        if self.notify_failures:
+            self.notify_failures -= 1
+            raise ValueError("durable outcome write failed")
         self.notifications.append(document)
 
 
@@ -405,6 +433,46 @@ def test_schema_invalid_allocator_response_never_reaches_transport() -> None:
     with pytest.raises(GatewayDenied, match="ALLOCATOR_RESPONSE_INVALID"):
         app(message, PeerCredentials(pid=123, uid=11003, gid=11003))
     assert calls == []
+
+
+def test_consume_denial_preserves_non_null_connection_binding() -> None:
+    now = datetime(2026, 7, 14, tzinfo=UTC)
+    app, rate, message, calls = _gateway_fixture(now)
+    request = ClosedGatewayRequest.model_validate(message["request_document"]).model_copy(
+        update={"gateway_connection_id": "gateway-connection-0001"}
+    )
+    message["request_document"] = request.model_dump(mode="json")
+    message["permit_binding"]["allocated_gateway_connection_id"] = request.gateway_connection_id
+    message["permit_binding"]["request_document_hash"] = request_document_hash(request)
+    rate.response_overrides.update(
+        {
+            "decision": "CONSUME_DENIED",
+            "capability_nonce_state": None,
+            "send_deadline": None,
+            "reason_code": "RATE_PERMIT_ALREADY_CONSUMED",
+        }
+    )
+
+    result = app(message, PeerCredentials(pid=123, uid=11003, gid=11003))
+    assert result["status"] == "CONSUME_DENIED"
+    assert rate.requests[0]["gateway_connection_id"] == "gateway-connection-0001"
+    assert calls == []
+
+
+def test_outcome_write_failure_latches_gateway_closed_after_send() -> None:
+    now = datetime(2026, 7, 14, tzinfo=UTC)
+    app, rate, message, calls = _gateway_fixture(now)
+    rate.notify_failures = 3
+
+    with pytest.raises(GatewayDenied, match="ALLOCATOR_UNAVAILABLE"):
+        app(message, PeerCredentials(pid=123, uid=11003, gid=11003))
+    assert len(calls) == 1
+    requests_after_failure = len(rate.requests)
+
+    result = app(message, PeerCredentials(pid=123, uid=11003, gid=11003))
+    assert result["status"] == "DENIED_BEFORE_CONSUME"
+    assert len(rate.requests) == requests_after_failure
+    assert len(calls) == 1
 
 
 def test_gateway_binding_tamper_never_consumes_or_sends() -> None:

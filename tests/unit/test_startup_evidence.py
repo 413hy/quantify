@@ -232,6 +232,17 @@ def test_private_attestation_key_must_be_owner_only_and_outside_repo(
     with pytest.raises(AuthorizationDenied, match="ATTESTATION_PRIVATE_KEY_UNSAFE"):
         load_attestation_private_key(key_path, forbidden_repository_root=ROOT)
 
+    key_path.chmod(0o400)
+    link = tmp_path / "attestation-key-link.pem"
+    link.symlink_to(key_path)
+    with pytest.raises(AuthorizationDenied, match="ATTESTATION_PRIVATE_KEY_UNSAFE"):
+        load_attestation_private_key(link, forbidden_repository_root=ROOT)
+    with pytest.raises(AuthorizationDenied, match="ATTESTATION_PRIVATE_KEY_UNSAFE"):
+        load_attestation_private_key(
+            Path(key_path.name),
+            forbidden_repository_root=ROOT,
+        )
+
 
 def test_atomic_publication_and_monitor_reverify_the_current_file(
     tmp_path: Path,
