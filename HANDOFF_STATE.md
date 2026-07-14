@@ -1,13 +1,13 @@
 # Handoff state
 
-Updated: `2026-07-14T10:04:35Z`
+Updated: `2026-07-14T10:10:49Z`
 
 Resume in `/root/quantify/ai-quant-system`. Read `IMPLEMENTATION_STATUS.md`, ADR 0001–0004,
 `docs/deployment/debian-12-platform.md` and
 `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`. Never modify
 `/root/quantify/reference-materials`.
 
-Current implementation head is commit `be6c46a`. M0 is not complete
+Current implementation head is commit `4b71424`. M0 is not complete
 or accepted. Commit `8516679` adds the executable bounded rate service, PostgreSQL v2 Reserve and
 full-bind Consume, deterministic multi-class policy ingestion, idempotent outcome/observation
 journals and durable 429/418 reconciliation. Commit `42624ef` adds closed gateway IPC validation,
@@ -18,7 +18,7 @@ Commit `46865c3` adds same-transaction append-only Reserve and Consume decision 
 write failure rolls back the associated authority transaction.
 Commit `411f4da` separates startup attestation from the host configuration trust domain and adds a
 fixed-identity, owner-only Ed25519 issuance primitive that schema-validates and independently
-re-verifies every signed draft. The executable measured-facts collector/service is still absent.
+re-verifies every signed draft.
 Commit `b8bc281` makes Compose use the frozen peer/holder identities and owner-only attestation-key
 grant; services remain locked and no network or credential was activated.
 Commit `cc87fda` requires a schema-valid, exact full-bind allocator grant immediately before the
@@ -44,13 +44,17 @@ fresh-context independent acceptance review.
 Commit `53784a5` adds the root-authenticated local-facts assembly boundary. It accepts no evidence
 draft, requires a fresh direct root-owned `0444` snapshot with its own JCS hash, independently
 remeasures boot ID, complete artifact/release bindings and both Unix sockets, and constructs the
-signable content plus exact verifier expectation. The root facts collector is still absent.
+signable content plus exact verifier expectation.
 Commit `d3711e0` adds the executable issuer service. Every cycle reloads the root-protected plan,
 signed trust bundle and owner-only key, proves that the keyring/trust/schema files actually used are
 the files bound into the evidence, signs and atomically publishes, and refreshes no slower than 60
-seconds. Handled stop/refresh failure removes the last evidence. The root collector is still absent,
-and locked Compose intentionally does not activate this service.
+seconds. Handled stop/refresh failure removes the last evidence, and locked Compose intentionally
+does not activate this service.
 Commit `fcbcba2` turns that deployment lock into a CI-enforced Compose rule and security test.
+Commit `4b71424` adds the root-only local-facts collector. It accepts exactly six fresh,
+root-protected hashed measurement sources; remeasures artifacts, release files, image digests, boot
+ID and sockets; Schema-validates and atomically publishes `0444 root:root`; and makes the signer
+repeat the dynamic-source checks. Real deployment measurement producers are still absent.
 ADR 0004 is an owner-approved baseline amendment: Debian 12 Bookworm/aarch64 on Oracle Cloud is the
 only supported host platform. It supersedes conflicting OS selections in the immutable historical
 inputs without changing their bytes. `BLK-003` is resolved; the live Debian host is a deployment

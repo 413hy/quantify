@@ -51,6 +51,8 @@ Current implementation facts to verify rather than assume:
 - Database runtime role head is 0009_runtime_role and the locked rate service receives no bootstrap
   database secret.
 - Root-authenticated local-facts assembly rejects caller-authored evidence drafts.
+- The root-only local-facts collector closes six protected dynamic-source types, remeasures static
+  bindings, validates the immutable evidence Schema and atomically publishes `0444 root:root`.
 - The executable attestation issuer binds the actual keyring/trust/schema artifacts, refreshes no
   slower than 60 seconds, atomically publishes and removes evidence on handled failure.
 - Compose intentionally keeps the attestation signer on locked_process/RISK_LOCKED until real

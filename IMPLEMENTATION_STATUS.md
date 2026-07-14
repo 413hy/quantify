@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: `2026-07-14T10:04:35Z`
+Updated: `2026-07-14T10:10:49Z`
 
 Overall state: `M0_IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
 
@@ -85,15 +85,20 @@ Highest completed milestone: none
   evidence drafts from the issuance boundary. A fresh root-owned `0444` local-facts snapshot is
   strictly parsed and hash-checked; the assembler independently remeasures boot identity, complete
   artifact/release hashes and both Unix socket identities before constructing the only signable
-  content and its matching expectation. The root facts collector remains absent.
+  content and its matching expectation.
 - Commit `d3711e0284ce1def8cb9a37f95b117c3da0a905a` adds the executable fail-closed
   attestation issuer around that boundary. It reloads the protected plan, trust bundle and private
   key for every refresh, binds the actually used keyring/trust/schema files to the evidence, issues
   at most every 60 seconds, publishes atomically, and deletes the last evidence on handled stop or
-  refresh failure. Compose remains locked; the root facts collector and deployment inputs are absent.
+  refresh failure. Compose remains locked; real deployment inputs are absent.
 - Commit `fcbcba230d75327ae155e1717fe23dc661a2debd` makes that non-activation an
   executable Compose policy: the signer command must remain `locked_process`/`RISK_LOCKED` until
   deployment facts and gates exist, and an independent security test pins the same boundary.
+- Commit `4b71424c0f0fd0f385d3d2f1f6a89088f2cb1d9e` adds the root-only local-facts
+  collector. It closes dynamic-source coverage, requires fresh root-owned hashed measurements,
+  remeasures artifacts, release files, image digests, boot ID and sockets, validates the immutable
+  evidence Schema, and atomically publishes `0444 root:root`; the signer independently repeats the
+  source and binding checks.
 - ADR 0004 records the owner's explicit platform correction: Debian 12 Bookworm/aarch64 on Oracle
   Cloud is the sole deployment target. The live host matches that profile and the read-only Debian
   platform verifier passes; the original source archives remain immutable for provenance.
@@ -111,10 +116,10 @@ Detailed evidence: `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`.
 2. Implement and independently review the production exact-wire transport and gateway service only
    after startup evidence and destination policy exist. Multi-role endpoints remain denied because
    the frozen request contract does not provide a unique gateway-side causal derivation rule.
-3. Build the root-authenticated local-facts collector that supplies the completed executable
-   attestation issuer, then prove its lifecycle on the qualified deployment target. The issuer
-   already rejects caller-authored drafts and invalidates evidence on handled refresh failure; it is
-   intentionally not activated by locked Compose without real measured facts.
+3. Provision the six real root-protected measurement producers consumed by the completed local-facts
+   collector, then prove collector/issuer lifecycle on the qualified deployment target. Both
+   processes invalidate their output on handled refresh failure and remain intentionally inactive
+   in locked Compose without real measured facts.
 4. Destination-specific host DNS/firewall enforcement proving exactly one Binance socket owner and
    zero business Binance routes; current Compose validation is static only.
 5. A different actor in fresh context must independently review and issue a valid
@@ -136,7 +141,7 @@ supported platform; OS matching alone does not satisfy deployment qualification.
 
 | Milestone | Status |
 |---|---|
-| M0 repository/contracts/config/migrations/audit/host control/gateway | IN PROGRESS; offline rate/gateway/attestation issuer boundaries implemented, collector/deployment/network/review outstanding |
+| M0 repository/contracts/config/migrations/audit/host control/gateway | IN PROGRESS; offline rate/gateway/attestation/collector boundaries implemented, deployment sources/network/review outstanding |
 | M1 market data/order book/quality/archive/replay | NOT STARTED; M0 acceptance required |
 | M2 PA/OF/Top10/cost/Codex orchestration/unified backtest | NOT STARTED; Codex portion blocked by model catalog |
 | M3 risk/order state/user stream/native protection/reconciliation | NOT STARTED |

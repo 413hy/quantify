@@ -2,7 +2,7 @@
 
 - Stage: M0 — repository, contracts, configuration, migrations, audit and egress skeleton
 - Status: `IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
-- Report time: `2026-07-14T10:04:35Z`
+- Report time: `2026-07-14T10:10:49Z`
 - Implementation commits: `3a5762e37a5311f0a7faeca2e93b6c77ab8500ff`,
   `fca378cf7e4f18457f46a381e29fc8599bb5baa8`,
   `d5a394e21776957f627c9c3e7da78dfd1accf53c`,
@@ -20,7 +20,8 @@
   `53784a5a40a2f174696bf5ade93df9f725bf9c5b`,
   `d3711e0284ce1def8cb9a37f95b117c3da0a905a`,
   `fcbcba230d75327ae155e1717fe23dc661a2debd`,
-  `be6c46a5884c7a666c1963df33b28f5442fbebe2`
+  `be6c46a5884c7a666c1963df33b28f5442fbebe2`,
+  `4b71424c0f0fd0f385d3d2f1f6a89088f2cb1d9e`
 - Implementer: `/root` engineering session
 - Independent reviewer: not assigned; a different actor with fresh context is still required
 - `CodexReviewReport`: absent by design; the implementer cannot self-sign it
@@ -47,7 +48,7 @@ metadata, and evidence.
 | M0-R08 atomic reserve/permit/nonce consume and replay denial | PASS for implemented database boundary | `migrations.log`; unit/property tests |
 | M0-R09 locked non-root container startup | PASS | `locked-runtime.log` |
 | M0-R10 full Reserve→gateway→PermitConsume→send service | PARTIAL | bounded rate/gateway IPC, v2 Reserve/Consume, exact-wire single-send core and outcome journal pass; production transport is intentionally absent |
-| M0-R11 signed startup evidence and host destination firewall | PARTIAL | root-authenticated facts assembly, executable independent issuer, full measurement binding, atomic publisher and monitor pass; root collector, signed deployment evidence and host firewall proof remain absent |
+| M0-R11 signed startup evidence and host destination firewall | PARTIAL | root-only collector, root-authenticated assembly, executable independent issuer, full measurement binding, atomic publishers and monitor pass; real measurement producers, signed deployment evidence and host firewall proof remain absent |
 | M0-R12 independent fresh-context review | BLOCKED | reviewer and valid `CodexReviewReport` absent |
 | M0-R13 deployment host platform | PASS for OS compatibility | owner-approved ADR 0004; `make validate-debian-platform`; Debian 12 Bookworm/aarch64 OCI profile passes |
 
@@ -58,8 +59,8 @@ metadata, and evidence.
 - The earlier foundation implementation manifest hash was
   `b13e7e76e1f6ad5e08b4d2b846f7ea15cdcefab163b25db5256541f7dd60b91a`; Git commit identity is
   authoritative for the later increments.
-- Local application OCI image ID: `sha256:56a1b83461443093e5d1320a782727bc503a8ce15ce9191ffd1cb02a665fe330`.
-- Image architecture/size: Linux arm64, 340,776,564 bytes.
+- Local application OCI image ID: `sha256:cae02b3e08243bb6d0d08ad9020b26e514d6f277b552870514f7e6e0949d0a36`.
+- Image architecture/size: Linux arm64, 340,807,518 bytes.
 - The earlier image was reproduced twice. This new dependency-bearing image was built repeatedly
   from cache with the same ID but has not had a fresh no-cache reproducibility run.
 - Business migration head: `0001_business_core`.
@@ -94,6 +95,7 @@ startup-evidence, or live authorization has been issued.
 | Boundary | database runtime role | `aiq_rate_authority` defaults `NOLOGIN`, has no superuser/DDL role flags, public function execute is revoked, and hardened functions carry mutations |
 | Boundary | destination tuple | authority, transport, scheme and host are an exact tuple; denied Consume replies retain non-null connection binding |
 | Boundary | root-authenticated local facts | no evidence draft is accepted; fresh root snapshot, boot ID, complete artifact/release bindings and both socket identities are remeasured before content construction |
+| Boundary | root local-facts collector | root-only; six fresh protected source types exactly covered; source hashes, evidence Schema, artifacts, release files, image digests, boot ID and sockets rechecked; `0444 root:root` output is atomically replaced and removed on stop/failure |
 | Boundary | executable attestation issuer | actual keyring/trust/schema inputs are evidence-bound; refresh is at most 60 seconds and handled stop/failure removes the published evidence |
 | Boundary | attestation deployment lock | Compose validation and a security test reject activating the issuer before real deployment facts and gates exist |
 | Platform | Debian 12 sole-host amendment | mutable guidance contains no legacy platform selection; live OCI host passes OS, architecture, kernel, cgroup, resource, systemd, Docker, chrony and nftables checks |

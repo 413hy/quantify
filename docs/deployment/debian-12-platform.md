@@ -32,6 +32,10 @@ root_storage_gb=180..220
    gates pass.
 7. Generate deployment-bound startup evidence and obtain an independent M0 review before M1.
 
+The root measurement process and its source envelope are defined in
+`docs/deployment/root-local-facts-collector.md`. Its implementation is present but must not be
+activated until the six real measurement producers and the network boundary have been qualified.
+
 ## Host package boundary
 
 Use Debian bookworm repositories plus Docker's signed Debian repository. Pin or record every

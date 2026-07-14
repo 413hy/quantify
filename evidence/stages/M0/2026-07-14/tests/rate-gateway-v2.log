@@ -1,6 +1,6 @@
 M0 rate/gateway v2 verification summary
-time=2026-07-14T10:04:35Z
-implementation_head=be6c46a5884c7a666c1963df33b28f5442fbebe2
+time=2026-07-14T10:10:49Z
+implementation_head=4b71424c0f0fd0f385d3d2f1f6a89088f2cb1d9e
 rate_authority_commit=8516679
 gateway_pipeline_commit=42624ef909aa25cc4aa7c46c392a7c856eaa82f3
 ci=PASS unit=97 property=3 contract=2 security=9 mypy=PASS bandit=PASS secret_scan=PASS
@@ -25,6 +25,7 @@ database_runtime_role=PASS role=aiq_rate_authority login_default=false superuser
 uds_notification_commit=PASS handler_failure_rejected=true explicit_ack=true outcome_retry=3 failure_latches_gateway=true
 destination_binding=PASS authority_transport_scheme_host=exact consume_denial_connection_binding=preserved
 local_facts_assembly=PASS caller_draft_accepted=false root_snapshot=true max_age_seconds=5 boot_id_remeasured=true artifacts_rehashed=true releases_rehashed=true sockets_remeasured=true
+local_facts_collector=PASS root_only=true dynamic_sources=6 source_max_age_seconds=5 source_hashes=true schema_validated=true image_digests_reverified=true atomic_publish=true fsync=true mode=0444 owner=root stop_failure_unpublishes=true compose_activated=false
 attestation_issuer=PASS executable=true actual_runtime_artifacts_bound=true refresh_max_seconds=60 handled_failure_unpublishes=true compose_activated=false
 attestation_compose_gate=PASS required_command=locked_process required_state=RISK_LOCKED
 compose_identity=PASS realtime=11001 execution=11002 gateway=11005 rate=11006 signer=11007 signer_key_mode=0400

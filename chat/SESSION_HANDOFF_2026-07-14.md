@@ -65,6 +65,9 @@ existing features:
 - An executable fail-closed attestation issuer now reloads the root plan, signed trust bundle and
   owner-only key every cycle; binds the actual keyring/trust/schema files used; publishes atomically;
   refreshes within 60 seconds; and removes the evidence on handled stop or refresh failure.
+- A root-only local-facts collector now requires six fresh protected measurement sources, remeasures
+  artifacts/releases/image digests/boot ID/sockets, validates the immutable evidence Schema and
+  atomically publishes `0444 root:root`. Real deployment sources are not provisioned yet.
 - Compose validation explicitly forbids activating that issuer without real deployment facts. It
   must remain `ai_quant.services.locked_process` with `RISK_LOCKED` in the current baseline.
 
@@ -74,6 +77,7 @@ Important commits include:
 - `53784a5` — local-facts evidence assembly.
 - `d3711e0` — executable fail-closed attestation issuer.
 - `fcbcba2` — deployment-lock policy and security test.
+- `4b71424` — root-only local-facts collector and independent source revalidation.
 - `3c4469d` — evidence/status update for that implementation baseline.
 
 ## Last verified results
@@ -97,11 +101,11 @@ make test-locked-runtime
 The host-control migration head is `0009_runtime_role`; the independent disposable migration
 round-trip previously passed and no later migration changed it.
 
-Last local arm64 image evidence before the chat-only commits:
+Latest local arm64 cached-build image evidence:
 
 ```text
-sha256:56a1b83461443093e5d1320a782727bc503a8ce15ce9191ffd1cb02a665fe330
-size=340776564
+sha256:cae02b3e08243bb6d0d08ad9020b26e514d6f277b552870514f7e6e0949d0a36
+size=340807518
 ```
 
 Do not treat that local image ID as a signed registry release or deployment attestation.
