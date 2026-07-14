@@ -21,6 +21,7 @@ services:
   rate-budget-service:
     image: ${AIQ_APP_IMAGE:?set digest-pinned AIQ_APP_IMAGE}
     user: "11006:11006"
+    group_add: ["11990"]
     command: ["python", "-m", "ai_quant.services.locked_process"]
     environment:
       AIQ_SOCKET_PATH: /run/ai-quant-rate/rate.sock
@@ -42,6 +43,7 @@ services:
   host-attestation-signer:
     image: ${AIQ_APP_IMAGE:?set digest-pinned AIQ_APP_IMAGE}
     user: "11007:11007"
+    group_add: ["11990"]
     command: ["python", "-m", "ai_quant.services.locked_process"]
     environment:
       AIQ_SOCKET_PATH: /run/ai-quant-rate/attestation.sock

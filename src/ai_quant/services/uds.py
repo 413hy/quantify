@@ -8,6 +8,7 @@ import socket
 import stat
 import struct
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +21,23 @@ FRAME_HEADER_BYTES = 4
 
 class UdsProtocolError(ValueError):
     """A local IPC peer sent an invalid or over-limit frame."""
+
+
+@dataclass(frozen=True, slots=True)
+class UnixSocketPeerExpectation:
+    inode: int
+    owner_uid: int
+    owner_gid: int
+    peer_uid: int
+    peer_gid: int
+    mode: int = 0o660
+
+
+@dataclass(frozen=True, slots=True)
+class UnixSocketServerExpectation:
+    runtime_directory_gid: int
+    socket_owner_uid: int
+    socket_owner_gid: int
 
 
 def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -84,6 +102,7 @@ class BoundedUnixServer:
             [Mapping[str, Any], PeerCredentials], Mapping[str, Any] | None
         ],
         *,
+        identity_expectation: UnixSocketServerExpectation,
         max_frame_bytes: int = RATE_FRAME_MAX_BYTES,
         backlog: int = 128,
         peer_timeout_seconds: float = 1.0,
@@ -99,6 +118,7 @@ class BoundedUnixServer:
             raise UdsProtocolError("SERVER_TIMEOUT_INVALID")
         self._path = path
         self._handler = handler
+        self._identity_expectation = identity_expectation
         self._max_frame_bytes = max_frame_bytes
         self._backlog = backlog
         self._peer_timeout_seconds = peer_timeout_seconds
@@ -110,10 +130,15 @@ class BoundedUnixServer:
             raise UdsProtocolError("SERVER_ALREADY_STARTED")
         parent = self._path.parent
         metadata = parent.stat()
+        parent_mode = stat.S_IMODE(metadata.st_mode)
         if (
             not stat.S_ISDIR(metadata.st_mode)
             or metadata.st_uid != 0
-            or stat.S_IMODE(metadata.st_mode) & 0o007
+            or metadata.st_gid
+            != self._identity_expectation.runtime_directory_gid
+            or parent_mode & 0o007
+            or parent_mode & 0o070 != 0o070
+            or not metadata.st_mode & stat.S_ISGID
         ):
             raise UdsProtocolError("RUNTIME_DIRECTORY_UNSAFE")
         if self._path.exists() or self._path.is_symlink():
@@ -123,6 +148,15 @@ class BoundedUnixServer:
             listener.bind(str(self._path))
             # Frozen UDS contract requires group read/write and forbids world access.
             os.chmod(self._path, 0o660)  # nosec B103
+            socket_metadata = self._path.stat()
+            if (
+                socket_metadata.st_uid
+                != self._identity_expectation.socket_owner_uid
+                or socket_metadata.st_gid
+                != self._identity_expectation.socket_owner_gid
+                or stat.S_IMODE(socket_metadata.st_mode) != 0o660
+            ):
+                raise UdsProtocolError("SERVER_SOCKET_IDENTITY_MISMATCH")
             listener.listen(self._backlog)
             listener.settimeout(self._accept_timeout_seconds)
         except BaseException:
@@ -166,6 +200,7 @@ class BoundedUnixClient:
         self,
         path: Path,
         *,
+        peer_expectation: UnixSocketPeerExpectation,
         max_frame_bytes: int = RATE_FRAME_MAX_BYTES,
         timeout_seconds: float = 1.0,
     ) -> None:
@@ -178,6 +213,7 @@ class BoundedUnixClient:
         if timeout_seconds <= 0 or timeout_seconds > 5:
             raise UdsProtocolError("CLIENT_CONFIGURATION_INVALID")
         self._path = path
+        self._peer_expectation = peer_expectation
         self._max_frame_bytes = max_frame_bytes
         self._timeout_seconds = timeout_seconds
 
@@ -195,11 +231,34 @@ class BoundedUnixClient:
                 raise UdsProtocolError("ONE_WAY_RESPONSE_FORBIDDEN")
 
     def _connected(self) -> socket.socket:
+        self._validate_socket_path()
         peer = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         peer.settimeout(self._timeout_seconds)
         try:
             peer.connect(str(self._path))
+            credentials = peer_credentials(peer)
+            self._validate_socket_path()
+            if (
+                credentials.uid != self._peer_expectation.peer_uid
+                or credentials.gid != self._peer_expectation.peer_gid
+            ):
+                raise UdsProtocolError("SERVER_PEER_CREDENTIAL_MISMATCH")
         except BaseException:
             peer.close()
             raise
         return peer
+
+    def _validate_socket_path(self) -> None:
+        try:
+            metadata = self._path.lstat()
+        except OSError as exc:
+            raise UdsProtocolError("SERVER_SOCKET_IDENTITY_MISMATCH") from exc
+        expected = self._peer_expectation
+        if (
+            not stat.S_ISSOCK(metadata.st_mode)
+            or metadata.st_ino != expected.inode
+            or metadata.st_uid != expected.owner_uid
+            or metadata.st_gid != expected.owner_gid
+            or stat.S_IMODE(metadata.st_mode) != expected.mode
+        ):
+            raise UdsProtocolError("SERVER_SOCKET_IDENTITY_MISMATCH")

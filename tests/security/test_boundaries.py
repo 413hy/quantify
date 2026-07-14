@@ -44,6 +44,23 @@ def test_compose_identities_match_the_signed_trust_boundary() -> None:
     assert actual == expected
 
 
+def test_compose_services_receive_only_the_required_shared_socket_groups() -> None:
+    expected = {
+        "realtime-engine": ["11990", "11991"],
+        "execution-service": ["11990", "11991"],
+        "binance-egress-gateway": ["11990", "11991"],
+        "rate-budget-service": ["11990"],
+        "host-attestation-signer": ["11990"],
+    }
+    actual: dict[str, list[str]] = {}
+    for path in (ROOT / "deploy").glob("*.yaml"):
+        document = yaml.safe_load(path.read_text(encoding="utf-8"))
+        for name, service in document.get("services", {}).items():
+            if name in expected:
+                actual[name] = service.get("group_add")
+    assert actual == expected
+
+
 def test_attestation_private_key_is_granted_only_to_its_fixed_holder() -> None:
     document = yaml.safe_load(
         (ROOT / "deploy/host-control.compose.yaml").read_text(encoding="utf-8")

@@ -12,7 +12,7 @@ from ai_quant.rate_budget.authorization import load_runtime_trust_bundle
 from ai_quant.rate_budget.policy import load_runtime_endpoint_catalog
 from ai_quant.rate_budget.postgres import PostgresRateAuthority, load_database_dsn
 from ai_quant.services.locked_process import validated_socket_path
-from ai_quant.services.uds import BoundedUnixServer
+from ai_quant.services.uds import BoundedUnixServer, UnixSocketServerExpectation
 
 
 def _path(name: str) -> Path:
@@ -70,6 +70,11 @@ def run() -> None:
     server = BoundedUnixServer(
         validated_socket_path(os.environ["AIQ_SOCKET_PATH"]),
         application,
+        identity_expectation=UnixSocketServerExpectation(
+            runtime_directory_gid=11990,
+            socket_owner_uid=11006,
+            socket_owner_gid=11990,
+        ),
         accept_timeout_seconds=5,
     )
     server.start()

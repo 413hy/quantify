@@ -51,6 +51,7 @@ services:
   realtime-engine:
     <<: *app_defaults
     user: "11001:11001"
+    group_add: ["11990", "11991"]
     command: *locked_command
     environment:
       AIQ_SOCKET_PATH: /run/ai-quant-business/realtime-engine.sock
@@ -73,6 +74,7 @@ services:
   execution-service:
     <<: *app_defaults
     user: "11002:11002"
+    group_add: ["11990", "11991"]
     command: *locked_command
     environment:
       AIQ_SOCKET_PATH: /run/ai-quant-business/execution.sock

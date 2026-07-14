@@ -19,6 +19,13 @@ FIXED_IDENTITIES = {
     "rate-budget-service": "11006:11006",
     "host-attestation-signer": "11007:11007",
 }
+FIXED_SUPPLEMENTARY_GROUPS = {
+    "realtime-engine": ["11990", "11991"],
+    "execution-service": ["11990", "11991"],
+    "binance-egress-gateway": ["11990", "11991"],
+    "rate-budget-service": ["11990"],
+    "host-attestation-signer": ["11990"],
+}
 ATTESTATION_SECRET_GRANT = {
     "source": "host_attestation_key",
     "target": "host_attestation_key",
@@ -79,6 +86,10 @@ def main() -> int:
                 if service.get("user") != expected_identity:
                     failures.append(
                         f"{path.name}:{name}: user must be {expected_identity}"
+                    )
+                if service.get("group_add") != FIXED_SUPPLEMENTARY_GROUPS[name]:
+                    failures.append(
+                        f"{path.name}:{name}: supplementary socket groups invalid"
                     )
         text = path.read_text(encoding="utf-8").lower()
         if "binance_api_secret" in text or "openai_api_key:" in text:
