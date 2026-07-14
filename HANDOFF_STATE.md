@@ -71,6 +71,11 @@ Commit `543791d` removes the runtime role's blanket `SELECT`/function execution 
 reads five operational tables, executes six named entry points, cannot directly read observation or
 authority-block journals, and obtains startup measurements through two fixed security-definer
 functions. Migration tests execute both readers under the restricted role.
+Frozen runbook 01 also requires a signed host toolchain lock, complete hardening directory,
+`bootstrap-host.sh plan/apply/verify` and a controlled `quantctl` package. Those release artifacts
+are still absent except for the non-applying nftables example. Do not fill their hashes or signing
+fingerprints with placeholders and do not apply SSH/firewall hardening without approved recovery,
+port and source-CIDR inputs.
 ADR 0004 is an owner-approved baseline amendment: Debian 12 Bookworm/aarch64 on Oracle Cloud is the
 only supported host platform. It supersedes conflicting OS selections in the immutable historical
 inputs without changing their bytes. `BLK-003` is resolved; the live Debian host is a deployment

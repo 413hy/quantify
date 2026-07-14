@@ -73,6 +73,8 @@ Known external blockers:
 - BLK-003 resolved by owner-approved ADR 0004; Debian 12 is the sole platform.
 - BLK-004 qualified deployment/network/clock/storage/restore/heartbeat/signed evidence absent.
 - BLK-005 independent fresh-context reviewer absent.
+- BLK-006 complete signed Debian host bootstrap/toolchain/hardening/quantctl bundle absent; never
+  invent package hashes, signing fingerprints or SSH approval inputs.
 
 If you are acting as the independent reviewer, do not modify implementation before completing the
 review. Read `contracts/codex-review-report.schema.json`, verify every claimed M0 fact directly, and

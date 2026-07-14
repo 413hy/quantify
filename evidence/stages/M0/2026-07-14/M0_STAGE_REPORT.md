@@ -153,6 +153,11 @@ The previous host-distribution conflict is resolved. Remaining deployment eviden
 of that correction and still includes the 24-hour clock/network/static-IP record, destination
 firewall proof, signed inputs, restore/heartbeat checks and independent review.
 
+Frozen runbook 01's complete Debian bootstrap release bundle is not present. Only the safe
+non-applying nftables renderer exists; there is no signed host toolchain lock, complete hardening
+set, audited plan/apply/verify bootstrap script or controlled `quantctl` install artifact. No
+package digest, signing fingerprint, SSH port or source CIDR has been invented to conceal this gap.
+
 M0 cannot be accepted until real signed runtime inputs populate the deployment database, the
 attestation signer issues deployment-bound evidence, an independently reviewed production transport
 is activated behind destination-specific host network enforcement, and a fresh-context independent

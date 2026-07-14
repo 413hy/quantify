@@ -143,6 +143,11 @@ Detailed evidence: `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`.
    `nft --check` pass, but no host rule was applied and documentation-only addresses are not proof.
 5. A different actor in fresh context must independently review and issue a valid
    `CodexReviewReport` with zero open P0/P1 before M0 acceptance.
+6. Complete the Debian bootstrap release bundle required by frozen runbook 01: a signed
+   `deploy/host-toolchain.lock.yaml`, the full sshd/Docker/journald/chrony/sysctl/limits hardening
+   set, and audited `scripts/bootstrap-host.sh plan/apply/verify`. The repository currently has only
+   the non-applying nftables artifact. Exact package hashes/signing fingerprints, the `quantctl`
+   install artifact and approved SSH port/source CIDR are absent, so no placeholder lock is claimed.
 
 ## Current blockers
 
@@ -152,6 +157,7 @@ Detailed evidence: `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`.
 | BLK-002 | M2 Codex execution, M9 | Exact `gpt-5.6` absent from current authenticated Codex catalog; substitution prohibited | Wait for catalog availability or explicit baseline change |
 | BLK-004 | Deployment/M6+ | 24-hour network/clock/static-IP, independent backtest, remote storage, restore, heartbeat, credential-isolation and signature evidence absent | Complete deployment preflight; no secrets requested now |
 | BLK-005 | M0 acceptance and every later milestone | Independent fresh-context reviewer absent | Perform independent review after the remaining M0 implementation |
+| BLK-006 | M0 host bootstrap/release | Exact Debian host package/signature lock, complete hardening bundle, controlled `quantctl` artifact and approved SSH inputs are absent | Produce and independently verify the signed bootstrap bundle before any host apply |
 
 Resolved baseline item: `BLK-003` is closed by owner-approved ADR 0004. Debian 12 is now the sole
 supported platform; OS matching alone does not satisfy deployment qualification.

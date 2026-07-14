@@ -129,6 +129,9 @@ Do not treat that local image ID as a signed registry release or deployment atte
   are absent.
 - `BLK-005`: a different fresh-context reviewer has not issued a valid `CodexReviewReport` with zero
   open P0/P1.
+- `BLK-006`: frozen runbook 01's signed Debian host toolchain lock, complete hardening bundle,
+  plan/apply/verify bootstrap script and controlled `quantctl` package are absent. The nftables
+  example is non-applying and does not satisfy the full bootstrap requirement.
 
 The owner subsequently clarified that Debian 12 is the only supported platform. Retain the current
 host, create a rollback image if desired, and complete the remaining deployment qualification on
