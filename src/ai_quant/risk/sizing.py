@@ -16,6 +16,20 @@ class ConfiguredRiskLimits:
     effective_leverage: Decimal = Decimal("10")
     concurrent_positions: int = 10
 
+    def __post_init__(self) -> None:
+        values_and_caps = (
+            (self.per_trade_initial_stop_pct, Decimal("0.005")),
+            (self.total_open_risk_pct, Decimal("0.020")),
+            (self.correlation_cluster_risk_pct, Decimal("0.010")),
+            (self.utc_daily_net_loss_pct, Decimal("0.040")),
+            (self.intraday_equity_drawdown_pct, Decimal("0.050")),
+            (self.effective_leverage, Decimal("10")),
+        )
+        if any(value < 0 or value > cap for value, cap in values_and_caps):
+            raise ValueError("configured risk limit exceeds immutable hard cap")
+        if not 0 <= self.concurrent_positions <= 10:
+            raise ValueError("configured position count exceeds immutable hard cap")
+
 
 @dataclass(frozen=True, slots=True)
 class EffectiveRiskLimits:
@@ -73,6 +87,22 @@ class RiskSizingDecision:
     reserved_risk: Decimal
     available_risk: Decimal
     reason_codes: tuple[str, ...]
+
+
+def maximum_quantity_for_margin_budget(
+    *,
+    margin_budget: Decimal,
+    initial_leverage: Decimal,
+    entry_price: Decimal,
+    step_size: Decimal,
+) -> Decimal:
+    """Convert a per-order margin ceiling to a floor-quantized quantity cap."""
+    if margin_budget <= 0 or entry_price <= 0 or step_size <= 0:
+        raise ValueError("margin sizing inputs must be positive")
+    if initial_leverage < 1 or initial_leverage > Decimal("10"):
+        raise ValueError("initial leverage exceeds immutable hard cap")
+    raw_quantity = margin_budget * initial_leverage / entry_price
+    return (raw_quantity / step_size).to_integral_value(rounding=ROUND_FLOOR) * step_size
 
 
 def size_entry(

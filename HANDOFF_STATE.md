@@ -1,6 +1,6 @@
 # Handoff state
 
-Updated: `2026-07-14T13:45:21Z`
+Updated: `2026-07-14T14:31:13Z`
 
 Resume in `/root/quantify/ai-quant-system`. Debian 12 Bookworm/aarch64 is the sole supported host.
 Do not modify `/root/quantify/reference-materials`; the copied contract/config provenance validator
@@ -17,6 +17,11 @@ The complete offline Paper trading path is implemented across these packages:
 - `orchestration`, `validation`, `research`, `iteration`
 - `demo.paper_flow`
 
+The latest review added deterministic existing-position exits, native stop/take-profit pair
+planning, the frozen hierarchical gross-edge runtime lookup, a 1 USDT margin quantity ceiling and
+Python-level enforcement of the immutable 10x leverage cap. The Testnet BTCUSDT risk profile is set
+to 10x; this is the maximum allowed by this project, not the exchange-reported 125x maximum.
+
 Business migrations now end at `0004_operations` and contain append-only market-data, risk,
 execution, command, incident, notification and backup evidence. The pre-existing host-control tree
 still ends at `0010_local_measurements`.
@@ -29,7 +34,7 @@ make test-migrations test-locked-runtime paper-flow
 make sbom scan
 ```
 
-Expected counts are 178 unit, 8 property, 2 contract, 17 security, 3 replay, 19 integration,
+Expected counts are 199 unit, 17 property, 2 contract, 17 security, 3 replay, 19 integration,
 6 fault and 1 resource test. The Paper result has `external_requests=0`, `order_state=FILLED`,
 `protection_healthy=true`, and `runtime_state=RISK_LOCKED`.
 
@@ -56,14 +61,14 @@ system is complete. Local changes must be reviewed and committed before any futu
   baseline.
 - The external archive receiver is provisioned and its encrypted upload, remote decrypt, Parquet
   inspection, signed receipt, replay/tamper rejection and isolated restore all pass. Its Debian 11
-  appliance is not an application host. About 19 GB is free, so attach and mount a dedicated data
-  volume at `/srv/aiq-archive` before claiming the 90-day capacity gate. Receiver deployment
+  appliance is not an application host. Its disk and root XFS filesystem now expose 200 GB with
+  about 178 GB free. Regenerate and bind formal capacity evidence before claiming the 90-day gate. Receiver deployment
   artifacts are in `deploy/archive-receiver/`; sender evidence is under
   `/var/lib/ai-quant/evidence/archive/current/`.
 - Telegram input files are
   `/root/aiq-user-inputs/notifications/secrets/telegram_bot_token` and
-  `/root/aiq-user-inputs/notifications/telegram_chat_ids`. Both are intentionally empty until the
-  owner fills them; then run `scripts/test-telegram-notification.py` for the live outbound probe.
+  `/root/aiq-user-inputs/notifications/telegram_chat_ids`. They are configured outside the
+  repository, remain root-only, and the live outbound probe passes.
 - Collect three continuous qualified data days, freeze the signed candidate/C0, then run the
   72-hour dual validation.
 - Obtain owner approvals and an independent fresh-context review.

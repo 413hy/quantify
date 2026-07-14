@@ -2,10 +2,16 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from ai_quant.risk.sizing import RiskSizingInput, size_entry
+from ai_quant.risk.sizing import (
+    ConfiguredRiskLimits,
+    RiskSizingInput,
+    maximum_quantity_for_margin_budget,
+    size_entry,
+)
 
 
 @given(
@@ -71,3 +77,40 @@ def test_risk_multiplier_scales_money_limits_but_not_position_count() -> None:
     )
     assert not size_entry(base, risk_multiplier=Decimal("0.1")).approved
     assert not size_entry(base, risk_multiplier=Decimal("1")).approved
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"per_trade_initial_stop_pct": Decimal("0.0051")},
+        {"total_open_risk_pct": Decimal("0.0201")},
+        {"correlation_cluster_risk_pct": Decimal("0.0101")},
+        {"utc_daily_net_loss_pct": Decimal("0.0401")},
+        {"intraday_equity_drawdown_pct": Decimal("0.0501")},
+        {"effective_leverage": Decimal("10.01")},
+        {"effective_leverage": Decimal("100")},
+        {"concurrent_positions": 11},
+    ],
+)
+def test_python_callers_cannot_bypass_immutable_risk_caps(changes: dict[str, object]) -> None:
+    with pytest.raises(ValueError, match="hard cap"):
+        ConfiguredRiskLimits(**changes)  # type: ignore[arg-type]
+
+
+def test_one_usdt_margin_budget_is_a_ceiling_and_never_rounds_up() -> None:
+    quantity = maximum_quantity_for_margin_budget(
+        margin_budget=Decimal("1"),
+        initial_leverage=Decimal("10"),
+        entry_price=Decimal("103"),
+        step_size=Decimal("0.001"),
+    )
+    assert quantity == Decimal("0.097")
+    assert quantity * Decimal("103") <= Decimal("10")
+
+    with pytest.raises(ValueError, match="hard cap"):
+        maximum_quantity_for_margin_budget(
+            margin_budget=Decimal("1"),
+            initial_leverage=Decimal("125"),
+            entry_price=Decimal("103"),
+            step_size=Decimal("0.001"),
+        )

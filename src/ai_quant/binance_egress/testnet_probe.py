@@ -222,6 +222,44 @@ class BinanceTestnetClient:
             "SYMBOL_CONFIG",
         )
 
+    def leverage_brackets(self, symbol: str) -> list[dict[str, Any]]:
+        result = self._call(
+            "GET", "/fapi/v1/leverageBracket", params={"symbol": symbol}, signed=True
+        )
+        try:
+            document = json.loads(result.body)
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise TestnetProbeError("LEVERAGE_BRACKET_INVALID_JSON") from exc
+        if not 200 <= result.status < 300:
+            code = document.get("code") if isinstance(document, dict) else None
+            raise TestnetProbeError(f"LEVERAGE_BRACKET_HTTP_{result.status}_CODE_{code}")
+        if isinstance(document, dict):
+            document = [document]
+        if not isinstance(document, list) or not all(isinstance(item, dict) for item in document):
+            raise TestnetProbeError("LEVERAGE_BRACKET_INVALID_RESPONSE")
+        return document
+
+    def commission_rate(self, symbol: str) -> dict[str, Any]:
+        return _json_object(
+            self._call(
+                "GET", "/fapi/v1/commissionRate", params={"symbol": symbol}, signed=True
+            ),
+            "COMMISSION_RATE",
+        )
+
+    def change_initial_leverage(self, symbol: str, leverage: int) -> dict[str, Any]:
+        if not 1 <= leverage <= 10:
+            raise TestnetProbeError("PROJECT_LEVERAGE_CAP_EXCEEDED")
+        return _json_object(
+            self._call(
+                "POST",
+                "/fapi/v1/leverage",
+                params={"symbol": symbol, "leverage": leverage},
+                signed=True,
+            ),
+            "CHANGE_INITIAL_LEVERAGE",
+        )
+
     def open_orders(self, symbol: str) -> list[dict[str, Any]]:
         return _json_list(
             self._call("GET", "/fapi/v1/openOrders", params={"symbol": symbol}, signed=True),
@@ -489,6 +527,62 @@ def _query_algo_consistent(
     raise TestnetProbeError("QUERY_ALGO_ORDER_NOT_FOUND")
 
 
+def _terminalize_algo_after_flat(
+    client: BinanceTestnetClient,
+    *,
+    symbol: str,
+    algo_id: int,
+    client_algo_id: str,
+) -> str:
+    try:
+        current = _query_algo_consistent(
+            client,
+            symbol=symbol,
+            algo_id=algo_id,
+            client_algo_id=client_algo_id,
+        )
+        status = str(current.get("algoStatus"))
+    except TestnetProbeError as exc:
+        matching_open = any(
+            item.get("algoId") == algo_id or item.get("clientAlgoId") == client_algo_id
+            for item in client.open_algo_orders(symbol)
+        )
+        if "CODE_-2013" not in str(exc) or matching_open:
+            raise
+        return "REMOVED_AFTER_FLAT"
+    if status in {"NEW", "TRIGGERING"}:
+        try:
+            client.cancel_algo_order(algo_id=algo_id)
+        except TestnetProbeError as exc:
+            matching_open = any(
+                item.get("algoId") == algo_id or item.get("clientAlgoId") == client_algo_id
+                for item in client.open_algo_orders(symbol)
+            )
+            if "CODE_-2011" not in str(exc) or matching_open:
+                raise
+            return "REMOVED_AFTER_FLAT"
+        try:
+            status = str(
+                _query_algo_consistent(
+                    client,
+                    symbol=symbol,
+                    algo_id=algo_id,
+                    client_algo_id=client_algo_id,
+                ).get("algoStatus")
+            )
+        except TestnetProbeError as exc:
+            matching_open = any(
+                item.get("algoId") == algo_id or item.get("clientAlgoId") == client_algo_id
+                for item in client.open_algo_orders(symbol)
+            )
+            if "CODE_-2013" not in str(exc) or matching_open:
+                raise
+            return "REMOVED_AFTER_FLAT"
+    if status not in {"CANCELED", "EXPIRED", "FINISHED", "REMOVED_AFTER_FLAT"}:
+        raise TestnetProbeError("PROTECTION_ALGO_NOT_TERMINAL")
+    return status
+
+
 def _credential(path: Path, repository_root: Path) -> str:
     raw = read_private_file(
         path,
@@ -590,6 +684,100 @@ def run_safe_testnet_probe(
             "streams": f"wss://{TESTNET_STREAM_HOST}",
             "websocket_api": f"wss://{TESTNET_WS_API_HOST}/ws-fapi/v1",
         },
+    }
+
+
+def run_testnet_risk_profile(
+    *,
+    api_key_file: Path,
+    api_secret_file: Path,
+    repository_root: Path,
+    symbol: str = "BTCUSDT",
+    project_leverage_cap: int = 10,
+    transport: Transport = _urllib_transport,
+) -> dict[str, Any]:
+    """Read current fee/bracket facts and set the bounded Testnet leverage profile."""
+    if not 1 <= project_leverage_cap <= 10:
+        raise TestnetProbeError("PROJECT_LEVERAGE_CAP_EXCEEDED")
+    started_at = datetime.now(UTC)
+    api_key = _credential(api_key_file, repository_root)
+    api_secret = _credential(api_secret_file, repository_root)
+    client = BinanceTestnetClient(api_key, api_secret, transport=transport)
+    _, offset = client.synchronize_time()
+    if abs(offset) > 1_000:
+        raise TestnetProbeError("TESTNET_CLOCK_OFFSET_EXCESSIVE")
+    if client.position_mode().get("dualSidePosition") is not False:
+        raise TestnetProbeError("ACCOUNT_POSITION_MODE_NOT_ONE_WAY")
+    if client.open_orders(symbol) or client.open_algo_orders(symbol):
+        raise TestnetProbeError("TESTNET_ACCOUNT_NOT_CLEAN")
+    if _position_quantity(client, symbol) != 0:
+        raise TestnetProbeError("TESTNET_ACCOUNT_NOT_CLEAN")
+
+    brackets = client.leverage_brackets(symbol)
+    symbol_bracket = next((item for item in brackets if item.get("symbol") == symbol), None)
+    if not isinstance(symbol_bracket, dict):
+        raise TestnetProbeError("LEVERAGE_BRACKET_SYMBOL_MISSING")
+    bracket_rows = symbol_bracket.get("brackets")
+    if not isinstance(bracket_rows, list) or not bracket_rows:
+        raise TestnetProbeError("LEVERAGE_BRACKET_ROWS_MISSING")
+    try:
+        exchange_maximum = max(int(item["initialLeverage"]) for item in bracket_rows)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise TestnetProbeError("LEVERAGE_BRACKET_INVALID_RESPONSE") from exc
+    selected_leverage = min(project_leverage_cap, exchange_maximum)
+    if selected_leverage < 1:
+        raise TestnetProbeError("LEVERAGE_BRACKET_INVALID_RESPONSE")
+
+    commission = client.commission_rate(symbol)
+    try:
+        maker_rate = Decimal(str(commission["makerCommissionRate"]))
+        taker_rate = Decimal(str(commission["takerCommissionRate"]))
+    except (KeyError, ArithmeticError) as exc:
+        raise TestnetProbeError("COMMISSION_RATE_INVALID_RESPONSE") from exc
+    if maker_rate < 0 or taker_rate < 0:
+        raise TestnetProbeError("COMMISSION_RATE_INVALID_RESPONSE")
+
+    changed = client.change_initial_leverage(symbol, selected_leverage)
+    if changed.get("symbol") != symbol or changed.get("leverage") != selected_leverage:
+        raise TestnetProbeError("CHANGE_INITIAL_LEVERAGE_RESPONSE_MISMATCH")
+    max_notional = changed.get("maxNotionalValue")
+    if not isinstance(max_notional, str) or Decimal(max_notional) <= 0:
+        raise TestnetProbeError("CHANGE_INITIAL_LEVERAGE_RESPONSE_MISMATCH")
+
+    profile_hash = hashlib.sha256(
+        json.dumps(
+            {
+                "exchange_maximum": exchange_maximum,
+                "maker_rate": format(maker_rate, "f"),
+                "selected_leverage": selected_leverage,
+                "symbol": symbol,
+                "taker_rate": format(taker_rate, "f"),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+    ).hexdigest()
+    return {
+        "schema_version": "1.0.0",
+        "probe": "BINANCE_USDS_M_FUTURES_TESTNET_RISK_PROFILE",
+        "started_at": started_at.isoformat().replace("+00:00", "Z"),
+        "completed_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        "result": "PASS",
+        "environment": "testnet",
+        "production_endpoint_requests": 0,
+        "matching_engine_orders_created": 0,
+        "symbol": symbol,
+        "exchange_maximum_initial_leverage": exchange_maximum,
+        "project_leverage_cap": project_leverage_cap,
+        "selected_initial_leverage": selected_leverage,
+        "max_notional_value": max_notional,
+        "maker_commission_rate": format(maker_rate, "f"),
+        "taker_commission_rate": format(taker_rate, "f"),
+        "profile_hash": profile_hash,
+        "clock_offset_ms": offset,
+        "final_open_order_count": 0,
+        "final_open_algo_order_count": 0,
+        "final_position_quantity": "0",
     }
 
 
@@ -719,12 +907,17 @@ def run_testnet_native_protection(
         raise TestnetProbeError("TEST_SYMBOL_FILTERS_INVALID") from exc
     entry_client_id = f"aq-t-entry-{secrets.token_hex(6)}"
     algo_client_id = f"aqa-t-stop-{secrets.token_hex(6)}"
+    take_profit_client_id = f"aqa-t-tp-{secrets.token_hex(6)}"
     entry_document: dict[str, Any] | None = None
     algo_document: dict[str, Any] | None = None
     algo_id: int | None = None
+    take_profit_document: dict[str, Any] | None = None
+    take_profit_id: int | None = None
     algo_final_status = "NOT_CREATED"
+    take_profit_final_status = "NOT_CREATED"
     cleanup_flattened = False
     protection_latency_ms: int | None = None
+    take_profit_latency_ms: int | None = None
     try:
         entry_document = client.place_order(
             {
@@ -782,49 +975,64 @@ def run_testnet_native_protection(
         )
         if queried_algo.get("algoStatus") != "NEW":
             raise TestnetProbeError("PROTECTION_QUERY_NOT_NEW")
+        take_profit_trigger = _decimal_step(
+            mark_price * Decimal("1.05"), tick_size, ROUND_CEILING
+        )
+        take_profit_document = client.place_algo_order(
+            {
+                "algoType": "CONDITIONAL",
+                "symbol": symbol,
+                "side": "SELL",
+                "positionSide": "BOTH",
+                "type": "TAKE_PROFIT_MARKET",
+                "triggerPrice": format(take_profit_trigger, "f"),
+                "workingType": "MARK_PRICE",
+                "closePosition": "true",
+                "priceProtect": "false",
+                "clientAlgoId": take_profit_client_id,
+                "newOrderRespType": "RESULT",
+            }
+        )
+        if take_profit_document.get("clientAlgoId") != take_profit_client_id:
+            raise TestnetProbeError("TAKE_PROFIT_ALGO_ID_MISMATCH")
+        if take_profit_document.get("algoStatus") != "NEW":
+            raise TestnetProbeError("TAKE_PROFIT_ALGO_NOT_NEW")
+        raw_take_profit_id = take_profit_document.get("algoId")
+        take_profit_create = take_profit_document.get("createTime")
+        if not isinstance(raw_take_profit_id, int):
+            raise TestnetProbeError("TAKE_PROFIT_ALGO_ID_MISSING")
+        if not isinstance(take_profit_create, int) or not isinstance(entry_update, int):
+            raise TestnetProbeError("PROTECTION_LATENCY_TIMESTAMPS_MISSING")
+        take_profit_id = raw_take_profit_id
+        take_profit_latency_ms = take_profit_create - entry_update
+        if take_profit_latency_ms < 0:
+            raise TestnetProbeError("PROTECTION_LATENCY_TIMESTAMPS_INVALID")
+        queried_take_profit = _query_algo_consistent(
+            client,
+            symbol=symbol,
+            algo_id=take_profit_id,
+            client_algo_id=take_profit_client_id,
+        )
+        if queried_take_profit.get("algoStatus") != "NEW":
+            raise TestnetProbeError("TAKE_PROFIT_QUERY_NOT_NEW")
         close_document = _flatten_position(client, symbol)
         cleanup_flattened = close_document is not None
         if close_document is None or close_document.get("status") != "FILLED":
             raise TestnetProbeError("TESTNET_FLATTEN_NOT_FILLED")
         if _position_quantity(client, symbol) != 0:
             raise TestnetProbeError("TESTNET_POSITION_NOT_FLAT")
-        try:
-            current_algo = _query_algo_consistent(
-                client, symbol=symbol, algo_id=algo_id, client_algo_id=algo_client_id
-            )
-            algo_final_status = str(current_algo.get("algoStatus"))
-        except TestnetProbeError as exc:
-            if "CODE_-2013" not in str(exc) or client.open_algo_orders(symbol):
-                raise
-            algo_final_status = "REMOVED_AFTER_FLAT"
-        if algo_final_status in {"NEW", "TRIGGERING"}:
-            try:
-                client.cancel_algo_order(algo_id=algo_id)
-            except TestnetProbeError as exc:
-                if "CODE_-2011" not in str(exc) or client.open_algo_orders(symbol):
-                    raise
-                algo_final_status = "REMOVED_AFTER_FLAT"
-            else:
-                try:
-                    algo_final_status = str(
-                        _query_algo_consistent(
-                            client,
-                            symbol=symbol,
-                            algo_id=algo_id,
-                            client_algo_id=algo_client_id,
-                        ).get("algoStatus")
-                    )
-                except TestnetProbeError as exc:
-                    if "CODE_-2013" not in str(exc) or client.open_algo_orders(symbol):
-                        raise
-                    algo_final_status = "REMOVED_AFTER_FLAT"
-        if algo_final_status not in {
-            "CANCELED",
-            "EXPIRED",
-            "FINISHED",
-            "REMOVED_AFTER_FLAT",
-        }:
-            raise TestnetProbeError("PROTECTION_ALGO_NOT_TERMINAL")
+        algo_final_status = _terminalize_algo_after_flat(
+            client,
+            symbol=symbol,
+            algo_id=algo_id,
+            client_algo_id=algo_client_id,
+        )
+        take_profit_final_status = _terminalize_algo_after_flat(
+            client,
+            symbol=symbol,
+            algo_id=take_profit_id,
+            client_algo_id=take_profit_client_id,
+        )
     finally:
         if entry_document is not None and _position_quantity(client, symbol) != 0:
             _flatten_position(client, symbol)
@@ -837,6 +1045,17 @@ def run_testnet_native_protection(
                     for item in open_algos
                 ):
                     client.cancel_algo_order(algo_id=algo_id)
+            except TestnetProbeError:
+                pass
+        if take_profit_document is not None and take_profit_id is not None:
+            try:
+                open_algos = client.open_algo_orders(symbol)
+                if any(
+                    item.get("algoId") == take_profit_id
+                    or item.get("clientAlgoId") == take_profit_client_id
+                    for item in open_algos
+                ):
+                    client.cancel_algo_order(algo_id=take_profit_id)
             except TestnetProbeError:
                 pass
 
@@ -856,11 +1075,13 @@ def run_testnet_native_protection(
         "production_endpoint_requests": 0,
         "symbol": symbol,
         "entry_status": "FILLED",
-        "native_protection_status": "NEW_CONFIRMED",
+        "native_protection_status": "STOP_AND_TAKE_PROFIT_NEW_CONFIRMED",
         "protection_confirmation_latency_ms": protection_latency_ms,
         "maximum_protection_latency_ms": 1_000,
+        "take_profit_confirmation_latency_ms": take_profit_latency_ms,
         "flatten_status": "FILLED" if cleanup_flattened else "NOT_REQUIRED",
         "protection_final_status": algo_final_status,
+        "take_profit_final_status": take_profit_final_status,
         "final_open_order_count": 0,
         "final_open_algo_order_count": 0,
         "final_position_quantity": "0",

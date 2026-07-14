@@ -12,6 +12,7 @@ from ai_quant.binance_egress.testnet_probe import (
     run_safe_testnet_probe,
     run_testnet_native_protection,
     run_testnet_order_lifecycle,
+    run_testnet_risk_profile,
 )
 
 
@@ -178,12 +179,13 @@ def test_native_protection_fills_protects_flattens_and_cleans_algo(tmp_path: Pat
     repository_root = tmp_path / "repository"
     repository_root.mkdir()
     position = "0"
-    algo_status = "NONE"
+    algo_statuses: dict[int, str] = {}
+    next_algo_id = 123
 
     def transport(
         method: str, url: str, headers: Mapping[str, str], body: bytes | None
     ) -> HttpResult:
-        nonlocal position, algo_status
+        nonlocal position, next_algo_id
         del headers, body
         parsed = urllib.parse.urlparse(url)
         query = urllib.parse.parse_qs(parsed.query)
@@ -195,9 +197,11 @@ def test_native_protection_fills_protects_flattens_and_cleans_algo(tmp_path: Pat
             return _result([])
         if parsed.path == "/fapi/v1/openAlgoOrders":
             return _result(
-                []
-                if algo_status in {"NONE", "CANCELED"}
-                else [{"clientAlgoId": "algo", "algoStatus": algo_status}]
+                [
+                    {"algoId": algo_id, "clientAlgoId": f"algo-{algo_id}", "algoStatus": status}
+                    for algo_id, status in algo_statuses.items()
+                    if status != "CANCELED"
+                ]
             )
         if parsed.path == "/fapi/v3/positionRisk":
             return _result([] if position == "0" else [{"positionAmt": position}])
@@ -241,20 +245,24 @@ def test_native_protection_fills_protects_flattens_and_cleans_algo(tmp_path: Pat
                 }
             )
         if parsed.path == "/fapi/v1/algoOrder" and method == "POST":
-            algo_status = "NEW"
+            algo_id = next_algo_id
+            next_algo_id += 1
+            algo_statuses[algo_id] = "NEW"
             return _result(
                 {
-                    "algoId": 123,
+                    "algoId": algo_id,
                     "clientAlgoId": query["clientAlgoId"][0],
                     "algoStatus": "NEW",
-                    "createTime": 1_500,
+                    "createTime": 1_500 if algo_id == 123 else 1_750,
                 }
             )
         if parsed.path == "/fapi/v1/algoOrder" and method == "GET":
-            return _result({"algoId": int(query["algoId"][0]), "algoStatus": algo_status})
+            algo_id = int(query["algoId"][0])
+            return _result({"algoId": algo_id, "algoStatus": algo_statuses[algo_id]})
         if parsed.path == "/fapi/v1/algoOrder" and method == "DELETE":
-            algo_status = "CANCELED"
-            return _result({"algoId": int(query["algoId"][0]), "code": "200"})
+            algo_id = int(query["algoId"][0])
+            algo_statuses[algo_id] = "CANCELED"
+            return _result({"algoId": algo_id, "code": "200"})
         raise AssertionError((method, parsed.path))
 
     evidence = run_testnet_native_protection(
@@ -266,5 +274,80 @@ def test_native_protection_fills_protects_flattens_and_cleans_algo(tmp_path: Pat
 
     assert evidence["result"] == "PASS"
     assert evidence["protection_confirmation_latency_ms"] == 500
+    assert evidence["take_profit_confirmation_latency_ms"] == 750
     assert evidence["protection_final_status"] == "CANCELED"
+    assert evidence["take_profit_final_status"] == "CANCELED"
     assert evidence["final_position_quantity"] == "0"
+
+
+def test_risk_profile_selects_project_cap_and_records_current_costs(tmp_path: Path) -> None:
+    key = tmp_path / "key"
+    secret = tmp_path / "secret"
+    key.write_text("test-key", encoding="ascii")
+    secret.write_text("test-secret", encoding="ascii")
+    key.chmod(0o400)
+    secret.chmod(0o400)
+    repository_root = tmp_path / "repository"
+    repository_root.mkdir()
+    changed_to: int | None = None
+
+    def transport(
+        method: str, url: str, headers: Mapping[str, str], body: bytes | None
+    ) -> HttpResult:
+        nonlocal changed_to
+        del headers, body
+        parsed = urllib.parse.urlparse(url)
+        query = urllib.parse.parse_qs(parsed.query)
+        if parsed.path == "/fapi/v1/time":
+            return _result({"serverTime": time.time_ns() // 1_000_000})
+        if parsed.path == "/fapi/v1/positionSide/dual":
+            return _result({"dualSidePosition": False})
+        if parsed.path in {"/fapi/v1/openOrders", "/fapi/v1/openAlgoOrders"}:
+            return _result([])
+        if parsed.path == "/fapi/v3/positionRisk":
+            return _result([])
+        if parsed.path == "/fapi/v1/leverageBracket":
+            return _result(
+                [
+                    {
+                        "symbol": "BTCUSDT",
+                        "brackets": [
+                            {"initialLeverage": 125},
+                            {"initialLeverage": 50},
+                        ],
+                    }
+                ]
+            )
+        if parsed.path == "/fapi/v1/commissionRate":
+            return _result(
+                {
+                    "symbol": "BTCUSDT",
+                    "makerCommissionRate": "0.0002",
+                    "takerCommissionRate": "0.0004",
+                }
+            )
+        if parsed.path == "/fapi/v1/leverage" and method == "POST":
+            changed_to = int(query["leverage"][0])
+            return _result(
+                {
+                    "symbol": "BTCUSDT",
+                    "leverage": changed_to,
+                    "maxNotionalValue": "1000000",
+                }
+            )
+        raise AssertionError((method, parsed.path))
+
+    evidence = run_testnet_risk_profile(
+        api_key_file=key,
+        api_secret_file=secret,
+        repository_root=repository_root,
+        transport=transport,
+    )
+
+    assert changed_to == 10
+    assert evidence["exchange_maximum_initial_leverage"] == 125
+    assert evidence["project_leverage_cap"] == 10
+    assert evidence["selected_initial_leverage"] == 10
+    assert evidence["maker_commission_rate"] == "0.0002"
+    assert evidence["taker_commission_rate"] == "0.0004"
+    assert evidence["matching_engine_orders_created"] == 0

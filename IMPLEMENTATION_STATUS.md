@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: `2026-07-14T13:45:21Z`
+Updated: `2026-07-14T14:31:13Z`
 
 Overall state: `TESTNET_CORE_PROTOCOL_PASS / EXTERNAL_DURATION_GATES_PENDING / RISK_LOCKED`
 
@@ -23,6 +23,17 @@ native protection. This is a development completion statement, not Testnet, Shad
 - M3 risk/execution: multiplier-aware hard limits, floor-to-step sizing, STANDARD/ALGO namespaces,
   append-only order projection, exact Algo status mapping, response classification, 5-second UNKNOWN
   reconciliation, conservative fills, 1000ms protection monitoring and restart reconciliation.
+- Existing-position management now applies the frozen exit order exactly: kill/protection/account,
+  hard stop/risk, PA invalidation, maximum holding time, OF reversal/exhaustion and structural
+  target. Every active exit is full reduce-only taker and cannot increase absolute exposure.
+- Native protection planning now produces the opposite-side close-all Algo pair: `STOP_MARKET` plus
+  `TAKE_PROFIT_MARKET`, with strict long/short stop-entry-target structure validation.
+- The runtime `SHRUNK_MARKOUT_CELL_MEAN_V1` lookup now uses the frozen parent order, signed Decimal
+  means, minimum observation thresholds and deterministic shrinkage. Missing exact and parent
+  support returns `NET_EDGE_EVIDENCE_INCOMPLETE`; it never invents zero edge.
+- Risk hard caps are validated inside Python as well as Schema. A direct 100x/125x caller is rejected,
+  and a per-order margin budget is converted to a floor-quantized quantity ceiling. The current
+  requested operating ceiling is 1 USDT of margin and remains subordinate to all risk/edge gates.
 - M4 operations: bounded FastAPI control surface, session-context binding, idempotent commands,
   one-use emergency-flatten challenge, outbound-only redacted notifications, Prometheus exposition,
   alert/runbook mapping, checksummed backup manifests and append-only operational migrations.
@@ -41,7 +52,7 @@ native protection. This is a development completion statement, not Testnet, Shad
 
 ## Verified results
 
-- Full CI: 178 unit, 8 property, 2 contract and 17 security tests pass.
+- Full CI: 199 unit, 17 property, 2 contract and 17 security tests pass.
 - Additional suites: 3 replay, 19 integration, 6 fault-injection and 1 resource-profile test pass.
 - Ruff, strict mypy (86 source files), Bandit, secret scan, all 42 contract schemas/39 examples,
   14 config examples, provenance, Compose and Debian deployment validators pass.
@@ -72,6 +83,12 @@ native protection. This is a development completion statement, not Testnet, Shad
   order and finished with zero regular orders, zero Algo orders and zero position. Neither flow
   contacted a production endpoint. Evidence is in
   `/var/lib/ai-quant/evidence/testnet/current/{order-lifecycle,native-protection}.json`.
+- The Testnet risk-profile probe queried the current account fee and leverage-bracket facts, then set
+  BTCUSDT to the project hard cap of 10x (exchange-reported maximum 125x). It created no matching
+  order and ended flat. A subsequent minimum-fill cycle confirmed both native Algo orders: stop in
+  387ms and take-profit in 626ms, then reduce-only flattened and reconciled zero ordinary orders,
+  zero Algo orders and zero position. Evidence is under
+  `/var/lib/ai-quant/evidence/testnet/current/{risk-profile,native-protection-pair}.json`.
 - A real external archive roundtrip to the isolated receiver passed. The sender encrypted an exact
   L2 Parquet object with age/X25519; the remote endpoint recomputed its ciphertext hash, decrypted
   it, matched the plaintext hash, opened 21 Parquet columns, matched one row and schema `1.0.0`, and
@@ -89,8 +106,8 @@ and were deliberately not fabricated:
    received `ORDER_TRADE_UPDATE`/`ALGO_UPDATE` event transcript has not yet been claimed.
 2. The independent Testnet project database/Compose seal required before discarding its facts or
    starting calibration. The remote encrypted Parquet/decrypt-receipt/isolated-restore mechanism is
-   proven, but the receiver currently has only about 19 GB free and therefore fails the formal
-   90-day capacity gate until a dedicated data volume is attached.
+   proven. The receiver disk is now 200 GB with about 178 GB free; the capacity evidence still needs
+   to be regenerated and bound to the next project seal before the formal gate can be claimed.
 3. A continuous qualified three-day L2 calibration dataset, signed parameter candidate and C0
    freeze.
 4. Continuous 72-hour Shadow/Testnet validation, first-live 24-hour evidence and 87-day forward OOS
