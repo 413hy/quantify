@@ -79,11 +79,14 @@ class BoundedUnixServer:
     def __init__(
         self,
         path: Path,
-        handler: Callable[[Mapping[str, Any], PeerCredentials], Mapping[str, Any]],
+        handler: Callable[
+            [Mapping[str, Any], PeerCredentials], Mapping[str, Any] | None
+        ],
         *,
         max_frame_bytes: int = RATE_FRAME_MAX_BYTES,
         backlog: int = 128,
         peer_timeout_seconds: float = 1.0,
+        accept_timeout_seconds: float | None = None,
     ) -> None:
         if max_frame_bytes < 256 or max_frame_bytes > RATE_FRAME_MAX_BYTES:
             raise UdsProtocolError("SERVER_FRAME_LIMIT_INVALID")
@@ -91,11 +94,14 @@ class BoundedUnixServer:
             raise UdsProtocolError("SERVER_BACKLOG_INVALID")
         if peer_timeout_seconds <= 0 or peer_timeout_seconds > 5:
             raise UdsProtocolError("SERVER_TIMEOUT_INVALID")
+        if accept_timeout_seconds is not None and not 0 < accept_timeout_seconds <= 30:
+            raise UdsProtocolError("SERVER_TIMEOUT_INVALID")
         self._path = path
         self._handler = handler
         self._max_frame_bytes = max_frame_bytes
         self._backlog = backlog
         self._peer_timeout_seconds = peer_timeout_seconds
+        self._accept_timeout_seconds = accept_timeout_seconds
         self._listener: socket.socket | None = None
 
     def start(self) -> None:
@@ -117,6 +123,7 @@ class BoundedUnixServer:
             # Frozen UDS contract requires group read/write and forbids world access.
             os.chmod(self._path, 0o660)  # nosec B103
             listener.listen(self._backlog)
+            listener.settimeout(self._accept_timeout_seconds)
         except BaseException:
             listener.close()
             self._path.unlink(missing_ok=True)
@@ -132,7 +139,8 @@ class BoundedUnixServer:
             credentials = peer_credentials(peer)
             request = receive_frame(peer, max_bytes=self._max_frame_bytes)
             response = self._handler(request, credentials)
-            peer.sendall(encode_frame(response, max_bytes=self._max_frame_bytes))
+            if response is not None:
+                peer.sendall(encode_frame(response, max_bytes=self._max_frame_bytes))
         finally:
             peer.close()
 

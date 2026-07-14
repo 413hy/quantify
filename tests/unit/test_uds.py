@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import socket
 import struct
+import threading
 from pathlib import Path
 
 import pytest
@@ -81,3 +82,23 @@ def test_server_socket_mode_and_cleanup(tmp_path: Path) -> None:
     finally:
         server.close()
     assert not socket_path.exists()
+
+
+def test_server_sends_no_frame_for_one_way_message(tmp_path: Path) -> None:
+    tmp_path.chmod(0o770)
+    socket_path = tmp_path / "rate.sock"
+    server = BoundedUnixServer(socket_path, lambda request, peer: None)
+    server.start()
+    worker = threading.Thread(target=server.serve_one)
+    worker.start()
+    client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        client.settimeout(1)
+        client.connect(str(socket_path))
+        client.sendall(encode_frame({"message_type": "HeaderObservation"}))
+        assert client.recv(1) == b""
+    finally:
+        client.close()
+        worker.join(timeout=1)
+        server.close()
+    assert not worker.is_alive()

@@ -36,7 +36,7 @@ class RateAuthority(Protocol):
         self,
         request: Mapping[str, Any],
         peer: PeerCredentials,
-    ) -> Mapping[str, Any]: ...
+    ) -> Mapping[str, Any] | None: ...
 
 
 class RateBudgetApplication:
@@ -74,11 +74,17 @@ class RateBudgetApplication:
         self,
         request: Mapping[str, Any],
         peer: PeerCredentials,
-    ) -> Mapping[str, Any]:
+    ) -> Mapping[str, Any] | None:
+        now = self._clock().astimezone(UTC)
+        if now >= self._trust_bundle.valid_until:
+            raise AuthorizationDenied("RATE_TRUST_BUNDLE_EXPIRED")
+        if now >= self._endpoint_catalog.valid_until:
+            raise AuthorizationDenied("RATE_ENDPOINT_CATALOG_MISMATCH")
         errors = sorted(self._validator.iter_errors(request), key=lambda error: list(error.path))
         if errors:
             raise AuthorizationDenied("RATE_PROTOCOL_SCHEMA_INVALID")
         message_type = request.get("message_type")
+        response: Mapping[str, Any] | None
         if message_type == "ReserveRequest":
             response = self._reserve(request, peer)
         elif isinstance(message_type, str) and message_type in self._GATEWAY_MESSAGES:
@@ -88,9 +94,13 @@ class RateBudgetApplication:
                 message_type=message_type,
                 peer=peer,
             )
-            response = self._authority.handle_gateway_message(request, peer)
+            response = self._gateway(request, peer)
         else:
             raise AuthorizationDenied("RATE_PROTOCOL_DIRECTION_INVALID")
+        if response is None:
+            if message_type == "PermitConsumeRequest" or message_type == "ReserveRequest":
+                raise AuthorizationDenied("RATE_AUTHORITY_RESPONSE_INVALID")
+            return None
         if list(self._validator.iter_errors(response)):
             raise AuthorizationDenied("RATE_AUTHORITY_RESPONSE_INVALID")
         return response
@@ -148,3 +158,35 @@ class RateBudgetApplication:
             now=self._clock(),
         )
         return self._authority.reserve(request, verified, operation_class, peer)
+
+    def _gateway(
+        self,
+        request: Mapping[str, Any],
+        peer: PeerCredentials,
+    ) -> Mapping[str, Any] | None:
+        if request.get("message_type") == "PermitConsumeRequest":
+            authority = request.get("endpoint_authority")
+            endpoint_id = request.get("endpoint_id")
+            if request.get("endpoint_catalog_hash") != self._endpoint_catalog.catalog_hash:
+                raise AuthorizationDenied("RATE_ENDPOINT_CATALOG_MISMATCH")
+            if not isinstance(authority, str) or not isinstance(endpoint_id, str):
+                raise AuthorizationDenied("RATE_ENDPOINT_UNKNOWN")
+            endpoint = self._endpoint_catalog.endpoints.get((authority, endpoint_id))
+            if endpoint is None:
+                raise AuthorizationDenied("RATE_ENDPOINT_UNKNOWN")
+            facts = request.get("gateway_derived_operation_facts")
+            if not isinstance(facts, Mapping):
+                raise AuthorizationDenied("RATE_OPERATION_FACTS_INVALID")
+            if request.get("gateway_derived_operation_facts_hash") != canonical_digest(
+                facts
+            ).hex():
+                raise AuthorizationDenied("RATE_OPERATION_FACTS_HASH_MISMATCH")
+            semantic_action = facts.get("semantic_action")
+            operation_class = endpoint.causal_role_class_map.get(str(semantic_action))
+            if (
+                operation_class is None
+                or operation_class not in endpoint.allowed_operation_classes
+                or facts.get("transport") != endpoint.transport
+            ):
+                raise AuthorizationDenied("RATE_CAUSAL_ROLE_INVALID")
+        return self._authority.handle_gateway_message(request, peer)

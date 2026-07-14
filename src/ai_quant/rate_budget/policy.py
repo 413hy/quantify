@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
@@ -13,6 +13,7 @@ from ai_quant.common.config import validate_config
 from ai_quant.rate_budget.authorization import (
     AuthorizationDenied,
     assert_root_owned_0444,
+    canonical_digest,
     verify_signed_config_document,
 )
 
@@ -52,6 +53,8 @@ class EndpointPolicy:
     required_parameter_names: frozenset[str]
     forbidden_parameter_names: frozenset[str]
     request_schema_sha256: str
+    contract_payload: Mapping[str, Any] = field(default_factory=dict)
+    contract_hash: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -248,6 +251,8 @@ def verify_endpoint_catalog(
             required_parameter_names=required_parameters,
             forbidden_parameter_names=forbidden_parameters,
             request_schema_sha256=expected_schema_hash,
+            contract_payload=dict(contract),
+            contract_hash=canonical_digest(contract).hex(),
         )
         for authority in authorities:
             identity = (

@@ -42,9 +42,11 @@ class FakeAuthority:
         self,
         request: Mapping[str, Any],
         peer: PeerCredentials,
-    ) -> Mapping[str, Any]:
+    ) -> Mapping[str, Any] | None:
         self.gateway_calls.append((str(request["message_type"]), peer.uid))
-        return _example("rate-permit-consume-decision.json")
+        if request["message_type"] == "PermitConsumeRequest":
+            return _example("rate-permit-consume-decision.json")
+        return None
 
 
 def _example(name: str) -> dict[str, Any]:
@@ -139,19 +141,44 @@ def test_reserve_never_reaches_authority_when_operation_facts_change() -> None:
 
 def test_gateway_protocol_peer_is_checked_before_authority() -> None:
     app, authority, _ = _application()
+    request = _example("rate-permit-consume-request.json")
+    request["endpoint_catalog_hash"] = "c" * 64
     response = app(
-        _example("rate-permit-consume-request.json"),
+        request,
         PeerCredentials(pid=123, uid=11005, gid=11005),
     )
     assert response["decision"] == "CONSUME_GRANTED"
     assert authority.gateway_calls == [("PermitConsumeRequest", 11005)]
 
 
+def test_gateway_consume_rederived_facts_are_verified_before_authority() -> None:
+    app, authority, _ = _application()
+    request = _example("rate-permit-consume-request.json")
+    request["endpoint_catalog_hash"] = "c" * 64
+    request["gateway_derived_operation_facts"]["close_position"] = True
+    with pytest.raises(AuthorizationDenied, match="RATE_OPERATION_FACTS_HASH_MISMATCH"):
+        app(request, PeerCredentials(pid=123, uid=11005, gid=11005))
+    assert authority.gateway_calls == []
+
+
+def test_gateway_observation_is_one_way_after_validation() -> None:
+    app, authority, _ = _application()
+    response = app(
+        _example("rate-header-observation.json"),
+        PeerCredentials(pid=123, uid=11005, gid=11005),
+    )
+    assert response is None
+    assert authority.gateway_calls == [("HeaderObservation", 11005)]
+
+
 def test_spoofed_gateway_claim_is_denied() -> None:
     app, authority, _ = _application()
     with pytest.raises(AuthorizationDenied, match="PROTOCOL_PEER_ACL_DENIED"):
         app(
-            _example("rate-permit-consume-request.json"),
+            {
+                **_example("rate-permit-consume-request.json"),
+                "endpoint_catalog_hash": "c" * 64,
+            },
             PeerCredentials(pid=123, uid=9999, gid=11005),
         )
     assert authority.gateway_calls == []
