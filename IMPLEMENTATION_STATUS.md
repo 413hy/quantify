@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: `2026-07-14T11:07:21Z`
+Updated: `2026-07-14T11:36:24Z`
 
 Overall state: `M0_IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
 
@@ -117,6 +117,14 @@ Highest completed milestone: none
   function-execute access: five operational tables and six callable functions are explicit, while
   observation journals and authority blocks are available to measurement only through fixed
   security-definer readers. Disposable migration tests exercise both readers under `SET ROLE`.
+- Commit `306163aefdf4ae22dbef0ff6c1359088eeb31683` supplies the audited Debian host
+  bootstrap release boundary. It locks 14 direct apt packages to exact versions and SHA-256 values,
+  pins the Debian snapshot and Docker signing identities, pins Cosign and a fail-closed controlled
+  `quantctl`, covers sshd/nftables/Docker/journald/chrony/sysctl/limits with a hash manifest, and
+  implements read-only plan, short-lived Ed25519 approval, two-stage apply, independent `aiqops`
+  SSH proof, rollback and redacted verify evidence. CI exercises the non-mutating plan and rejects a
+  broad SSH source range. The bundle is not applied: owner keys, off-host backup evidence and a
+  second SSH session are deliberately required first.
 - ADR 0004 records the owner's explicit platform correction: Debian 12 Bookworm/aarch64 on Oracle
   Cloud is the sole deployment target. The live host matches that profile and the read-only Debian
   platform verifier passes; the original source archives remain immutable for provenance.
@@ -143,11 +151,12 @@ Detailed evidence: `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`.
    `nft --check` pass, but no host rule was applied and documentation-only addresses are not proof.
 5. A different actor in fresh context must independently review and issue a valid
    `CodexReviewReport` with zero open P0/P1 before M0 acceptance.
-6. Complete the Debian bootstrap release bundle required by frozen runbook 01: a signed
-   `deploy/host-toolchain.lock.yaml`, the full sshd/Docker/journald/chrony/sysctl/limits hardening
-   set, and audited `scripts/bootstrap-host.sh plan/apply/verify`. The repository currently has only
-   the non-applying nftables artifact. Exact package hashes/signing fingerprints, the `quantctl`
-   install artifact and approved SSH port/source CIDR are absent, so no placeholder lock is claimed.
+6. Complete the owner-gated activation of the implemented Debian bootstrap bundle. The exact lock,
+   hardening set, controlled `quantctl` and audited plan/apply/prove/verify flow now exist. Before
+   apply, the owner must create a current off-host backup of commit `306163a`, provide only the two
+   public keys described in `docs/deployment/debian-bootstrap.md`, sign the exact generated plan
+   off-host and prove a second `aiqops` SSH session. SSH is detected as port 22 and the owner-confirmed
+   fixed client source is `171.221.123.164/32`; neither firewall nor SSH policy has been changed.
 
 ## Current blockers
 
@@ -157,7 +166,7 @@ Detailed evidence: `evidence/stages/M0/2026-07-14/M0_STAGE_REPORT.md`.
 | BLK-002 | M2 Codex execution, M9 | Exact `gpt-5.6` absent from current authenticated Codex catalog; substitution prohibited | Wait for catalog availability or explicit baseline change |
 | BLK-004 | Deployment/M6+ | 24-hour network/clock/static-IP, independent backtest, remote storage, restore, heartbeat, credential-isolation and signature evidence absent | Complete deployment preflight; no secrets requested now |
 | BLK-005 | M0 acceptance and every later milestone | Independent fresh-context reviewer absent | Perform independent review after the remaining M0 implementation |
-| BLK-006 | M0 host bootstrap/release | Exact Debian host package/signature lock, complete hardening bundle, controlled `quantctl` artifact and approved SSH inputs are absent | Produce and independently verify the signed bootstrap bundle before any host apply |
+| BLK-006 | M0 host bootstrap activation | Bundle implementation and static verification pass; current off-host backup evidence, owner approval public key, operator SSH public key, signed plan and second-session proof are absent | Supply the documented public inputs, sign the plan off-host, then perform two-stage apply/verify |
 
 Resolved baseline item: `BLK-003` is closed by owner-approved ADR 0004. Debian 12 is now the sole
 supported platform; OS matching alone does not satisfy deployment qualification.

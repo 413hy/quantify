@@ -2,7 +2,7 @@
 
 - Stage: M0 — repository, contracts, configuration, migrations, audit and egress skeleton
 - Status: `IN_PROGRESS / NOT_ACCEPTED / FAIL_CLOSED`
-- Report time: `2026-07-14T11:07:21Z`
+- Report time: `2026-07-14T11:36:24Z`
 - Implementation commits: `3a5762e37a5311f0a7faeca2e93b6c77ab8500ff`,
   `fca378cf7e4f18457f46a381e29fc8599bb5baa8`,
   `d5a394e21776957f627c9c3e7da78dfd1accf53c`,
@@ -24,7 +24,8 @@
   `4b71424c0f0fd0f385d3d2f1f6a89088f2cb1d9e`,
   `632fd52b7470291abfb9c5712de891582ecffebc`,
   `123428d8754cdfa162a0bb854583521a66386320`,
-  `543791d761eb21112562338395673736545f2ee9`
+  `543791d761eb21112562338395673736545f2ee9`,
+  `306163aefdf4ae22dbef0ff6c1359088eeb31683`
 - Implementer: `/root` engineering session
 - Independent reviewer: not assigned; a different actor with fresh context is still required
 - `CodexReviewReport`: absent by design; the implementer cannot self-sign it
@@ -104,6 +105,7 @@ startup-evidence, or live authorization has been issued.
 | Boundary | deployment measurement orchestration | one root-owned closed plan, no caller DSN/command/READY fields, signed connection/catalog source closure, same-snapshot authority blocks, two SO_PEERCRED probes and six-file failure invalidation pass; cached plans remove old generations on change/stop |
 | Boundary | Debian unit artifacts | two units pass static hardening policy; PostgreSQL is host-visible only through a fixed Unix socket and publishes no TCP port; units remain uninstalled and disabled |
 | Boundary | nftables renderer | dedicated `inet ai_quant_egress` table has no input hook or ruleset flush; example passes real `nft --check`; no rules were applied |
+| Boundary | Debian host bootstrap release | exact package/artifact/signing locks, manifest-covered hardening, read-only plan, Ed25519 approval, second-session SSH proof, two-stage apply and redacted verify pass static and security tests; no host change was applied |
 | Boundary | executable attestation issuer | actual keyring/trust/schema inputs are evidence-bound; refresh is at most 60 seconds and handled stop/failure removes the published evidence |
 | Boundary | attestation deployment lock | Compose validation and a security test reject activating the issuer before real deployment facts and gates exist |
 | Platform | Debian 12 sole-host amendment | mutable guidance contains no legacy platform selection; live OCI host passes OS, architecture, kernel, cgroup, resource, systemd, Docker, chrony and nftables checks |
@@ -113,7 +115,7 @@ startup-evidence, or live authorization has been issued.
 | Configuration/contracts | all recommended M0 validation targets | PASS |
 
 Primary logs and SHA-256 values are stored below this report in `tests/`, `security/`, and
-`artifacts/`. The final CI run passed 135 unit, 3 property, 2 contract, and 9 security tests. The
+`artifacts/`. The final CI run passed 135 unit, 3 property, 2 contract, and 12 security tests. The
 migration shape test and containerized migration round-trip also passed.
 
 ## Resource and security observations
@@ -153,10 +155,11 @@ The previous host-distribution conflict is resolved. Remaining deployment eviden
 of that correction and still includes the 24-hour clock/network/static-IP record, destination
 firewall proof, signed inputs, restore/heartbeat checks and independent review.
 
-Frozen runbook 01's complete Debian bootstrap release bundle is not present. Only the safe
-non-applying nftables renderer exists; there is no signed host toolchain lock, complete hardening
-set, audited plan/apply/verify bootstrap script or controlled `quantctl` install artifact. No
-package digest, signing fingerprint, SSH port or source CIDR has been invented to conceal this gap.
+Frozen runbook 01's Debian bootstrap release implementation is now present at commit `306163a`.
+It remains inactive until a current off-host backup binds that commit, the owner provides the two
+documented public keys, signs the exact plan off-host and proves a second `aiqops` SSH session. The
+detected SSH port is 22 and the owner-confirmed client source is `171.221.123.164/32`. No SSH,
+firewall, Docker data-root or package mutation has occurred.
 
 M0 cannot be accepted until real signed runtime inputs populate the deployment database, the
 attestation signer issues deployment-bound evidence, an independently reviewed production transport
