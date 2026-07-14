@@ -3,6 +3,7 @@ name: aiq-binance-egress
 services:
   binance-egress-gateway:
     image: ${AIQ_APP_IMAGE:?set digest-pinned AIQ_APP_IMAGE}
+    user: "11005:11005"
     command: ["python", "-m", "ai_quant.services.locked_process"]
     environment:
       AIQ_SOCKET_PATH: /run/ai-quant-egress/gateway.sock

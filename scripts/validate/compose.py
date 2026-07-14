@@ -12,12 +12,34 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 FILES = sorted((ROOT / "deploy").glob("*.yaml"))
 DIGEST = re.compile(r"^[^\s@]+@sha256:[0-9a-f]{64}$")
+FIXED_IDENTITIES = {
+    "realtime-engine": "11001:11001",
+    "execution-service": "11002:11002",
+    "binance-egress-gateway": "11005:11005",
+    "rate-budget-service": "11006:11006",
+    "host-attestation-signer": "11007:11007",
+}
+ATTESTATION_SECRET_GRANT = {
+    "source": "host_attestation_key",
+    "target": "host_attestation_key",
+    "uid": "11007",
+    "gid": "11007",
+    "mode": 0o400,
+}
+
+
+def _secret_source(grant: object) -> object:
+    if isinstance(grant, dict):
+        return grant.get("source")
+    return grant
 
 
 def main() -> int:
     failures: list[str] = []
     gateway_count = 0
     production_secret_consumers: list[str] = []
+    attestation_secret_consumers: list[str] = []
+    fixed_identity_services: set[str] = set()
     for path in FILES:
         document: dict[str, Any] = yaml.safe_load(path.read_text(encoding="utf-8"))
         for name, service in document.get("services", {}).items():
@@ -41,17 +63,42 @@ def main() -> int:
             for port in service.get("ports", []):
                 if not str(port).startswith(("127.0.0.1:", "[::1]:")):
                     failures.append(f"{path.name}:{name}: non-loopback published port {port}")
-            if "binance_production_api_secret" in service.get("secrets", []):
+            secrets = service.get("secrets", [])
+            secret_sources = {_secret_source(grant) for grant in secrets}
+            if "binance_production_api_secret" in secret_sources:
                 production_secret_consumers.append(name)
+            if "host_attestation_key" in secret_sources:
+                attestation_secret_consumers.append(name)
+                if secrets != [ATTESTATION_SECRET_GRANT]:
+                    failures.append(
+                        f"{path.name}:{name}: attestation key grant must be fixed UID/GID 0400"
+                    )
+            expected_identity = FIXED_IDENTITIES.get(name)
+            if expected_identity is not None:
+                fixed_identity_services.add(name)
+                if service.get("user") != expected_identity:
+                    failures.append(
+                        f"{path.name}:{name}: user must be {expected_identity}"
+                    )
         text = path.read_text(encoding="utf-8").lower()
         if "binance_api_secret" in text or "openai_api_key:" in text:
             failures.append(f"{path.name}: direct secret variable forbidden")
     if gateway_count != 1:
         failures.append(f"expected exactly one gateway definition, found {gateway_count}")
+    missing_identities = set(FIXED_IDENTITIES) - fixed_identity_services
+    if missing_identities:
+        failures.append(
+            "fixed-identity services absent: " + ",".join(sorted(missing_identities))
+        )
     if production_secret_consumers != ["execution-service"]:
         failures.append(
             "production Binance secret consumers must be exactly execution-service, got "
             f"{production_secret_consumers}"
+        )
+    if attestation_secret_consumers != ["host-attestation-signer"]:
+        failures.append(
+            "attestation key consumers must be exactly host-attestation-signer, got "
+            f"{attestation_secret_consumers}"
         )
     if failures:
         print("\n".join(failures))

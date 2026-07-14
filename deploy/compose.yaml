@@ -48,11 +48,12 @@ services:
     secrets: [business_database_url]
     restart: "no"
 
-  trading-engine:
+  realtime-engine:
     <<: *app_defaults
+    user: "11001:11001"
     command: *locked_command
     environment:
-      AIQ_SOCKET_PATH: /run/ai-quant-business/trading-engine.sock
+      AIQ_SOCKET_PATH: /run/ai-quant-business/realtime-engine.sock
       AIQ_RUNTIME_STATE: RISK_LOCKED
       AIQ_RATE_SOCKET_PATH: /run/ai-quant-rate/rate.sock
       AIQ_GATEWAY_SOCKET_PATH: /run/ai-quant-egress/gateway.sock
@@ -71,6 +72,7 @@ services:
 
   execution-service:
     <<: *app_defaults
+    user: "11002:11002"
     command: *locked_command
     environment:
       AIQ_SOCKET_PATH: /run/ai-quant-business/execution.sock
