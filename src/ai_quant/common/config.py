@@ -9,6 +9,7 @@ from typing import Any
 
 import yaml
 from jsonschema import Draft202012Validator, FormatChecker
+from yaml.nodes import MappingNode
 
 
 class ConfigurationError(ValueError):
@@ -22,12 +23,58 @@ _SECRET_KEY = re.compile(
 _PLACEHOLDER = re.compile(r"^(?:\$\{[A-Z][A-Z0-9_]*\}|<[^>]+>|REQUIRED_AT_RUNTIME|)$")
 
 
-def _load(path: Path) -> Any:
-    text = path.read_text(encoding="utf-8")
-    if path.suffix == ".json":
-        return json.loads(text)
-    if path.suffix in {".yaml", ".yml"}:
-        return yaml.safe_load(text)
+def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ConfigurationError(f"duplicate configuration key: {key}")
+        result[key] = value
+    return result
+
+
+class _UniqueKeySafeLoader(yaml.SafeLoader):
+    pass
+
+
+def _construct_unique_mapping(
+    loader: _UniqueKeySafeLoader,
+    node: MappingNode,
+    deep: bool = False,
+) -> dict[Any, Any]:
+    loader.flatten_mapping(node)
+    result: dict[Any, Any] = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        try:
+            duplicate = key in result
+        except TypeError as exc:
+            raise ConfigurationError("unhashable configuration key") from exc
+        if duplicate:
+            raise ConfigurationError(f"duplicate configuration key: {key}")
+        result[key] = loader.construct_object(value_node, deep=deep)
+    return result
+
+
+_UniqueKeySafeLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+    _construct_unique_mapping,
+)
+
+
+def load_strict_document(path: Path) -> Any:
+    """Parse JSON/YAML without permitting duplicate keys or unsafe YAML tags."""
+    try:
+        text = path.read_text(encoding="utf-8")
+        if path.suffix == ".json":
+            return json.loads(text, object_pairs_hook=_reject_duplicate_json_keys)
+        if path.suffix in {".yaml", ".yml"}:
+            loader = _UniqueKeySafeLoader(text)
+            try:
+                return loader.get_single_data()
+            finally:
+                loader.dispose()  # type: ignore[no-untyped-call]
+    except (OSError, UnicodeError, json.JSONDecodeError, yaml.YAMLError) as exc:
+        raise ConfigurationError("configuration cannot be parsed safely") from exc
     raise ConfigurationError(f"unsupported configuration format: {path.suffix}")
 
 
@@ -54,7 +101,7 @@ def reject_embedded_secret_values(value: Any, path: str = "$") -> None:
 
 
 def validate_config(instance_path: Path, schema_path: Path) -> Any:
-    instance = _load(instance_path)
+    instance = load_strict_document(instance_path)
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     Draft202012Validator.check_schema(schema)
     errors = sorted(

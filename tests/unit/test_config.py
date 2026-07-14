@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -22,3 +23,23 @@ def test_known_config_validates() -> None:
     root = Path(__file__).resolve().parents[2]
     config = validate_config(root / "config/risk.example.yaml", root / "config/risk.schema.json")
     assert isinstance(config, dict)
+
+
+@pytest.mark.parametrize(
+    ("suffix", "document"),
+    [
+        (".json", '{"key":1,"key":2}'),
+        (".yaml", "key: 1\nkey: 2\n"),
+    ],
+)
+def test_duplicate_configuration_keys_are_rejected(
+    tmp_path: Path,
+    suffix: str,
+    document: str,
+) -> None:
+    instance = tmp_path / f"duplicate{suffix}"
+    schema = tmp_path / "schema.json"
+    instance.write_text(document, encoding="utf-8")
+    schema.write_text(json.dumps({"type": "object"}), encoding="utf-8")
+    with pytest.raises(ConfigurationError, match="duplicate configuration key"):
+        validate_config(instance, schema)
