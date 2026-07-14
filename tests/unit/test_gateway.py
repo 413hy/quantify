@@ -73,6 +73,7 @@ def make_request(
 def make_grant(request: ClosedGatewayRequest, now: datetime) -> ConsumeGranted:
     return ConsumeGranted(
         permit_id="permit-1",
+        gateway_connection_id=request.gateway_connection_id,
         fencing_epoch=1,
         send_deadline=now + timedelta(milliseconds=50),
         canonical_request_hash=request.canonical_request_hash,
@@ -94,7 +95,16 @@ def test_gateway_invokes_transport_exactly_once() -> None:
 
     request = make_request(now)
     grant = make_grant(request, now)
-    assert send_once(request, grant, transport, now=now) == {"ok": True}
+    assert send_once(
+        request,
+        grant,
+        transport,
+        now=now,
+        expected_permit_id="permit-1",
+        expected_fencing_epoch=1,
+        expected_operation_facts_hash=H,
+        expected_capability_payload_hash=H,
+    ) == {"ok": True}
     assert len(calls) == 1
 
 
@@ -120,7 +130,16 @@ def test_non_allowlisted_production_host_never_calls_transport() -> None:
     request = make_request(now, host="example.com")
     grant = make_grant(request, now)
     with pytest.raises(GatewayDenied, match="DESTINATION_NOT_ALLOWLISTED"):
-        send_once(request, grant, transport, now=now)
+        send_once(
+            request,
+            grant,
+            transport,
+            now=now,
+            expected_permit_id="permit-1",
+            expected_fencing_epoch=1,
+            expected_operation_facts_hash=H,
+            expected_capability_payload_hash=H,
+        )
     assert calls == 0
 
 
@@ -129,7 +148,16 @@ def test_testnet_is_frozen_pending_endpoint_adr() -> None:
     request = make_request(now, host="demo-fstream.binance.com", environment="testnet")
     grant = make_grant(request, now)
     with pytest.raises(GatewayDenied, match="TESTNET_ENDPOINT_BASELINE_CONFLICT"):
-        send_once(request, grant, lambda _: None, now=now)
+        send_once(
+            request,
+            grant,
+            lambda _: None,
+            now=now,
+            expected_permit_id="permit-1",
+            expected_fencing_epoch=1,
+            expected_operation_facts_hash=H,
+            expected_capability_payload_hash=H,
+        )
 
 
 def test_grant_for_different_document_never_calls_transport() -> None:
@@ -143,7 +171,16 @@ def test_grant_for_different_document_never_calls_transport() -> None:
         calls += 1
 
     with pytest.raises(GatewayDenied, match="CONSUME_GRANT_BINDING_MISMATCH"):
-        send_once(request, grant, transport, now=now)
+        send_once(
+            request,
+            grant,
+            transport,
+            now=now,
+            expected_permit_id="permit-1",
+            expected_fencing_epoch=1,
+            expected_operation_facts_hash=H,
+            expected_capability_payload_hash=H,
+        )
     assert calls == 0
 
 
@@ -151,10 +188,11 @@ class FakeRateClient:
     def __init__(self) -> None:
         self.requests: list[dict[str, Any]] = []
         self.notifications: list[dict[str, Any]] = []
+        self.response_overrides: dict[str, Any] = {}
 
     def request(self, document: dict[str, Any]) -> dict[str, Any]:
         self.requests.append(document)
-        return {
+        response = {
             "schema_version": "1.0.0",
             "message_type": "PermitConsumeDecision",
             "message_id": "rate-consume-decision-0001",
@@ -179,6 +217,8 @@ class FakeRateClient:
             "send_deadline": "2026-07-14T00:00:00.050000Z",
             "reason_code": "RATE_PERMIT_CONSUMED",
         }
+        response.update(self.response_overrides)
+        return response
 
     def notify(self, document: dict[str, Any]) -> None:
         self.notifications.append(document)
@@ -287,6 +327,9 @@ def _gateway_fixture(now: datetime) -> tuple[
         rate_client=rate,
         transport=transport,
         instance_id="egress-gateway-01",
+        rate_instance_id="rate-allocator-01",
+        rate_protocol_schema_path=Path(__file__).resolve().parents[2]
+        / "contracts/rate-budget-uds.schema.json",
         clock=lambda: now,
     )
     return app, rate, message, calls
@@ -320,6 +363,48 @@ def test_gateway_pipeline_consumes_then_sends_once_and_records_outcome() -> None
         "$ref": "#/$defs/sendResult",
     }
     assert list(Draft202012Validator(result_schema).iter_errors(result)) == []
+
+
+@pytest.mark.parametrize(
+    ("field", "wrong_value"),
+    [
+        ("caller_instance_id", "other-rate-allocator-01"),
+        ("correlation_id", "other-correlation-0001"),
+        ("request_message_id", "other-consume-request-0001"),
+        ("permit_id", "other-rate-permit-0001"),
+        ("gateway_connection_id", "other-connection-0001"),
+        ("fencing_epoch", 8),
+        ("canonical_request_hash", "1" * 64),
+        ("gateway_derived_parameter_hash", "2" * 64),
+        ("gateway_derived_wire_bytes_hash", "3" * 64),
+        ("gateway_request_document_hash", "4" * 64),
+        ("gateway_derived_operation_facts_hash", "d" * 64),
+        ("causal_capability_payload_hash", "e" * 64),
+        ("send_deadline", "2026-07-14T00:00:02Z"),
+    ],
+)
+def test_mismatched_consume_grant_is_journaled_not_sent(
+    field: str,
+    wrong_value: Any,
+) -> None:
+    now = datetime(2026, 7, 14, tzinfo=UTC)
+    app, rate, message, calls = _gateway_fixture(now)
+    rate.response_overrides[field] = wrong_value
+    result = app(message, PeerCredentials(pid=123, uid=11003, gid=11003))
+    assert result["status"] == "NOT_SENT_AFTER_CONSUME"
+    assert result["reason_code"] == "LOCAL_WRITE_NOT_ATTEMPTED"
+    assert calls == []
+    assert len(rate.notifications) == 1
+    assert rate.notifications[0]["outcome"] == "NOT_SENT"
+
+
+def test_schema_invalid_allocator_response_never_reaches_transport() -> None:
+    now = datetime(2026, 7, 14, tzinfo=UTC)
+    app, rate, message, calls = _gateway_fixture(now)
+    rate.response_overrides["message_type"] = "ReserveDecision"
+    with pytest.raises(GatewayDenied, match="ALLOCATOR_RESPONSE_INVALID"):
+        app(message, PeerCredentials(pid=123, uid=11003, gid=11003))
+    assert calls == []
 
 
 def test_gateway_binding_tamper_never_consumes_or_sends() -> None:

@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import json
 import uuid
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, Protocol
 
 import rfc8785
+from jsonschema import Draft202012Validator, FormatChecker
 
 from ai_quant.contracts.models import ClosedGatewayRequest, ConsumeGranted
 from ai_quant.rate_budget.authorization import (
@@ -184,13 +187,22 @@ class GatewaySendApplication:
         rate_client: RateClient,
         transport: Callable[[ClosedGatewayRequest, bytes], GatewayTransportResult],
         instance_id: str,
+        rate_instance_id: str,
+        rate_protocol_schema_path: Path,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
+        rate_schema = json.loads(rate_protocol_schema_path.read_text(encoding="utf-8"))
+        Draft202012Validator.check_schema(rate_schema)
         self._trust_bundle = trust_bundle
         self._endpoint_catalog = endpoint_catalog
         self._rate_client = rate_client
         self._transport = transport
         self._instance_id = instance_id
+        self._rate_instance_id = rate_instance_id
+        self._rate_validator = Draft202012Validator(
+            rate_schema,
+            format_checker=FormatChecker(),
+        )
         self._clock = clock or (lambda: datetime.now(UTC))
         self._outcome_journal_failed = False
 
@@ -232,11 +244,39 @@ class GatewaySendApplication:
             consume = self._rate_client.request(consume_request)
         except (OSError, TimeoutError, ConnectionError) as exc:
             raise GatewayDenied("ALLOCATOR_UNAVAILABLE") from exc
-        consume_hash = canonical_digest(consume).hex()
-        raw_consume_message_id = consume.get("message_id")
-        if not isinstance(raw_consume_message_id, str) or len(raw_consume_message_id) < 8:
+        if list(self._rate_validator.iter_errors(consume)):
             raise GatewayDenied("ALLOCATOR_RESPONSE_INVALID")
-        consume_message_id = raw_consume_message_id
+        consume_hash = canonical_digest(consume).hex()
+        consume_message_id = str(consume["message_id"])
+        if not self._consume_response_matches(
+            consume,
+            consume_request=consume_request,
+            request=request,
+            permit_binding=permit_binding,
+        ):
+            if consume.get("decision") == "CONSUME_GRANTED":
+                outcome = self._send_outcome(
+                    request=request,
+                    permit_binding=permit_binding,
+                    correlation_id=correlation_id,
+                    outcome="NOT_SENT",
+                    protocol_status="NOT_SENT",
+                    sent_at=None,
+                    transport_result=None,
+                )
+                return self._result(
+                    now=self._clock(),
+                    correlation_id=correlation_id,
+                    request_message_id=request_message_id,
+                    permit_id=permit_id,
+                    gateway_connection_id=request.gateway_connection_id,
+                    status="NOT_SENT_AFTER_CONSUME",
+                    reason_code="LOCAL_WRITE_NOT_ATTEMPTED",
+                    consume_message_id=consume_message_id,
+                    consume_hash=consume_hash,
+                    outcome=outcome,
+                )
+            raise GatewayDenied("ALLOCATOR_RESPONSE_INVALID")
         if consume.get("decision") != "CONSUME_GRANTED":
             return self._result(
                 now=now,
@@ -253,6 +293,7 @@ class GatewaySendApplication:
             grant = ConsumeGranted.model_validate(
                 {
                     "permit_id": consume["permit_id"],
+                    "gateway_connection_id": consume["gateway_connection_id"],
                     "fencing_epoch": consume["fencing_epoch"],
                     "send_deadline": consume["send_deadline"],
                     "canonical_request_hash": consume["canonical_request_hash"],
@@ -304,6 +345,12 @@ class GatewaySendApplication:
                 grant,
                 lambda exact_request: self._transport(exact_request, wire),
                 now=self._clock(),
+                expected_permit_id=str(permit_binding["permit_id"]),
+                expected_fencing_epoch=int(permit_binding["fencing_epoch"]),
+                expected_operation_facts_hash=canonical_digest(operation_facts).hex(),
+                expected_capability_payload_hash=str(
+                    permit_binding["causal_capability_payload_hash"]
+                ),
             )
         except GatewayDenied:
             outcome = self._send_outcome(
@@ -386,6 +433,54 @@ class GatewaySendApplication:
             response_payload=response_payload,
             response_hash=response_hash,
             sensitivity_class=transport_result.sensitivity_class,
+        )
+
+    def _consume_response_matches(
+        self,
+        response: Mapping[str, Any],
+        *,
+        consume_request: Mapping[str, Any],
+        request: ClosedGatewayRequest,
+        permit_binding: Mapping[str, Any],
+    ) -> bool:
+        expected = {
+            "message_type": "PermitConsumeDecision",
+            "caller_service": "rate-budget-service",
+            "caller_instance_id": self._rate_instance_id,
+            "correlation_id": consume_request["correlation_id"],
+            "request_message_id": consume_request["message_id"],
+            "permit_id": permit_binding["permit_id"],
+            "gateway_connection_id": request.gateway_connection_id,
+            "canonical_request_hash": request.canonical_request_hash,
+            "gateway_derived_parameter_hash": request.parameter_hash,
+            "gateway_derived_wire_bytes_hash": request.wire_bytes_hash,
+            "gateway_request_document_hash": request_document_hash(request),
+            "gateway_derived_operation_facts_hash": consume_request[
+                "gateway_derived_operation_facts_hash"
+            ],
+            "causal_capability_payload_hash": permit_binding[
+                "causal_capability_payload_hash"
+            ],
+            "fencing_epoch": permit_binding["fencing_epoch"],
+        }
+        if any(response.get(key) != value for key, value in expected.items()):
+            return False
+        if response.get("decision") != "CONSUME_GRANTED":
+            return True
+        try:
+            deadline = datetime.fromisoformat(
+                str(response["send_deadline"]).replace("Z", "+00:00")
+            ).astimezone(UTC)
+            binding_expiry = datetime.fromisoformat(
+                str(permit_binding["expires_at"]).replace("Z", "+00:00")
+            ).astimezone(UTC)
+        except (KeyError, ValueError):
+            return False
+        return (
+            response.get("capability_nonce_state") == "CONSUMED"
+            and response.get("reason_code") == "RATE_PERMIT_CONSUMED"
+            and deadline <= binding_expiry
+            and deadline <= request.expires_at.astimezone(UTC)
         )
 
     def _admit(
@@ -639,6 +734,10 @@ def send_once[T](
     transport: Callable[[ClosedGatewayRequest], T],
     *,
     now: datetime,
+    expected_permit_id: str,
+    expected_fencing_epoch: int,
+    expected_operation_facts_hash: str,
+    expected_capability_payload_hash: str,
 ) -> T:
     """Invoke a supplied transport once only after a matching, unexpired consume grant."""
     validate_destination(request)
@@ -650,10 +749,21 @@ def send_once[T](
     if not grant.permit_id:
         raise GatewayDenied("PERMIT_ID_MISSING")
     bindings = (
+        (grant.permit_id, expected_permit_id),
+        (grant.gateway_connection_id, request.gateway_connection_id),
+        (grant.fencing_epoch, expected_fencing_epoch),
         (request.canonical_request_hash, grant.canonical_request_hash),
         (request.parameter_hash, grant.gateway_derived_parameter_hash),
         (request.wire_bytes_hash, grant.gateway_derived_wire_bytes_hash),
         (request_document_hash(request), grant.gateway_request_document_hash),
+        (
+            grant.gateway_derived_operation_facts_hash,
+            expected_operation_facts_hash,
+        ),
+        (
+            grant.causal_capability_payload_hash,
+            expected_capability_payload_hash,
+        ),
     )
     if any(observed != expected for observed, expected in bindings):
         raise GatewayDenied("CONSUME_GRANT_BINDING_MISMATCH")

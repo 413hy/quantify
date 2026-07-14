@@ -26,6 +26,7 @@ class PermitRecord:
     gateway_request_document_hash: str
     fencing_epoch: int
     expires_at: datetime
+    gateway_connection_id: str | None = None
     status: PermitStatus = PermitStatus.RESERVED
 
 
@@ -84,6 +85,7 @@ def consume_permit(
         consumed,
         ConsumeGranted(
             permit_id=permit.permit_id,
+            gateway_connection_id=permit.gateway_connection_id,
             fencing_epoch=permit.fencing_epoch,
             send_deadline=now + send_window,
             canonical_request_hash=permit.canonical_request_hash,

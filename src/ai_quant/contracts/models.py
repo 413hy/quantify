@@ -91,6 +91,7 @@ class PermitConsumeRequest(StrictModel):
 class ConsumeGranted(StrictModel):
     decision: Literal["CONSUME_GRANTED"] = "CONSUME_GRANTED"
     permit_id: str
+    gateway_connection_id: str | None
     fencing_epoch: int
     send_deadline: datetime
     canonical_request_hash: Sha256 = Field(pattern=r"^[0-9a-f]{64}$")
