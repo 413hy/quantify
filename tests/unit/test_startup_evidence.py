@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import copy
 import json
+import os
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -14,8 +15,11 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from ai_quant.binance_egress.startup import (
     StartupEvidenceExpectation,
+    StartupEvidenceMonitor,
     issue_startup_evidence,
     load_attestation_private_key,
+    publish_startup_evidence,
+    startup_measurement_hash,
     verify_startup_evidence,
 )
 from ai_quant.rate_budget.authorization import (
@@ -70,6 +74,7 @@ def _signed_ready(
 def _expectation(content: dict[str, Any]) -> StartupEvidenceExpectation:
     database = content["database_authority"]
     return StartupEvidenceExpectation(
+        measurement_hash=startup_measurement_hash(content),
         stage=content["stage"],
         enabled_environments=frozenset(content["enabled_environments"]),
         enabled_authorities=frozenset(content["enabled_authorities"]),
@@ -101,6 +106,43 @@ def test_startup_evidence_from_other_boot_is_rejected(tmp_path: Path) -> None:
             evidence,
             bundle,
             expectation=changed,
+            now=NOW,
+        )
+
+
+@pytest.mark.parametrize(
+    ("section", "field", "wrong_value"),
+    [
+        ("database_authority", "migration_head", "0009_wrong_head"),
+        ("database_authority", "wal_recovery_point", "wrong-wal-point-0001"),
+        ("sockets", "rate_allocator", None),
+        ("network_boundary", "effective_policy_hash", "f" * 64),
+        ("nonce_permit_integrity", "integrity_query_hash", "e" * 64),
+    ],
+)
+def test_signed_but_locally_mismatched_measurements_are_rejected(
+    tmp_path: Path,
+    section: str,
+    field: str,
+    wrong_value: Any,
+) -> None:
+    evidence, bundle, signer = _signed_ready(tmp_path)
+    expectation = _expectation(evidence["content"])
+    changed = copy.deepcopy(evidence)
+    if section == "sockets":
+        changed["content"][section][field]["inode"] += 1
+    else:
+        changed["content"][section][field] = wrong_value
+    digest = canonical_digest(changed["content"])
+    changed["evidence_hash"] = digest.hex()
+    changed["signature"]["signature_base64"] = base64.b64encode(
+        signer.sign(digest)
+    ).decode()
+    with pytest.raises(AuthorizationDenied, match="STARTUP_EVIDENCE_BINDING_MISMATCH"):
+        verify_startup_evidence(
+            changed,
+            bundle,
+            expectation=expectation,
             now=NOW,
         )
 
@@ -189,3 +231,50 @@ def test_private_attestation_key_must_be_owner_only_and_outside_repo(
     key_path.chmod(0o440)
     with pytest.raises(AuthorizationDenied, match="ATTESTATION_PRIVATE_KEY_UNSAFE"):
         load_attestation_private_key(key_path, forbidden_repository_root=ROOT)
+
+
+def test_atomic_publication_and_monitor_reverify_the_current_file(
+    tmp_path: Path,
+) -> None:
+    evidence, bundle, _ = _signed_ready(tmp_path)
+    key_id = "host-attestation-2026q3"
+    local_policy = replace(
+        bundle.attestation_signers[key_id],
+        holder_uid=os.geteuid(),
+        holder_gid=os.getegid(),
+    )
+    local_bundle = replace(bundle, attestation_signers={key_id: local_policy})
+    output_directory = tmp_path / "attestation"
+    output_directory.mkdir()
+    output_directory.chmod(0o2775)
+    output = output_directory / "host-rate-startup-evidence.json"
+    expectation = _expectation(evidence["content"])
+    publish_startup_evidence(
+        evidence,
+        output,
+        local_bundle,
+        expectation=expectation,
+        evidence_schema_path=ROOT / "contracts/host-rate-startup-evidence.schema.json",
+        forbidden_repository_root=ROOT,
+        now=NOW,
+    )
+    assert output.stat().st_mode & 0o7777 == 0o444
+    monitor = StartupEvidenceMonitor(
+        output,
+        ROOT / "contracts/host-rate-startup-evidence.schema.json",
+        local_bundle,
+    )
+    assert monitor.require_ready(
+        expectation=expectation,
+        now=NOW,
+    ).content_hash == evidence["evidence_hash"]
+    with pytest.raises(AuthorizationDenied, match="STARTUP_EVIDENCE_BINDING_MISMATCH"):
+        monitor.require_ready(
+            expectation=replace(expectation, measurement_hash="0" * 64),
+            now=NOW,
+        )
+    with pytest.raises(AuthorizationDenied, match="STARTUP_EVIDENCE_BINDING_MISMATCH"):
+        monitor.require_ready(
+            expectation=expectation,
+            now=datetime(2026, 7, 14, 0, 5, tzinfo=UTC),
+        )

@@ -46,6 +46,7 @@ def main() -> int:
     gateway_count = 0
     production_secret_consumers: list[str] = []
     attestation_secret_consumers: list[str] = []
+    attestation_evidence_mounts: dict[str, bool] = {}
     fixed_identity_services: set[str] = set()
     for path in FILES:
         document: dict[str, Any] = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -67,6 +68,16 @@ def main() -> int:
             mounts = service.get("volumes", [])
             if any("docker.sock" in str(mount) for mount in mounts):
                 failures.append(f"{path.name}:{name}: Docker socket mount forbidden")
+            for mount in mounts:
+                if (
+                    isinstance(mount, dict)
+                    and mount.get("source") == "/run/ai-quant-attestation"
+                ):
+                    if mount.get("target") != "/run/ai-quant-attestation":
+                        failures.append(
+                            f"{path.name}:{name}: attestation mount target invalid"
+                        )
+                    attestation_evidence_mounts[name] = bool(mount.get("read_only", False))
             for port in service.get("ports", []):
                 if not str(port).startswith(("127.0.0.1:", "[::1]:")):
                     failures.append(f"{path.name}:{name}: non-loopback published port {port}")
@@ -110,6 +121,15 @@ def main() -> int:
         failures.append(
             "attestation key consumers must be exactly host-attestation-signer, got "
             f"{attestation_secret_consumers}"
+        )
+    expected_evidence_mounts = {
+        "host-attestation-signer": False,
+        "binance-egress-gateway": True,
+    }
+    if attestation_evidence_mounts != expected_evidence_mounts:
+        failures.append(
+            "attestation evidence mounts must be signer=rw and gateway=ro, got "
+            f"{attestation_evidence_mounts}"
         )
     if failures:
         print("\n".join(failures))

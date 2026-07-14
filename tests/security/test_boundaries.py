@@ -85,3 +85,21 @@ def test_attestation_private_key_is_granted_only_to_its_fixed_holder() -> None:
             }
         ]
     }
+
+
+def test_attestation_evidence_has_one_writer_and_one_read_only_consumer() -> None:
+    mounts: dict[str, bool] = {}
+    for path in (ROOT / "deploy").glob("*.yaml"):
+        document = yaml.safe_load(path.read_text(encoding="utf-8"))
+        for name, service in document.get("services", {}).items():
+            for mount in service.get("volumes", []):
+                if (
+                    isinstance(mount, dict)
+                    and mount.get("source") == "/run/ai-quant-attestation"
+                ):
+                    assert mount.get("target") == "/run/ai-quant-attestation"
+                    mounts[name] = bool(mount.get("read_only", False))
+    assert mounts == {
+        "host-attestation-signer": False,
+        "binance-egress-gateway": True,
+    }

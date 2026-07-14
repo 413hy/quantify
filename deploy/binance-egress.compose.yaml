@@ -19,6 +19,10 @@ services:
         source: /run/ai-quant-rate
         target: /run/ai-quant-rate
         read_only: true
+      - type: bind
+        source: /run/ai-quant-attestation
+        target: /run/ai-quant-attestation
+        read_only: true
     restart: unless-stopped
     read_only: true
     tmpfs: [/tmp]

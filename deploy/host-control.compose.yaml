@@ -49,6 +49,7 @@ services:
       AIQ_SOCKET_PATH: /run/ai-quant-rate/attestation.sock
       AIQ_RUNTIME_STATE: RISK_LOCKED
       AIQ_ATTESTATION_KEY_FILE: /run/secrets/host_attestation_key
+      AIQ_STARTUP_EVIDENCE_FILE: /run/ai-quant-attestation/host-rate-startup-evidence.json
     secrets:
       - source: host_attestation_key
         target: host_attestation_key
@@ -60,6 +61,9 @@ services:
       - type: bind
         source: /run/ai-quant-rate
         target: /run/ai-quant-rate
+      - type: bind
+        source: /run/ai-quant-attestation
+        target: /run/ai-quant-attestation
     restart: unless-stopped
     read_only: true
     tmpfs: [/tmp]

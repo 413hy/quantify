@@ -7,6 +7,7 @@ import binascii
 import json
 import os
 import stat
+import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -26,9 +27,26 @@ from ai_quant.rate_budget.authorization import (
     canonical_digest,
 )
 
+_MEASUREMENT_BINDING_FIELDS = (
+    "stage",
+    "enabled_environments",
+    "enabled_authorities",
+    "host_boot_id",
+    "release_binding",
+    "artifact_binding",
+    "database_authority",
+    "sockets",
+    "network_boundary",
+    "authority_observations",
+    "nonce_permit_integrity",
+    "bootstrap_chain",
+    "readiness",
+)
+
 
 @dataclass(frozen=True, slots=True)
 class StartupEvidenceExpectation:
+    measurement_hash: str
     stage: str
     enabled_environments: frozenset[str]
     enabled_authorities: frozenset[str]
@@ -37,6 +55,15 @@ class StartupEvidenceExpectation:
     fencing_owner_instance_id: str
     artifact_binding: Mapping[str, str]
     release_binding: Mapping[str, str]
+
+
+def startup_measurement_hash(content: Mapping[str, Any]) -> str:
+    """Hash every measured fact while excluding only issuance metadata."""
+    if any(field not in content for field in _MEASUREMENT_BINDING_FIELDS):
+        raise AuthorizationDenied("STARTUP_EVIDENCE_BINDING_MISMATCH")
+    return canonical_digest(
+        {field: content[field] for field in _MEASUREMENT_BINDING_FIELDS}
+    ).hex()
 
 
 def load_attestation_private_key(
@@ -137,6 +164,7 @@ def verify_startup_evidence(
         or content.get("host_boot_id") != expectation.host_boot_id
         or content.get("artifact_binding") != expectation.artifact_binding
         or content.get("release_binding") != expectation.release_binding
+        or startup_measurement_hash(content) != expectation.measurement_hash
     ):
         raise AuthorizationDenied("STARTUP_EVIDENCE_BINDING_MISMATCH")
     database = content.get("database_authority")
@@ -220,6 +248,162 @@ def issue_startup_evidence(
         now=utc_now,
     )
     return document
+
+
+def publish_startup_evidence(
+    document: Mapping[str, Any],
+    output_path: Path,
+    trust_bundle: RuntimeTrustBundle,
+    *,
+    expectation: StartupEvidenceExpectation,
+    evidence_schema_path: Path,
+    forbidden_repository_root: Path,
+    now: datetime,
+) -> None:
+    """Verify and atomically publish immutable evidence from the fixed signer identity."""
+    signature = document.get("signature")
+    key_id = signature.get("key_id") if isinstance(signature, Mapping) else None
+    signer = trust_bundle.attestation_signers.get(str(key_id))
+    if (
+        signer is None
+        or os.geteuid() != signer.holder_uid
+        or os.getegid() != signer.holder_gid
+        or not output_path.is_absolute()
+    ):
+        raise AuthorizationDenied("STARTUP_EVIDENCE_PUBLISH_UNSAFE")
+    parent = output_path.parent
+    if (
+        parent.is_symlink()
+        or parent.resolve() != parent
+        or parent.resolve().is_relative_to(forbidden_repository_root.resolve())
+        or output_path.is_symlink()
+    ):
+        raise AuthorizationDenied("STARTUP_EVIDENCE_PUBLISH_UNSAFE")
+    parent_metadata = parent.stat()
+    if (
+        not stat.S_ISDIR(parent_metadata.st_mode)
+        or parent_metadata.st_uid != 0
+        or parent_metadata.st_gid != signer.holder_gid
+        or stat.S_IMODE(parent_metadata.st_mode) != 0o2775
+    ):
+        raise AuthorizationDenied("STARTUP_EVIDENCE_PUBLISH_UNSAFE")
+    schema = json.loads(evidence_schema_path.read_text(encoding="utf-8"))
+    Draft202012Validator.check_schema(schema)
+    if list(
+        Draft202012Validator(schema, format_checker=FormatChecker()).iter_errors(document)
+    ):
+        raise AuthorizationDenied("STARTUP_EVIDENCE_SCHEMA_INVALID")
+    verify_startup_evidence(
+        document,
+        trust_bundle,
+        expectation=expectation,
+        now=now,
+    )
+    encoded = json.dumps(
+        document,
+        ensure_ascii=False,
+        allow_nan=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8") + b"\n"
+    temporary = parent / f".{output_path.name}.{uuid.uuid4().hex}.tmp"
+    descriptor = -1
+    try:
+        descriptor = os.open(
+            temporary,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+            0o444,
+        )
+        os.fchmod(descriptor, 0o444)
+        with os.fdopen(descriptor, "wb", closefd=True) as stream:
+            descriptor = -1
+            stream.write(encoded)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, output_path)
+        directory_descriptor = os.open(parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory_descriptor)
+        finally:
+            os.close(directory_descriptor)
+    except OSError as exc:
+        raise AuthorizationDenied("STARTUP_EVIDENCE_PUBLISH_FAILED") from exc
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        temporary.unlink(missing_ok=True)
+    published = output_path.lstat()
+    if (
+        not stat.S_ISREG(published.st_mode)
+        or published.st_uid != signer.holder_uid
+        or published.st_gid != signer.holder_gid
+        or stat.S_IMODE(published.st_mode) != 0o444
+    ):
+        output_path.unlink(missing_ok=True)
+        raise AuthorizationDenied("STARTUP_EVIDENCE_PUBLISH_UNSAFE")
+
+
+class StartupEvidenceMonitor:
+    """Re-read and re-verify short-lived evidence before every controlled operation."""
+
+    def __init__(
+        self,
+        evidence_path: Path,
+        evidence_schema_path: Path,
+        trust_bundle: RuntimeTrustBundle,
+    ) -> None:
+        self._evidence_path = evidence_path
+        self._evidence_schema_path = evidence_schema_path
+        self._trust_bundle = trust_bundle
+
+    def require_ready(
+        self,
+        *,
+        expectation: StartupEvidenceExpectation,
+        now: datetime,
+    ) -> VerifiedSignedDocument:
+        signer = next(iter(self._trust_bundle.attestation_signers.values()))
+        try:
+            before = self._evidence_path.lstat()
+        except OSError as exc:
+            raise AuthorizationDenied("STARTUP_EVIDENCE_FILE_UNSAFE") from exc
+        before_identity = (
+            before.st_ino,
+            before.st_size,
+            before.st_mtime_ns,
+            before.st_uid,
+            before.st_gid,
+            stat.S_IMODE(before.st_mode),
+        )
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or before.st_uid != signer.holder_uid
+            or before.st_gid != signer.holder_gid
+            or stat.S_IMODE(before.st_mode) != 0o444
+        ):
+            raise AuthorizationDenied("STARTUP_EVIDENCE_FILE_UNSAFE")
+        verified = load_startup_evidence(
+            self._evidence_path,
+            self._evidence_schema_path,
+            self._trust_bundle,
+            expectation=expectation,
+            now=now,
+        )
+        try:
+            after = self._evidence_path.lstat()
+        except OSError as exc:
+            raise AuthorizationDenied("STARTUP_EVIDENCE_FILE_CHANGED") from exc
+        after_identity = (
+            after.st_ino,
+            after.st_size,
+            after.st_mtime_ns,
+            after.st_uid,
+            after.st_gid,
+            stat.S_IMODE(after.st_mode),
+        )
+        if before_identity != after_identity:
+            raise AuthorizationDenied("STARTUP_EVIDENCE_FILE_CHANGED")
+        return verified
 
 
 def load_startup_evidence(
