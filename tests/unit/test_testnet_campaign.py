@@ -136,6 +136,8 @@ def test_testnet_baseline_accepts_only_fully_confirmed_long(
     assert not decision.execution_ready
     assert decision.direction is Direction.LONG
     assert decision.reason_codes == ()
+    assert Decimal(str(decision.evidence()["mid_price"])) > 0
+    assert Decimal(str(decision.evidence()["microprice"])) == confirmed_flow.microprice
     assert decision.evidence()["entry_verdict"] == "REJECT"
     assert decision.evidence()["execution_block_reason_codes"] == [
         "PA_SETUP_STATE_INCOMPLETE",

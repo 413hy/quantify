@@ -43,6 +43,9 @@ jq . /var/lib/ai-quant/evidence/testnet/campaign/current/state.json
 止盈/止损触发价、已实现盈亏、手续费、净结果、保护确认延迟和最终零状态。标注“模拟”的
 通知只用于格式验证，不计入交易统计。
 
+每条新观察同时记录当时 `mid_price` 和 `microprice`，供不使用持仓到期退出的结构策略做
+前向 markout、结构止损/目标触发和费用后结果统计。旧观察缺少价格字段，不允许反推或补值。
+
 当前服务不创建新仓，可直接停止：
 
 ```bash

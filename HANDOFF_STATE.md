@@ -36,6 +36,13 @@ horizon, so entry is always rejected with explicit reason codes. State is
 `/var/lib/ai-quant/evidence/testnet/campaign/current/state.json`; see `docs/testnet-campaign.md`.
 Telegram messages are structured Chinese text.
 
+The reproducible structural research review in `scripts/backtest-testnet-structural.py` failed the
+entry gate: the exact forward baseline had 0 eligible observations out of 679, while the no-time-
+exit T1 proxy produced 2 closed samples, 0 wins and -0.0389499593 USDT at 10 USDT notional. Do not
+enable Testnet order submission from this result. Evidence is
+`/var/lib/ai-quant/evidence/testnet/backtest/current/structural-review.json`; new campaign records
+include `mid_price` and `microprice` for future forward evaluation.
+
 The historical parallel Testnet sample ran SOLUSDT, BNBUSDT and XRPUSDT concurrently. It ended at
 -0.00742656/-0.00525511/-0.00930724 USDT net and reconciled fully flat. Its elapsed-duration runner
 has been deleted; the retained records are execution stress evidence, not strategy trades.

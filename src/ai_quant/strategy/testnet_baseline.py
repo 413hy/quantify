@@ -36,6 +36,13 @@ class TestnetBaselineDecision:
         """The diagnostic baseline does not produce a document-complete TradePlan."""
         return False
 
+    @property
+    def mid_price(self) -> Decimal:
+        multiplier = Decimal(1) + self.order_flow.microprice_mid_bps / Decimal(10_000)
+        if multiplier <= 0:
+            raise ValueError("testnet baseline microprice offset is invalid")
+        return self.order_flow.microprice / multiplier
+
     def evidence(self) -> dict[str, object]:
         return {
             "schema_version": "1.0.0",
@@ -73,6 +80,8 @@ class TestnetBaselineDecision:
                 "cvd_notional": format(self.order_flow.cvd_notional, "f"),
             },
             "spread_bps": format(self.spread_bps, "f"),
+            "mid_price": format(self.mid_price, "f"),
+            "microprice": format(self.order_flow.microprice, "f"),
             "reason_codes": list(self.reason_codes),
             "validation_status": "UNVALIDATED_TESTNET_BASELINE",
         }

@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: `2026-07-14T15:27:56Z`
+Updated: `2026-07-14T15:39:20Z`
 
 Overall state: `TESTNET_CORE_PROTOCOL_PASS / EXTERNAL_DURATION_GATES_PENDING / RISK_LOCKED`
 
@@ -44,6 +44,11 @@ calibration, 72-hour, or live authorization evidence. No production exchange ord
   not produce a full setup, structural stop/target or signed gross-edge horizon, so entry remains
   `REJECT` with explicit incomplete-plan reason codes. This is a wider forward-sample pool, not
   fabricated Top10 or strategy execution evidence.
+- A reproducible no-time-exit T1 structural research backtest now consumes current Testnet klines,
+  actual per-symbol taker fees and conservative slippage. The first five-symbol review failed the
+  research gate: 2 closed samples, 0 wins and -0.0389499593 USDT at 10 USDT notional. The exact
+  forward baseline also had 0 eligible observations out of 679. Machine evidence is under
+  `/var/lib/ai-quant/evidence/testnet/backtest/current/`; the campaign remains observation-only.
 - M4 operations: bounded FastAPI control surface, session-context binding, idempotent commands,
   one-use emergency-flatten challenge, outbound-only redacted notifications, Prometheus exposition,
   alert/runbook mapping, checksummed backup manifests and append-only operational migrations.
