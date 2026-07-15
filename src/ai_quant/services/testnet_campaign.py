@@ -828,6 +828,18 @@ def _update_pending_signals(
     activity_history = cast(
         dict[str, list[str]], state.setdefault("aggressive_notional_history", {})
     )
+    diagnostics: dict[str, object] = {
+        "evaluation_round": evaluation_round,
+        "plan_count": 0,
+        "confirmed_count": 0,
+        "symbols": {},
+    }
+    state["last_confirmation_diagnostics"] = diagnostics
+    counters = cast(dict[str, int], state.setdefault("confirmation_gate_counts", {}))
+
+    def count(reason: str) -> None:
+        counters[reason] = counters.get(reason, 0) + 1
+
     current_symbols = {decision.symbol for decision in decisions}
     for symbol in list(pending):
         if symbol not in current_symbols or symbol in active_symbols:
@@ -854,13 +866,35 @@ def _update_pending_signals(
             if is_impulse and impulse_minimum_activity_ratio is not None
             else minimum_activity_ratio
         )
-        if (
-            plan is None
-            or plan.symbol in active_symbols
-            or plan.signal_quality_score < minimum_quality_score
-            or len(activity_values) < minimum_activity_samples
-            or activity_ratio < required_activity
-        ):
+        if plan is None:
+            pending.pop(decision.symbol, None)
+            continue
+        diagnostics["plan_count"] = int(str(diagnostics["plan_count"])) + 1
+        reason = "WAITING_CONFIRMATION"
+        if plan.symbol in active_symbols:
+            reason = "ALREADY_IN_FLIGHT"
+        elif plan.signal_quality_score < minimum_quality_score:
+            reason = "QUALITY_BELOW_THRESHOLD"
+        elif len(activity_values) < minimum_activity_samples:
+            reason = "ACTIVITY_HISTORY_INSUFFICIENT"
+        elif activity_ratio < required_activity:
+            reason = "ACTIVITY_RATIO_INSUFFICIENT"
+        symbol_diagnostics = cast(dict[str, object], diagnostics["symbols"])
+        details: dict[str, object] = {
+            "gate_result": reason,
+            "setup_type": plan.setup_type,
+            "direction": str(plan.direction),
+            "quality_score": format(plan.signal_quality_score, "f"),
+            "required_quality_score": format(minimum_quality_score, "f"),
+            "activity_samples": len(activity_values),
+            "required_activity_samples": minimum_activity_samples,
+            "activity_ratio": format(activity_ratio, "f"),
+            "required_activity_ratio": format(required_activity, "f"),
+            "required_confirmation_rounds": required,
+        }
+        symbol_diagnostics[plan.symbol] = details
+        if reason != "WAITING_CONFIRMATION":
+            count(reason)
             pending.pop(decision.symbol, None)
             continue
         previous = pending.get(plan.symbol)
@@ -884,6 +918,12 @@ def _update_pending_signals(
         }
         if consecutive >= required:
             confirmed.append(decision)
+            details["gate_result"] = "CONFIRMED"
+            diagnostics["confirmed_count"] = int(str(diagnostics["confirmed_count"])) + 1
+            count("CONFIRMED")
+        else:
+            details["consecutive_rounds"] = consecutive
+            count("WAITING_CONFIRMATION")
     return confirmed
 
 

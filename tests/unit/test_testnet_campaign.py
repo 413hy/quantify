@@ -574,6 +574,9 @@ def test_impulse_pending_uses_two_rounds_without_forcing_slot_fill() -> None:
         impulse_required_rounds=2,
         impulse_minimum_activity_ratio=Decimal("1.25"),
     )
+    first_gate = state["last_confirmation_diagnostics"]["symbols"]["BTCUSDT"][
+        "gate_result"
+    ]
     second = _update_pending_signals(
         state,
         [decision],
@@ -588,7 +591,12 @@ def test_impulse_pending_uses_two_rounds_without_forcing_slot_fill() -> None:
         impulse_minimum_activity_ratio=Decimal("1.25"),
     )
     assert first == []
+    assert first_gate == "WAITING_CONFIRMATION"
     assert second == [decision]
+    assert state["last_confirmation_diagnostics"]["confirmed_count"] == 1
+    assert state["last_confirmation_diagnostics"]["symbols"]["BTCUSDT"][
+        "gate_result"
+    ] == "CONFIRMED"
 
 
 def test_campaign_summary_translates_runtime_and_reason_codes_to_chinese() -> None:
