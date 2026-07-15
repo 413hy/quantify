@@ -1,4 +1,5 @@
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 
@@ -6,15 +7,15 @@ import ai_quant.binance_egress.structural_experiment as experiment
 from ai_quant.binance_egress.structural_experiment import (
     PositionSignalControl,
     _classify_native_exit,
+    _confirmed_market_entry,
     _exit_trade_price,
     _place_protection,
-    _predictive_limit_entry,
     _prepare_scale_in,
     _protected_position_event,
     estimated_position_outcomes,
     exchange_maximum_initial_leverage,
+    market_entry_reference,
     plan_market_quantity,
-    predictive_limit_price,
     quantize_protection,
     risk_adjusted_margin_budget,
 )
@@ -79,52 +80,36 @@ def test_position_signal_control_discards_stale_mail_and_returns_latest() -> Non
     assert control.take_latest() is None
 
 
-def test_scale_limit_is_canceled_if_the_parent_position_closes() -> None:
+def test_scale_market_entry_is_blocked_if_the_parent_position_closes() -> None:
     class Client:
-        canceled = False
+        called = False
 
         def place_order(self, params: dict[str, str]) -> dict[str, str]:
-            return {"status": "NEW", "executedQty": "0"}
-
-        def cancel_order(self, symbol: str, client_order_id: str) -> dict[str, str]:
-            self.canceled = True
-            return {"status": "CANCELED"}
-
-        def query_order(self, symbol: str, client_order_id: str) -> dict[str, str]:
-            return {"status": "CANCELED", "executedQty": "0"}
+            self.called = True
+            return {"status": "FILLED", "executedQty": params["quantity"]}
 
     client = Client()
-    _, executed, mode = _predictive_limit_entry(
+    _, executed, mode = _confirmed_market_entry(
         client,  # type: ignore[arg-type]
         symbol="SOLUSDT",
-        direction=Direction.LONG,
         side="BUY",
         quantity=Decimal("0.1"),
-        price=Decimal("99.9"),
         client_order_id="scale-test",
-        sleep=lambda _: None,
         position_guard=lambda: False,
     )
 
-    assert client.canceled
+    assert not client.called
     assert executed == 0
     assert mode == "PARENT_POSITION_CLOSED"
 
 
-def test_confirmed_signal_uses_market_after_passive_quote_times_out() -> None:
+def test_confirmed_signal_uses_only_a_market_order() -> None:
     class Client:
         def __init__(self) -> None:
-            self.canceled = False
             self.order_types: list[str] = []
 
         def place_order(self, params: dict[str, str]) -> dict[str, str]:
             self.order_types.append(params["type"])
-            if params["type"] == "LIMIT":
-                return {
-                    "status": "NEW",
-                    "executedQty": "0",
-                    "clientOrderId": params["newClientOrderId"],
-                }
             return {
                 "status": "FILLED",
                 "executedQty": params["quantity"],
@@ -132,38 +117,129 @@ def test_confirmed_signal_uses_market_after_passive_quote_times_out() -> None:
                 "clientOrderId": params["newClientOrderId"],
             }
 
-        def cancel_order(self, symbol: str, client_order_id: str) -> dict[str, str]:
-            self.canceled = True
-            return {"status": "CANCELED"}
+    client = Client()
+    document, executed, mode = _confirmed_market_entry(
+        client,  # type: ignore[arg-type]
+        symbol="SOLUSDT",
+        side="BUY",
+        quantity=Decimal("0.1"),
+        client_order_id="entry-test",
+    )
+
+    assert client.order_types == ["MARKET"]
+    assert document is not None
+    assert document["clientOrderId"] == "entry-test"
+    assert executed == Decimal("0.1")
+    assert mode == "CONFIRMED_SIGNAL_MARKET_FILLED"
+
+
+def test_partial_market_fill_that_fails_post_fill_review_is_flattened_and_recorded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Client:
+        def __init__(self) -> None:
+            self.position = Decimal(0)
+            self.order_types: list[str] = []
+
+        def synchronize_time(self) -> tuple[int, int]:
+            return 1_000, 0
+
+        def position_mode(self) -> dict[str, bool]:
+            return {"dualSidePosition": False}
+
+        def open_orders(self, symbol: str) -> list[dict[str, object]]:
+            return []
+
+        def open_algo_orders(self, symbol: str) -> list[dict[str, object]]:
+            return []
+
+        def position_risk(self, symbol: str) -> list[dict[str, str]]:
+            if self.position == 0:
+                return []
+            return [{"positionAmt": format(self.position, "f"), "entryPrice": "100.01"}]
+
+        def leverage_brackets(self, symbol: str) -> list[dict[str, object]]:
+            return [{"symbol": symbol, "brackets": [{"initialLeverage": 75}]}]
+
+        def change_initial_leverage(self, symbol: str, leverage: int) -> dict[str, object]:
+            return {"symbol": symbol, "leverage": leverage}
+
+        def exchange_info(self) -> dict[str, object]:
+            return _exchange_info()
+
+        def book_ticker(self, symbol: str) -> dict[str, str]:
+            return {"bidPrice": "99.99", "askPrice": "100.01"}
+
+        def commission_rate(self, symbol: str) -> dict[str, str]:
+            return {"takerCommissionRate": "0.0004"}
+
+        def place_order(self, params: dict[str, str]) -> dict[str, str]:
+            self.order_types.append(params["type"])
+            if params.get("reduceOnly") == "true":
+                self.position = Decimal(0)
+                return {"status": "FILLED", "executedQty": params["quantity"]}
+            self.position = Decimal("0.10")
+            return {
+                "status": "PARTIALLY_FILLED",
+                "executedQty": "0.10",
+                "avgPrice": "100.01",
+                "clientOrderId": params["newClientOrderId"],
+            }
 
         def query_order(self, symbol: str, client_order_id: str) -> dict[str, str]:
             return {
-                "status": "CANCELED" if self.canceled else "NEW",
-                "executedQty": "0",
+                "status": "PARTIALLY_FILLED",
+                "executedQty": "0.10",
+                "avgPrice": "100.01",
                 "clientOrderId": client_order_id,
             }
 
+        def account_trades(self, symbol: str, *, start_time_ms: int) -> list[dict[str, object]]:
+            return [
+                {
+                    "id": 1,
+                    "time": 1_001,
+                    "side": "BUY",
+                    "price": "100.01",
+                    "realizedPnl": "0",
+                    "commission": "0.01",
+                },
+                {
+                    "id": 2,
+                    "time": 1_002,
+                    "side": "SELL",
+                    "price": "99.91",
+                    "realizedPnl": "-0.01",
+                    "commission": "0.01",
+                },
+            ]
+
     client = Client()
-    document, executed, mode = _predictive_limit_entry(
-        client,  # type: ignore[arg-type]
+    monkeypatch.setattr(experiment, "_credential", lambda *args: "credential")
+    monkeypatch.setattr(experiment, "BinanceTestnetClient", lambda *args: client)
+    plan = ExperimentalPlan(
         symbol="SOLUSDT",
         direction=Direction.LONG,
-        side="BUY",
-        quantity=Decimal("0.1"),
-        price=Decimal("99.99"),
-        client_order_id="entry-test",
-        sleep=lambda _: None,
-        polling_attempts=1,
-        maximum_wait_seconds=3,
-        market_fallback=True,
+        entry_reference=Decimal("100"),
+        stop_anchor=Decimal("99.5"),
+        target_reference=Decimal("100.4"),
+        predictive_average_20m=Decimal("100.09"),
     )
 
-    assert client.canceled
-    assert client.order_types == ["LIMIT", "MARKET"]
-    assert document is not None
-    assert document["clientOrderId"] == "entry-test-fb"
-    assert executed == Decimal("0.1")
-    assert mode == "MAKER_TIMEOUT_MARKET_FILLED"
+    result = experiment.run_structural_experiment(
+        api_key_file=Path("key"),
+        api_secret_file=Path("secret"),
+        repository_root=Path.cwd(),
+        plan=plan,
+        sleep=lambda _seconds: None,
+    )
+
+    assert client.order_types == ["MARKET", "MARKET"]
+    assert result["exit_reason"] == "EXECUTION_FAIL_CLOSED"
+    assert result["execution_error_code"] == "EXPERIMENT_ACTUAL_ENTRY_NET_TARGET_INSUFFICIENT"
+    assert result["entry_executed_quantity"] == "0.10"
+    assert result["account_trade_count"] == 2
+    assert result["net_pnl"] == "-0.03"
 
 
 def test_same_direction_scale_is_sized_against_whole_position_loss_budget() -> None:
@@ -261,11 +337,10 @@ def test_protected_position_event_exposes_leverage_margin_and_fee_adjusted_targe
         target_trigger=Decimal("1.0035"),
         effective_margin_budget=Decimal("0.95"),
         taker_fee_rate=Decimal("0.0004"),
-        entry_execution_mode="PREDICTIVE_GTX_FILLED",
-        predictive_limit_price=Decimal("0.9995"),
-        predicted_pullback_bps=Decimal("5"),
+        entry_execution_mode="CONFIRMED_SIGNAL_MARKET_FILLED",
+        entry_reference_price=Decimal("1.0001"),
         directional_forecast_bps=Decimal("8"),
-        predictive_entry_model="FORECAST_ALIGNED_BEST_QUOTE",
+        entry_forecast_model="FORECAST_ALIGNED_MARKET_REFERENCE",
     )
 
     assert event["initial_leverage"] == 75
@@ -273,36 +348,31 @@ def test_protected_position_event_exposes_leverage_margin_and_fee_adjusted_targe
     assert event["position_notional"] == "71.25"
     assert Decimal(str(event["estimated_target_net_pnl"])) == Decimal("0.178125")
     assert event["protection_working_type"] == "CONTRACT_PRICE"
-    assert event["entry_execution_mode"] == "PREDICTIVE_GTX_FILLED"
-    assert event["predictive_limit_price"] == "0.9995"
-    assert event["predicted_pullback_bps"] == "5"
+    assert event["entry_execution_mode"] == "CONFIRMED_SIGNAL_MARKET_FILLED"
+    assert event["entry_reference_price"] == "1.0001"
     assert event["directional_forecast_bps"] == "8"
-    assert event["predictive_entry_model"] == "FORECAST_ALIGNED_BEST_QUOTE"
+    assert event["entry_forecast_model"] == "FORECAST_ALIGNED_MARKET_REFERENCE"
 
 
 def test_predictive_entry_uses_observed_and_forecast_twenty_minute_average() -> None:
-    long_price, long_pullback, long_forecast, long_model = predictive_limit_price(
+    long_price, long_forecast, long_model = market_entry_reference(
         Direction.LONG,
         bid_price=Decimal("99.99"),
         ask_price=Decimal("100.01"),
-        tick_size=Decimal("0.01"),
         predictive_average_20m=Decimal("100.09"),
     )
-    short_price, short_pullback, short_forecast, short_model = predictive_limit_price(
+    short_price, short_forecast, short_model = market_entry_reference(
         Direction.SHORT,
         bid_price=Decimal("99.99"),
         ask_price=Decimal("100.01"),
-        tick_size=Decimal("0.01"),
         predictive_average_20m=Decimal("99.91"),
     )
-    assert long_price == Decimal("99.99")
-    assert short_price == Decimal("100.01")
-    assert long_pullback == 0
-    assert short_pullback == 0
+    assert long_price == Decimal("100.01")
+    assert short_price == Decimal("99.99")
     assert long_forecast > 0
     assert short_forecast > 0
-    assert long_model == "FORECAST_ALIGNED_BEST_QUOTE"
-    assert short_model == "FORECAST_ALIGNED_BEST_QUOTE"
+    assert long_model == "FORECAST_ALIGNED_MARKET_REFERENCE"
+    assert short_model == "FORECAST_ALIGNED_MARKET_REFERENCE"
 
 
 @pytest.mark.parametrize(
@@ -313,28 +383,25 @@ def test_predictive_average_rejects_an_uninformative_forecast(
     direction: Direction, average: str
 ) -> None:
     with pytest.raises(ProbeError, match="EXPERIMENT_PREDICTIVE_EDGE_INSUFFICIENT"):
-        predictive_limit_price(
+        market_entry_reference(
             direction,
             bid_price=Decimal("100.00"),
             ask_price=Decimal("100.01"),
-            tick_size=Decimal("0.01"),
             predictive_average_20m=Decimal(average),
         )
 
 
-def test_short_aligned_forecast_joins_the_passive_best_ask() -> None:
-    price, distance, forecast, model = predictive_limit_price(
+def test_short_aligned_forecast_uses_the_executable_bid() -> None:
+    price, forecast, model = market_entry_reference(
         Direction.SHORT,
         bid_price=Decimal("99.99"),
         ask_price=Decimal("100.01"),
-        tick_size=Decimal("0.01"),
         predictive_average_20m=Decimal("99.91"),
     )
 
-    assert price == Decimal("100.01")
-    assert distance == 0
+    assert price == Decimal("99.99")
     assert forecast > 0
-    assert model == "FORECAST_ALIGNED_BEST_QUOTE"
+    assert model == "FORECAST_ALIGNED_MARKET_REFERENCE"
 
 
 @pytest.mark.parametrize(
@@ -344,18 +411,16 @@ def test_short_aligned_forecast_joins_the_passive_best_ask() -> None:
 def test_confirmed_signal_keeps_priority_when_linear_forecast_conflicts(
     direction: Direction, average: str
 ) -> None:
-    price, distance, forecast, model = predictive_limit_price(
+    price, forecast, model = market_entry_reference(
         direction,
         bid_price=Decimal("99.99"),
         ask_price=Decimal("100.01"),
-        tick_size=Decimal("0.01"),
         predictive_average_20m=Decimal(average),
     )
 
-    assert price == (Decimal("99.99") if direction is Direction.LONG else Decimal("100.01"))
-    assert distance == 0
+    assert price == (Decimal("100.01") if direction is Direction.LONG else Decimal("99.99"))
     assert forecast < 0
-    assert model == "FORECAST_CONFLICT_SIGNAL_PRIORITY_BEST_QUOTE"
+    assert model == "FORECAST_CONFLICT_SIGNAL_PRIORITY_MARKET_REFERENCE"
 
 
 def test_pretrade_outcome_estimate_enforces_meaningful_fee_adjusted_target() -> None:

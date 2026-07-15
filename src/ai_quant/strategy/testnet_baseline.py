@@ -18,7 +18,7 @@ from ai_quant.features.price_action import (
 )
 from ai_quant.market_data.models import AggregateTrade
 
-TESTNET_EXPERIMENT_STRATEGY_VERSION = "TESTNET_EXPERIMENT_OF_PA_V4_10"
+TESTNET_EXPERIMENT_STRATEGY_VERSION = "TESTNET_EXPERIMENT_OF_PA_V4_11"
 TESTNET_EXPERIMENT_SYMBOLS = (
     "BTCUSDT",
     "ETHUSDT",
@@ -345,10 +345,13 @@ def build_market_impulse_plan(
     directional_book = sign * decision.order_flow.book_imbalance
     directional_microprice = sign * decision.order_flow.microprice_mid_bps
     # Aggressive trades must lead the impulse. Either the book or microprice must
-    # agree; one opposing instantaneous book measurement is not a global veto.
+    # agree, while a materially opposing reading from either source vetoes entry.
     if directional_trade < parameters.minimum_trade_imbalance or not (
         directional_book >= parameters.minimum_book_imbalance
         or directional_microprice >= parameters.minimum_microprice_bps
+    ) or (
+        directional_book < -parameters.maximum_opposing_book_imbalance
+        or directional_microprice < -parameters.maximum_opposing_microprice_bps
     ):
         return None
     mid = decision.mid_price

@@ -49,10 +49,9 @@ class PositionSignalControl:
 @dataclass(frozen=True, slots=True)
 class _ScaleInPreparation:
     quantity: Decimal
-    predictive_price: Decimal
-    predicted_pullback_bps: Decimal
+    entry_reference_price: Decimal
     directional_forecast_bps: Decimal
-    predictive_entry_model: str
+    entry_forecast_model: str
     effective_margin_budget: Decimal
     combined_entry: Decimal
     stop_trigger: Decimal
@@ -108,15 +107,13 @@ def _prepare_scale_in(
     except (KeyError, ArithmeticError) as exc:
         raise TestnetProbeError("TEST_SYMBOL_FILTERS_INVALID") from exc
     (
-        predictive_price,
-        predicted_pullback_bps,
+        entry_reference_price,
         directional_forecast_bps,
-        predictive_entry_model,
-    ) = predictive_limit_price(
+        entry_forecast_model,
+    ) = market_entry_reference(
         plan.direction,
         bid_price=bid_price,
         ask_price=ask_price,
-        tick_size=tick_size,
         predictive_average_20m=plan.predictive_average_20m,
     )
     loss_sign = Decimal(1) if plan.direction is Direction.LONG else Decimal(-1)
@@ -139,13 +136,13 @@ def _prepare_scale_in(
     desired_quantity = plan_market_quantity(
         exchange_info,
         symbol=plan.symbol,
-        reference_price=predictive_price,
+        reference_price=entry_reference_price,
         margin_budget=effective_margin_budget,
         leverage=leverage,
     )
     added_unit_risk = max(
-        Decimal(0), loss_sign * (predictive_price - current_stop)
-    ) + predictive_price * cost_rate
+        Decimal(0), loss_sign * (entry_reference_price - current_stop)
+    ) + entry_reference_price * cost_rate
     if added_unit_risk <= 0:
         raise TestnetProbeError("EXPERIMENT_SCALE_RISK_ESTIMATE_INVALID")
     risk_limited_quantity = _decimal_step(
@@ -157,14 +154,14 @@ def _prepare_scale_in(
         required_quantity = max(
             required_quantity,
             _decimal_step(
-                minimum_notional / predictive_price, step_size, ROUND_CEILING
+                minimum_notional / entry_reference_price, step_size, ROUND_CEILING
             ),
         )
     if quantity < required_quantity or quantity <= 0:
         raise TestnetProbeError("EXPERIMENT_SCALE_REMAINING_RISK_BELOW_EXCHANGE_MINIMUM")
     combined_quantity = current_quantity + quantity
     combined_entry = (
-        current_quantity * current_entry + quantity * predictive_price
+        current_quantity * current_entry + quantity * entry_reference_price
     ) / combined_quantity
     combined_plan = replace(plan, stop_anchor=current_stop)
     stop_trigger, target_trigger = quantize_protection(
@@ -190,10 +187,9 @@ def _prepare_scale_in(
         raise TestnetProbeError("EXPERIMENT_SCALE_NET_TARGET_INSUFFICIENT")
     return _ScaleInPreparation(
         quantity=quantity,
-        predictive_price=predictive_price,
-        predicted_pullback_bps=predicted_pullback_bps,
+        entry_reference_price=entry_reference_price,
         directional_forecast_bps=directional_forecast_bps,
-        predictive_entry_model=predictive_entry_model,
+        entry_forecast_model=entry_forecast_model,
         effective_margin_budget=effective_margin_budget,
         combined_entry=combined_entry,
         stop_trigger=stop_trigger,
@@ -304,32 +300,26 @@ def quantize_protection(
     return stop, target
 
 
-def predictive_limit_price(
+def market_entry_reference(
     direction: Direction,
     *,
     bid_price: Decimal,
     ask_price: Decimal,
-    tick_size: Decimal,
     predictive_average_20m: Decimal,
     minimum_forecast_edge_bps: Decimal = Decimal("1"),
-    minimum_entry_distance_bps: Decimal = Decimal("0"),
-    maximum_entry_distance_bps: Decimal = Decimal("0"),
-) -> tuple[Decimal, Decimal, Decimal, str]:
-    """Use an aligned forecast as a gate and join the passive best quote."""
+) -> tuple[Decimal, Decimal, str]:
+    """Validate the forecast and return the immediately executable book side."""
     if (
         min(
             bid_price,
             ask_price,
-            tick_size,
             predictive_average_20m,
             minimum_forecast_edge_bps,
         )
         <= 0
         or bid_price >= ask_price
-        or minimum_entry_distance_bps < 0
-        or minimum_entry_distance_bps > maximum_entry_distance_bps
     ):
-        raise TestnetProbeError("EXPERIMENT_MAKER_PRICE_INPUT_INVALID")
+        raise TestnetProbeError("EXPERIMENT_MARKET_REFERENCE_INPUT_INVALID")
     mid_price = (bid_price + ask_price) / Decimal(2)
     sign = Decimal(1) if direction is Direction.LONG else Decimal(-1)
     directional_forecast_bps = (
@@ -337,104 +327,31 @@ def predictive_limit_price(
     )
     if abs(directional_forecast_bps) < minimum_forecast_edge_bps:
         raise TestnetProbeError("EXPERIMENT_PREDICTIVE_EDGE_INSUFFICIENT")
-    planned_distance_bps = minimum_entry_distance_bps
-    distance_rate = planned_distance_bps / Decimal(10_000)
     entry_model = (
-        "FORECAST_ALIGNED_BEST_QUOTE"
+        "FORECAST_ALIGNED_MARKET_REFERENCE"
         if directional_forecast_bps > 0
-        else "FORECAST_CONFLICT_SIGNAL_PRIORITY_BEST_QUOTE"
+        else "FORECAST_CONFLICT_SIGNAL_PRIORITY_MARKET_REFERENCE"
     )
     if direction is Direction.LONG:
-        price = _decimal_step(
-            bid_price * (Decimal(1) - distance_rate), tick_size, ROUND_FLOOR
-        )
-        pullback_bps = (bid_price - price) / bid_price * Decimal(10_000)
-        return price, pullback_bps, directional_forecast_bps, entry_model
+        return ask_price, directional_forecast_bps, entry_model
     if direction is Direction.SHORT:
-        price = _decimal_step(
-            ask_price * (Decimal(1) + distance_rate), tick_size, ROUND_CEILING
-        )
-        pullback_bps = (price - ask_price) / ask_price * Decimal(10_000)
-        return price, pullback_bps, directional_forecast_bps, entry_model
+        return bid_price, directional_forecast_bps, entry_model
     raise TestnetProbeError("EXPERIMENT_DIRECTION_INVALID")
 
 
-def _predictive_limit_entry(
+def _confirmed_market_entry(
     client: BinanceTestnetClient,
     *,
     symbol: str,
-    direction: Direction,
     side: str,
     quantity: Decimal,
-    price: Decimal,
     client_order_id: str,
-    sleep: Callable[[float], None],
-    polling_attempts: int = 120,
     position_guard: Callable[[], bool] | None = None,
-    maximum_wait_seconds: float = 30.0,
-    monotonic: Callable[[], float] = time.monotonic,
-    market_fallback: bool = False,
 ) -> tuple[dict[str, Any] | None, Decimal, str]:
-    """Try a passive quote, then optionally use a market fallback for a valid signal."""
-    maker_rejected = False
-    try:
-        document = client.place_order(
-            {
-                "symbol": symbol,
-                "side": side,
-                "positionSide": "BOTH",
-                "type": "LIMIT",
-                "timeInForce": "GTX",
-                "quantity": format(quantity, "f"),
-                "price": format(price, "f"),
-                "newOrderRespType": "RESULT",
-                "newClientOrderId": client_order_id,
-            }
-        )
-    except TestnetProbeError:
-        maker_rejected = True
-        latest: dict[str, Any] | None = None
-    if not maker_rejected:
-        latest = document
-        deadline = monotonic() + maximum_wait_seconds
-        for _ in range(polling_attempts):
-            if latest.get("status") in {
-                "FILLED",
-                "PARTIALLY_FILLED",
-                "CANCELED",
-                "EXPIRED",
-                "REJECTED",
-            }:
-                break
-            if position_guard is not None and not position_guard():
-                client.cancel_order(symbol, client_order_id)
-                latest = client.query_order(symbol, client_order_id)
-                return latest, Decimal(0), "PARENT_POSITION_CLOSED"
-            remaining = deadline - monotonic()
-            if remaining <= 0:
-                break
-            sleep(min(0.25, remaining))
-            latest = client.query_order(symbol, client_order_id)
-        if latest.get("status") in {"NEW", "PARTIALLY_FILLED"}:
-            client.cancel_order(symbol, client_order_id)
-            latest = client.query_order(symbol, client_order_id)
-        executed = Decimal(str(latest.get("executedQty", "0")))
-        if executed >= quantity and latest.get("status") == "FILLED":
-            return latest, executed, "PREDICTIVE_GTX_FILLED"
-        if executed > 0:
-            return latest, executed, "PREDICTIVE_GTX_PARTIALLY_FILLED"
-    if not market_fallback:
-        return (
-            latest,
-            Decimal(0),
-            "PREDICTIVE_GTX_REJECTED"
-            if maker_rejected
-            else "PREDICTIVE_GTX_NOT_FILLED",
-        )
+    """Execute a fully confirmed Testnet signal without a limit-order stage."""
     if position_guard is not None and not position_guard():
-        return latest, Decimal(0), "PARENT_POSITION_CLOSED"
-    fallback_id = f"{client_order_id}-fb"
-    fallback = client.place_order(
+        return None, Decimal(0), "PARENT_POSITION_CLOSED"
+    document = client.place_order(
         {
             "symbol": symbol,
             "side": side,
@@ -442,15 +359,15 @@ def _predictive_limit_entry(
             "type": "MARKET",
             "quantity": format(quantity, "f"),
             "newOrderRespType": "RESULT",
-            "newClientOrderId": fallback_id,
+            "newClientOrderId": client_order_id,
         }
     )
-    fallback_executed = Decimal(str(fallback.get("executedQty", "0")))
-    if fallback_executed >= quantity and fallback.get("status") == "FILLED":
-        return fallback, fallback_executed, "MAKER_TIMEOUT_MARKET_FILLED"
-    if fallback_executed > 0:
-        return fallback, fallback_executed, "MAKER_TIMEOUT_MARKET_PARTIALLY_FILLED"
-    return fallback, Decimal(0), "MAKER_FALLBACK_NOT_FILLED"
+    executed = Decimal(str(document.get("executedQty", "0")))
+    if executed >= quantity and document.get("status") == "FILLED":
+        return document, executed, "CONFIRMED_SIGNAL_MARKET_FILLED"
+    if executed > 0:
+        return document, executed, "CONFIRMED_SIGNAL_MARKET_PARTIALLY_FILLED"
+    return document, Decimal(0), "CONFIRMED_SIGNAL_MARKET_NOT_FILLED"
 
 
 def run_structural_experiment(
@@ -513,30 +430,28 @@ def run_structural_experiment(
         adverse_slippage_rate=risk_sizing_slippage_rate,
     )
     (
-        predictive_price,
-        predicted_pullback_bps,
+        entry_reference_price,
         directional_forecast_bps,
-        predictive_entry_model,
-    ) = predictive_limit_price(
+        entry_forecast_model,
+    ) = market_entry_reference(
         plan.direction,
         bid_price=bid_price,
         ask_price=ask_price,
-        tick_size=tick_size,
         predictive_average_20m=plan.predictive_average_20m,
     )
     quantity = plan_market_quantity(
         exchange_info,
         symbol=symbol,
-        reference_price=predictive_price,
+        reference_price=entry_reference_price,
         margin_budget=effective_margin_budget,
         leverage=leverage,
     )
     pretrade_stop, pretrade_target = quantize_protection(
-        plan, actual_entry=predictive_price, tick_size=tick_size
+        plan, actual_entry=entry_reference_price, tick_size=tick_size
     )
     _, _, estimated_net_target, _ = estimated_position_outcomes(
         quantity=quantity,
-        actual_entry=predictive_price,
+        actual_entry=entry_reference_price,
         stop_trigger=pretrade_stop,
         target_trigger=pretrade_target,
         taker_fee_rate=taker_fee_rate,
@@ -545,8 +460,8 @@ def run_structural_experiment(
         raise TestnetProbeError("EXPERIMENT_ESTIMATED_NET_TARGET_INSUFFICIENT")
     entry_side = "BUY" if plan.direction is Direction.LONG else "SELL"
     close_side = "SELL" if plan.direction is Direction.LONG else "BUY"
-    maker_entry_id = f"aq-t-exp-m-{secrets.token_hex(5)}"
-    entry_id = maker_entry_id
+    market_entry_id = f"aq-t-exp-mkt-{secrets.token_hex(5)}"
+    entry_id = market_entry_id
     stop_client_id = f"aqa-t-exp-sl-{secrets.token_hex(5)}"
     target_client_id = f"aqa-t-exp-tp-{secrets.token_hex(5)}"
     entry: dict[str, Any] | None = None
@@ -559,6 +474,7 @@ def run_structural_experiment(
     stop_final_status = "UNRESOLVED"
     target_final_status = "UNRESOLVED"
     entry_execution_mode = "UNRESOLVED"
+    execution_error_code: str | None = None
     total_entry_executed_quantity = Decimal(0)
     scale_in_count = 0
     current_plan = plan
@@ -566,7 +482,7 @@ def run_structural_experiment(
         if on_entry_attempt is not None:
             on_entry_attempt(
                 {
-                    "record_type": "TESTNET_PREDICTIVE_LIMIT_SUBMITTED",
+                    "record_type": "TESTNET_MARKET_ENTRY_SUBMITTED",
                     "environment": "testnet",
                     "validation_status": "UNVALIDATED_TESTNET_EXPERIMENT",
                     "strategy": plan.strategy_version,
@@ -577,40 +493,33 @@ def run_structural_experiment(
                     "current_bid_price": format(bid_price, "f"),
                     "current_ask_price": format(ask_price, "f"),
                     "predictive_average_20m": format(plan.predictive_average_20m, "f"),
-                    "predictive_limit_price": format(predictive_price, "f"),
-                    "predicted_pullback_bps": format(predicted_pullback_bps, "f"),
+                    "entry_reference_price": format(entry_reference_price, "f"),
                     "directional_forecast_bps": format(directional_forecast_bps, "f"),
-                    "predictive_entry_model": predictive_entry_model,
+                    "entry_forecast_model": entry_forecast_model,
                     "attempted_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
                     "production_endpoint_requests": 0,
                 }
             )
-        entry, total_entry_executed_quantity, entry_execution_mode = _predictive_limit_entry(
+        entry, total_entry_executed_quantity, entry_execution_mode = _confirmed_market_entry(
             client,
             symbol=symbol,
-            direction=plan.direction,
             side=entry_side,
             quantity=quantity,
-            price=predictive_price,
-            client_order_id=maker_entry_id,
-            sleep=sleep,
-            maximum_wait_seconds=3.0,
-            market_fallback=True,
+            client_order_id=market_entry_id,
         )
         if on_entry_attempt is not None:
             on_entry_attempt(
                 {
-                    "record_type": "TESTNET_PREDICTIVE_LIMIT_RESULT",
+                    "record_type": "TESTNET_MARKET_ENTRY_RESULT",
                     "environment": "testnet",
                     "validation_status": "UNVALIDATED_TESTNET_EXPERIMENT",
                     "strategy": plan.strategy_version,
                     "symbol": symbol,
                     "direction": plan.direction,
                     "client_order_id": (
-                        maker_entry_id if entry is None else entry.get("clientOrderId")
+                        market_entry_id if entry is None else entry.get("clientOrderId")
                     ),
-                    "maker_client_order_id": maker_entry_id,
-                    "predictive_limit_price": format(predictive_price, "f"),
+                    "entry_reference_price": format(entry_reference_price, "f"),
                     "execution_mode": entry_execution_mode,
                     "order_status": None if entry is None else entry.get("status"),
                     "executed_quantity": format(total_entry_executed_quantity, "f"),
@@ -623,11 +532,10 @@ def run_structural_experiment(
         if total_entry_executed_quantity > 0:
             quantity = total_entry_executed_quantity
         else:
-            raise TestnetProbeError("EXPERIMENT_PREDICTIVE_LIMIT_NOT_FILLED")
-        valid_entry_ids = {maker_entry_id, f"{maker_entry_id}-fb"}
+            raise TestnetProbeError("EXPERIMENT_MARKET_ENTRY_NOT_FILLED")
         if (
             entry is None
-            or entry.get("clientOrderId") not in valid_entry_ids
+            or entry.get("clientOrderId") != market_entry_id
             or Decimal(str(entry.get("executedQty", "0"))) <= 0
         ):
             raise TestnetProbeError("EXPERIMENT_ENTRY_NOT_FILLED")
@@ -690,10 +598,9 @@ def run_structural_experiment(
             effective_margin_budget=effective_margin_budget,
             taker_fee_rate=taker_fee_rate,
             entry_execution_mode=entry_execution_mode,
-            predictive_limit_price=predictive_price,
-            predicted_pullback_bps=predicted_pullback_bps,
+            entry_reference_price=entry_reference_price,
             directional_forecast_bps=directional_forecast_bps,
-            predictive_entry_model=predictive_entry_model,
+            entry_forecast_model=entry_forecast_model,
         )
         if on_position_protected is not None:
             on_position_protected(protected_position)
@@ -768,26 +675,23 @@ def run_structural_experiment(
                         )
                     )
                 continue
-            scale_order_id = f"aq-t-scale-m-{secrets.token_hex(5)}"
+            scale_order_id = f"aq-t-scale-mkt-{secrets.token_hex(5)}"
             scale_side = "BUY" if latest_plan.direction is Direction.LONG else "SELL"
             if on_entry_attempt is not None:
                 on_entry_attempt(
                     {
-                        "record_type": "TESTNET_PREDICTIVE_SCALE_LIMIT_SUBMITTED",
+                        "record_type": "TESTNET_MARKET_SCALE_SUBMITTED",
                         "environment": "testnet",
                         "validation_status": "UNVALIDATED_TESTNET_EXPERIMENT",
                         "strategy": latest_plan.strategy_version,
                         "symbol": symbol,
                         "direction": latest_plan.direction,
                         "quantity": format(scale.quantity, "f"),
-                        "predictive_limit_price": format(scale.predictive_price, "f"),
-                        "predicted_pullback_bps": format(
-                            scale.predicted_pullback_bps, "f"
-                        ),
+                        "entry_reference_price": format(scale.entry_reference_price, "f"),
                         "directional_forecast_bps": format(
                             scale.directional_forecast_bps, "f"
                         ),
-                        "predictive_entry_model": scale.predictive_entry_model,
+                        "entry_forecast_model": scale.entry_forecast_model,
                         "attempted_at": datetime.now(UTC)
                         .isoformat()
                         .replace("+00:00", "Z"),
@@ -800,23 +704,18 @@ def run_structural_experiment(
                 position = _position_quantity(client, symbol)
                 return position > 0 if direction is Direction.LONG else position < 0
 
-            scale_document, added_quantity, scale_execution_mode = _predictive_limit_entry(
+            scale_document, added_quantity, scale_execution_mode = _confirmed_market_entry(
                 client,
                 symbol=symbol,
-                direction=latest_plan.direction,
                 side=scale_side,
                 quantity=scale.quantity,
-                price=scale.predictive_price,
                 client_order_id=scale_order_id,
-                sleep=sleep,
                 position_guard=position_still_open,
-                maximum_wait_seconds=3.0,
-                market_fallback=True,
             )
             if on_entry_attempt is not None:
                 on_entry_attempt(
                     {
-                        "record_type": "TESTNET_PREDICTIVE_SCALE_LIMIT_RESULT",
+                        "record_type": "TESTNET_MARKET_SCALE_RESULT",
                         "environment": "testnet",
                         "validation_status": "UNVALIDATED_TESTNET_EXPERIMENT",
                         "strategy": latest_plan.strategy_version,
@@ -827,8 +726,7 @@ def run_structural_experiment(
                             if scale_document is None
                             else scale_document.get("clientOrderId")
                         ),
-                        "maker_client_order_id": scale_order_id,
-                        "predictive_limit_price": format(scale.predictive_price, "f"),
+                        "entry_reference_price": format(scale.entry_reference_price, "f"),
                         "execution_mode": scale_execution_mode,
                         "order_status": (
                             None if scale_document is None else scale_document.get("status")
@@ -850,6 +748,7 @@ def run_structural_experiment(
                         )
                     )
                 continue
+            total_entry_executed_quantity += added_quantity
             signed_position = _position_quantity(client, symbol)
             if (latest_plan.direction is Direction.LONG and signed_position <= 0) or (
                 latest_plan.direction is Direction.SHORT and signed_position >= 0
@@ -914,7 +813,6 @@ def run_structural_experiment(
             target_trigger = new_target
             current_plan = latest_plan
             effective_margin_budget += scale.effective_margin_budget
-            total_entry_executed_quantity += added_quantity
             scale_in_count += 1
             if on_position_control is not None:
                 scaled_event = _protected_position_event(
@@ -927,10 +825,9 @@ def run_structural_experiment(
                     effective_margin_budget=effective_margin_budget,
                     taker_fee_rate=taker_fee_rate,
                     entry_execution_mode=scale_execution_mode,
-                    predictive_limit_price=scale.predictive_price,
-                    predicted_pullback_bps=scale.predicted_pullback_bps,
+                    entry_reference_price=scale.entry_reference_price,
                     directional_forecast_bps=scale.directional_forecast_bps,
-                    predictive_entry_model=scale.predictive_entry_model,
+                    entry_forecast_model=scale.entry_forecast_model,
                 )
                 scaled_event["record_type"] = "TESTNET_POSITION_SCALED_AND_REPROTECTED"
                 scaled_event["added_quantity"] = format(added_quantity, "f")
@@ -959,6 +856,40 @@ def run_structural_experiment(
         target_final_status = _terminalize_algo_after_flat(
             client, symbol=symbol, algo_id=target_id, client_algo_id=target_client_id
         )
+    except TestnetProbeError as exc:
+        signed_position = _position_quantity(client, symbol)
+        recordable_position = total_entry_executed_quantity > 0 and (
+            (plan.direction is Direction.LONG and signed_position > 0)
+            or (plan.direction is Direction.SHORT and signed_position < 0)
+        )
+        if not recordable_position:
+            raise
+        execution_error_code = str(exc)
+        quantity, actual_entry = _position_snapshot(client, symbol, plan.direction)
+        if stop_id is not None:
+            try:
+                stop_final_status = _terminalize_algo_after_flat(
+                    client,
+                    symbol=symbol,
+                    algo_id=stop_id,
+                    client_algo_id=stop_client_id,
+                )
+            except TestnetProbeError:
+                stop_final_status = "CLEANUP_DEFERRED"
+        if target_id is not None:
+            try:
+                target_final_status = _terminalize_algo_after_flat(
+                    client,
+                    symbol=symbol,
+                    algo_id=target_id,
+                    client_algo_id=target_client_id,
+                )
+            except TestnetProbeError:
+                target_final_status = "CLEANUP_DEFERRED"
+        closed = _flatten_position(client, symbol)
+        if closed is None or closed.get("status") != "FILLED":
+            raise TestnetProbeError("EXPERIMENT_FAIL_CLOSED_EXIT_NOT_FILLED") from exc
+        exit_reason = "EXECUTION_FAIL_CLOSED"
     finally:
         if entry is not None and _position_quantity(client, symbol) != 0:
             _flatten_position(client, symbol)
@@ -996,10 +927,10 @@ def run_structural_experiment(
         "actual_initial_margin": format(position_notional / Decimal(leverage), "f"),
         "position_notional": format(position_notional, "f"),
         "entry_execution_mode": entry_execution_mode,
-        "predictive_limit_price": format(predictive_price, "f"),
-        "predicted_pullback_bps": format(predicted_pullback_bps, "f"),
+        "execution_error_code": execution_error_code,
+        "entry_reference_price": format(entry_reference_price, "f"),
         "directional_forecast_bps": format(directional_forecast_bps, "f"),
-        "predictive_entry_model": predictive_entry_model,
+        "entry_forecast_model": entry_forecast_model,
         "entry_executed_quantity": format(total_entry_executed_quantity, "f"),
         "scale_in_count": scale_in_count,
         "maximum_net_loss_budget": format(maximum_net_loss, "f"),
@@ -1152,10 +1083,9 @@ def _protected_position_event(
     effective_margin_budget: Decimal,
     taker_fee_rate: Decimal,
     entry_execution_mode: str,
-    predictive_limit_price: Decimal,
-    predicted_pullback_bps: Decimal,
+    entry_reference_price: Decimal,
     directional_forecast_bps: Decimal,
-    predictive_entry_model: str,
+    entry_forecast_model: str,
 ) -> dict[str, Any]:
     target_gross, round_trip_fee, target_net, stop_net_loss = estimated_position_outcomes(
         quantity=quantity,
@@ -1180,10 +1110,9 @@ def _protected_position_event(
         "position_notional": format(notional, "f"),
         "actual_initial_margin": format(notional / Decimal(leverage), "f"),
         "entry_execution_mode": entry_execution_mode,
-        "predictive_limit_price": format(predictive_limit_price, "f"),
-        "predicted_pullback_bps": format(predicted_pullback_bps, "f"),
+        "entry_reference_price": format(entry_reference_price, "f"),
         "directional_forecast_bps": format(directional_forecast_bps, "f"),
-        "predictive_entry_model": predictive_entry_model,
+        "entry_forecast_model": entry_forecast_model,
         "effective_margin_budget": format(effective_margin_budget, "f"),
         "signal_quality_score": format(plan.signal_quality_score, "f"),
         "signal_confirmation_rounds": plan.signal_confirmation_rounds,

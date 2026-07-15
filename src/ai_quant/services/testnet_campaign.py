@@ -56,7 +56,7 @@ class CampaignLimits:
     margin_budget: Decimal = Decimal("1")
     maximum_net_loss_per_trade: Decimal = Decimal("1.00")
     maximum_parallel_positions: int = 5
-    maximum_candidates_per_round: int = 3
+    maximum_candidates_per_round: int = 5
     signal_confirmation_rounds: int = 3
     impulse_confirmation_rounds: int = 1
     minimum_signal_quality_score: Decimal = Decimal("2.00")
@@ -96,8 +96,8 @@ class CampaignLimits:
             raise ValueError("campaign per-trade loss budget is invalid")
         if not 1 <= self.maximum_parallel_positions <= 10:
             raise ValueError("campaign parallel position limit is invalid")
-        if not 1 <= self.maximum_candidates_per_round <= 3:
-            raise ValueError("campaign candidate limit must be between one and three")
+        if not 1 <= self.maximum_candidates_per_round <= len(TESTNET_EXPERIMENT_SYMBOLS):
+            raise ValueError("campaign candidate limit exceeds the fixed symbol universe")
         if not 1 <= self.signal_confirmation_rounds <= 10:
             raise ValueError("campaign signal confirmation count is invalid")
         if not 1 <= self.impulse_confirmation_rounds <= self.signal_confirmation_rounds:
@@ -222,7 +222,7 @@ class TestnetCampaign:
                 f"候选池: {', '.join(self.symbols)}\n"
                 f"节奏: 每 {self.limits.evaluation_interval_seconds} 秒评估, 最多选择 "
                 f"{self.limits.maximum_candidates_per_round} 个有效信号\n"
-                "入场: 实时确认信号优先; 最优报价 3 秒未成交后市价兜底\n"
+                "入场: 实时确认信号通过全部门控后直接市价成交\n"
                 f"仓位: 最多 {self._parallel_limit()} 个; 单笔保证金不超过 "
                 f"{self.limits.margin_budget} USDT\n"
                 "持仓信号: 最新有效信号接管; 同向可加仓, 反向先平后换向\n"
@@ -555,6 +555,7 @@ class TestnetCampaign:
                 expected_skip = isinstance(exc, TestnetProbeError) and str(exc) in {
                     "EXPERIMENT_PREDICTIVE_LIMIT_NOT_FILLED",
                     "EXPERIMENT_PREDICTIVE_EDGE_INSUFFICIENT",
+                    "EXPERIMENT_MARKET_ENTRY_NOT_FILLED",
                 }
                 self._append_event(
                     {
@@ -673,10 +674,8 @@ class TestnetCampaign:
                     f"止损: {event['stop_trigger']} | 预计 -"
                     f"{_money(event['estimated_stop_net_loss'])} U\n"
                     "────────────\n"
-                    f"入场: {event['entry_price']} (距盘口 "
-                    f"{_two_decimals(event.get('predicted_pullback_bps', 0))} bps)\n"
-                    "模型: "
-                    f"{_predictive_entry_model_cn(str(event.get('predictive_entry_model', '?')))}\n"
+                    f"入场: {event['entry_price']}\n"
+                    f"预测强度: {_two_decimals(event['directional_forecast_bps'])} bps\n"
                     f"保证金: {_money(event['actual_initial_margin'])} U | "
                     f"数量: {event['quantity']}\n"
                     "保护: 原生止盈/止损已生效"
@@ -931,6 +930,7 @@ def _exit_reason_cn(reason: str) -> str:
         "STOP_LOSS": "跌破/突破结构止损",
         "SIGNAL_REVERSAL": "最新反向信号接管仓位",
         "OPERATOR_SERVICE_STOP": "服务停止时人工平仓",
+        "EXECUTION_FAIL_CLOSED": "成交后风控复核未通过; 已安全平仓",
         "NATIVE_EXIT_UNCLASSIFIED": "交易所原生保护单平仓",
     }.get(reason, reason)
 
@@ -1243,17 +1243,6 @@ def _money(value: object) -> str:
     return format(Decimal(str(value)).quantize(Decimal("0.000001")), "f")
 
 
-def _predictive_entry_model_cn(value: str) -> str:
-    return {
-        "FORECAST_ALIGNED_BEST_QUOTE": "方向一致预测 + 最优被动报价",
-        "FORECAST_CONFLICT_SIGNAL_PRIORITY_BEST_QUOTE": (
-            "预测冲突, 实时确认信号优先 + 最优被动报价"
-        ),
-        "FORECAST_CONTINUATION_RETRACE": "趋势延续回撤入场",
-        "FORECAST_MEAN_REVERSION_RETRACE": "预测反弹/回落入场",
-    }.get(value, value)
-
-
 def _two_decimals(value: object) -> str:
     return format(Decimal(str(value)).quantize(Decimal("0.01")), "f")
 
@@ -1296,7 +1285,7 @@ def main() -> int:
     parser.add_argument("--margin-budget", type=Decimal, default=Decimal("1"))
     parser.add_argument("--maximum-net-loss-per-trade", type=Decimal, default=Decimal("1.00"))
     parser.add_argument("--maximum-parallel-positions", type=int, default=5)
-    parser.add_argument("--maximum-candidates-per-round", type=int, default=3)
+    parser.add_argument("--maximum-candidates-per-round", type=int, default=5)
     parser.add_argument("--signal-confirmation-rounds", type=int, default=2)
     parser.add_argument("--impulse-confirmation-rounds", type=int, default=1)
     parser.add_argument("--minimum-signal-quality-score", type=Decimal, default=Decimal("2.00"))

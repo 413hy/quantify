@@ -94,7 +94,7 @@ def test_testnet_baseline_rejects_neutral_price_action_and_unconfirmed_book() ->
 def test_campaign_limits_enforce_cooldown_count_and_daily_loss() -> None:
     limits = CampaignLimits()
     assert limits.maximum_parallel_positions == 5
-    assert limits.maximum_candidates_per_round == 3
+    assert limits.maximum_candidates_per_round == 5
     assert limits.signal_confirmation_rounds == 3
     now = datetime(2026, 7, 14, 12, tzinfo=UTC)
     assert campaign_trade_allowed(
@@ -265,7 +265,7 @@ def test_testnet_experiment_builds_structural_stop_without_time_exit(
     assert (plan.target_reference - plan.entry_reference) / plan.entry_reference * Decimal(
         10_000
     ) == Decimal("32")
-    assert plan.strategy_version == "TESTNET_EXPERIMENT_OF_PA_V4_10"
+    assert plan.strategy_version == "TESTNET_EXPERIMENT_OF_PA_V4_11"
     assert "maximum_holding" not in str(plan.evidence()).lower()
 
 
@@ -550,6 +550,31 @@ def test_market_breadth_promotes_all_locally_aligned_pool_symbols() -> None:
         "MARKET_BREADTH_IMPULSE_FAST"
     )
     assert state["signal_gate_counts"]["PLAN_GENERATED"] == 3
+
+
+@pytest.mark.parametrize(
+    ("book_imbalance", "microprice_bps"),
+    [("-0.20", "0.20"), ("0.20", "-0.40")],
+)
+def test_impulse_plan_rejects_materially_opposing_microstructure(
+    book_imbalance: str, microprice_bps: str
+) -> None:
+    decision = _neutral_impulse_decision("BTCUSDT", "100.08")
+    flow = replace(
+        decision.order_flow,
+        book_imbalance=Decimal(book_imbalance),
+        microprice_mid_bps=Decimal(microprice_bps),
+    )
+
+    plan = baseline.build_market_impulse_plan(
+        replace(decision, order_flow=flow),
+        direction=Direction.LONG,
+        momentum_bps=Decimal("8"),
+        breadth_count=3,
+        parameters=SignalParameters(),
+    )
+
+    assert plan is None
 
 
 def test_sustained_breadth_catches_gradual_move_and_rejects_exhaustion() -> None:
