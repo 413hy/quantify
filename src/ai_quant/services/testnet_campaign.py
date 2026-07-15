@@ -614,8 +614,16 @@ class TestnetCampaign:
                 "observation_count": document.get("observation_count", 0),
                 "trade_count": document.get("trade_count", 0),
                 "cumulative_net_pnl": document.get("cumulative_net_pnl", "0"),
+                "daily_utc_date": document.get("daily_utc_date"),
+                "daily_trade_count": document.get("daily_trade_count", 0),
+                "daily_net_pnl": document.get("daily_net_pnl", "0"),
+                "last_trade_at": document.get("last_trade_at"),
+                "last_trade_by_symbol": document.get("last_trade_by_symbol", {}),
             }
         now = datetime.now(UTC)
+        daily_continuity = _daily_state_continuity(
+            prior_campaign, today=now.date().isoformat()
+        )
         state: dict[str, Any] = {
             "schema_version": "1.0.0",
             "status": "RUNNING",
@@ -638,11 +646,11 @@ class TestnetCampaign:
             "cumulative_net_pnl": "0",
             "last_observed_at": None,
             "last_reason_codes": [],
-            "last_trade_at": None,
+            "last_trade_at": daily_continuity["last_trade_at"],
             "daily_utc_date": now.date().isoformat(),
-            "daily_trade_count": 0,
-            "daily_net_pnl": "0",
-            "last_trade_by_symbol": {},
+            "daily_trade_count": daily_continuity["daily_trade_count"],
+            "daily_net_pnl": daily_continuity["daily_net_pnl"],
+            "last_trade_by_symbol": daily_continuity["last_trade_by_symbol"],
             "active_symbols": [],
             "pending_signals": {},
             "aggressive_notional_history": {},
@@ -1011,6 +1019,34 @@ def _median_decimal(values: list[Decimal]) -> Decimal:
     if len(values) % 2:
         return values[midpoint]
     return (values[midpoint - 1] + values[midpoint]) / Decimal(2)
+
+
+def _daily_state_continuity(
+    prior_campaign: dict[str, object] | None, *, today: str
+) -> dict[str, object]:
+    """Carry same-UTC-day loss, count, and cooldown state across strategy releases."""
+    empty: dict[str, object] = {
+        "daily_trade_count": 0,
+        "daily_net_pnl": "0",
+        "last_trade_at": None,
+        "last_trade_by_symbol": {},
+    }
+    if prior_campaign is None or prior_campaign.get("daily_utc_date") != today:
+        return empty
+    last_by_symbol = prior_campaign.get("last_trade_by_symbol", {})
+    if not isinstance(last_by_symbol, dict) or not all(
+        isinstance(key, str) and isinstance(value, str)
+        for key, value in last_by_symbol.items()
+    ):
+        last_by_symbol = {}
+    return {
+        "daily_trade_count": int(str(prior_campaign.get("daily_trade_count", 0))),
+        "daily_net_pnl": format(
+            Decimal(str(prior_campaign.get("daily_net_pnl", "0"))), "f"
+        ),
+        "last_trade_at": prior_campaign.get("last_trade_at"),
+        "last_trade_by_symbol": last_by_symbol,
+    }
 
 
 def _experimental_candidate_rank(decision: TestnetBaselineDecision) -> tuple[Decimal, str]:

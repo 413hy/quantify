@@ -13,6 +13,7 @@ from ai_quant.features.price_action import ClosedBar, Direction, PriceActionFram
 from ai_quant.services.testnet_campaign import (
     CampaignLimits,
     _apply_market_impulse_plans,
+    _daily_state_continuity,
     _experimental_candidate_rank,
     _money,
     _select_candidate,
@@ -125,6 +126,40 @@ def test_campaign_limits_enforce_cooldown_count_and_daily_loss() -> None:
         daily_net_pnl=Decimal("-1.00"),
         limits=limits,
     ) == (False, "DAILY_LOSS_LIMIT_REACHED")
+
+
+def test_strategy_release_carries_same_day_loss_count_and_cooldown() -> None:
+    continuity = _daily_state_continuity(
+        {
+            "daily_utc_date": "2026-07-15",
+            "daily_trade_count": 7,
+            "daily_net_pnl": "-0.71446639",
+            "last_trade_at": "2026-07-15T05:25:25Z",
+            "last_trade_by_symbol": {"BTCUSDT": "2026-07-15T05:25:25Z"},
+        },
+        today="2026-07-15",
+    )
+
+    assert continuity == {
+        "daily_trade_count": 7,
+        "daily_net_pnl": "-0.71446639",
+        "last_trade_at": "2026-07-15T05:25:25Z",
+        "last_trade_by_symbol": {"BTCUSDT": "2026-07-15T05:25:25Z"},
+    }
+
+
+def test_strategy_release_resets_daily_state_after_utc_rollover() -> None:
+    continuity = _daily_state_continuity(
+        {
+            "daily_utc_date": "2026-07-14",
+            "daily_trade_count": 7,
+            "daily_net_pnl": "-0.7",
+        },
+        today="2026-07-15",
+    )
+
+    assert continuity["daily_trade_count"] == 0
+    assert continuity["daily_net_pnl"] == "0"
 
 
 def test_v4_campaign_rejects_a_different_symbol_universe() -> None:
