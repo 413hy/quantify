@@ -68,6 +68,7 @@ def test_testnet_baseline_rejects_neutral_price_action_and_unconfirmed_book() ->
 def test_campaign_limits_enforce_cooldown_count_and_daily_loss() -> None:
     limits = CampaignLimits()
     assert limits.maximum_parallel_positions == 5
+    assert limits.maximum_candidates_per_round == 3
     assert limits.signal_confirmation_rounds == 3
     now = datetime(2026, 7, 14, 12, tzinfo=UTC)
     assert campaign_trade_allowed(

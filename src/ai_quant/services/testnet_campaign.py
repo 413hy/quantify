@@ -48,7 +48,7 @@ class CampaignLimits:
     margin_budget: Decimal = Decimal("1")
     maximum_net_loss_per_trade: Decimal = Decimal("1.00")
     maximum_parallel_positions: int = 5
-    maximum_candidates_per_round: int = 2
+    maximum_candidates_per_round: int = 3
     signal_confirmation_rounds: int = 3
     impulse_confirmation_rounds: int = 1
     minimum_signal_quality_score: Decimal = Decimal("2.00")
@@ -88,8 +88,8 @@ class CampaignLimits:
             raise ValueError("campaign per-trade loss budget is invalid")
         if not 1 <= self.maximum_parallel_positions <= 10:
             raise ValueError("campaign parallel position limit is invalid")
-        if not 1 <= self.maximum_candidates_per_round <= 2:
-            raise ValueError("campaign candidate limit must be one or two")
+        if not 1 <= self.maximum_candidates_per_round <= 3:
+            raise ValueError("campaign candidate limit must be between one and three")
         if not 1 <= self.signal_confirmation_rounds <= 10:
             raise ValueError("campaign signal confirmation count is invalid")
         if not 1 <= self.impulse_confirmation_rounds <= self.signal_confirmation_rounds:
@@ -1123,7 +1123,7 @@ def main() -> int:
     parser.add_argument("--margin-budget", type=Decimal, default=Decimal("1"))
     parser.add_argument("--maximum-net-loss-per-trade", type=Decimal, default=Decimal("1.00"))
     parser.add_argument("--maximum-parallel-positions", type=int, default=5)
-    parser.add_argument("--maximum-candidates-per-round", type=int, default=2)
+    parser.add_argument("--maximum-candidates-per-round", type=int, default=3)
     parser.add_argument("--signal-confirmation-rounds", type=int, default=2)
     parser.add_argument("--impulse-confirmation-rounds", type=int, default=1)
     parser.add_argument("--minimum-signal-quality-score", type=Decimal, default=Decimal("2.00"))
