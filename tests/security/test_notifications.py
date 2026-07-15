@@ -29,11 +29,10 @@ def test_notification_is_outbound_only_redacted_and_deduplicated() -> None:
     assert "supersecret" not in delivered[0]
     assert "[REDACTED]" in delivered[0]
     assert "runbooks/08_DATA_RECOVERY.md" in delivered[0]
-    assert "🤖 AI 量化系统通知" in delivered[0]
-    assert "级别: 🚨 紧急" in delivered[0]
-    assert "北京时间: 2026-07-14 18:00:00" in delivered[0]
-    assert "📋 详情" in delivered[0]
-    assert "🔎 处理指引" in delivered[0]
+    assert delivered[0].startswith("🤖 DATABASE_UNWRITABLE\n")
+    assert "🚨 紧急 | 07-14 18:00:00" in delivered[0]
+    assert "指引: runbooks/08_DATA_RECOVERY.md" in delivered[0]
+    assert "校验码" not in delivered[0]
 
 
 def test_notification_rate_limit_drops_excess_without_affecting_trading() -> None:

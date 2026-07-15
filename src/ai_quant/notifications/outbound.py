@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import re
 from collections import deque
 from collections.abc import Callable
@@ -55,7 +54,6 @@ class OutboundNotifier:
     @staticmethod
     def render(notification: Notification) -> str:
         safe_summary = _SECRET.sub(r"\1=[REDACTED]", notification.summary)
-        digest = hashlib.sha256(safe_summary.encode()).hexdigest()[:12]
         beijing_time = notification.occurred_at.astimezone(ZoneInfo("Asia/Shanghai"))
         severity_label = {
             "INFO": "🟢 信息",
@@ -68,14 +66,9 @@ class OutboundNotifier:
             "P3": "🔵 提醒",
         }.get(notification.severity, notification.severity)
         return (
-            "🤖 AI 量化系统通知\n"
-            "━━━━━━━━━━━━━━━━\n"
-            f"级别: {severity_label}\n"
-            f"事件: {notification.event_type}\n"
-            f"北京时间: {beijing_time:%Y-%m-%d %H:%M:%S}\n"
-            "\n📋 详情\n"
+            f"🤖 {notification.event_type}\n"
             f"{safe_summary}\n"
-            "\n🔎 处理指引\n"
-            f"{notification.runbook}\n"
-            f"\n校验码: {digest}"
+            "────────────\n"
+            f"{severity_label} | {beijing_time:%m-%d %H:%M:%S}\n"
+            f"指引: {notification.runbook}"
         )

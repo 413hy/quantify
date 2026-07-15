@@ -473,11 +473,13 @@ class TestnetCampaign:
                 summary=(
                     f"{symbol} | {'做多' if result['direction'] == 'LONG' else '做空'} | "
                     f"{result['initial_leverage']}x\n"
+                    f"净结果: {'+' if net >= 0 else ''}{_money(result['net_pnl'])} U\n"
+                    f"结果: {_exit_reason_cn(str(result['exit_reason']))}\n"
+                    "────────────\n"
                     f"价格: {result['entry_price']} → {result['exit_price']}\n"
-                    f"退出原因: {_exit_reason_cn(str(result['exit_reason']))}\n"
-                    f"已实现: {_money(result['realized_pnl'])} U | "
-                    f"手续费: {_money(result['commission_paid'])} U\n"
-                    f"净结果: {_money(result['net_pnl'])} U"
+                    f"已实现: {'+' if Decimal(str(result['realized_pnl'])) >= 0 else ''}"
+                    f"{_money(result['realized_pnl'])} U\n"
+                    f"手续费: -{_money(result['commission_paid'])} U"
                 ),
                 key=f"experiment-result-{symbol}-{result['completed_at']}",
             )
@@ -496,14 +498,15 @@ class TestnetCampaign:
                     f"{event['symbol']} | "
                     f"{'做多' if event['direction'] == 'LONG' else '做空'} | "
                     f"{event['initial_leverage']}x\n"
+                    f"止盈: {event['target_trigger']} | 预计 +"
+                    f"{_money(event['estimated_target_net_pnl'])} U\n"
+                    f"止损: {event['stop_trigger']} | 预计 -"
+                    f"{_money(event['estimated_stop_net_loss'])} U\n"
+                    "────────────\n"
                     f"入场: {event['entry_price']} (预测回撤 "
                     f"{_two_decimals(event.get('predicted_pullback_bps', 0))} bps)\n"
                     f"保证金: {_money(event['actual_initial_margin'])} U | "
                     f"数量: {event['quantity']}\n"
-                    f"止盈: {event['target_trigger']} | 预计净 +"
-                    f"{_money(event['estimated_target_net_pnl'])} U\n"
-                    f"止损: {event['stop_trigger']} | 预计净 -"
-                    f"{_money(event['estimated_stop_net_loss'])} U\n"
                     "保护: 原生止盈/止损已生效"
                 ),
                 key=f"experiment-protected-{event['symbol']}-{event['protected_at']}",
