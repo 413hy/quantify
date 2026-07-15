@@ -335,13 +335,15 @@ def predictive_limit_price(
     directional_forecast_bps = (
         sign * (predictive_average_20m / mid_price - Decimal(1)) * Decimal(10_000)
     )
-    if directional_forecast_bps <= 0:
-        raise TestnetProbeError("EXPERIMENT_PREDICTIVE_DIRECTION_CONFLICT")
-    if directional_forecast_bps < minimum_forecast_edge_bps:
+    if abs(directional_forecast_bps) < minimum_forecast_edge_bps:
         raise TestnetProbeError("EXPERIMENT_PREDICTIVE_EDGE_INSUFFICIENT")
     planned_distance_bps = minimum_entry_distance_bps
     distance_rate = planned_distance_bps / Decimal(10_000)
-    entry_model = "FORECAST_ALIGNED_BEST_QUOTE"
+    entry_model = (
+        "FORECAST_ALIGNED_BEST_QUOTE"
+        if directional_forecast_bps > 0
+        else "FORECAST_CONFLICT_SIGNAL_PRIORITY_BEST_QUOTE"
+    )
     if direction is Direction.LONG:
         price = _decimal_step(
             bid_price * (Decimal(1) - distance_rate), tick_size, ROUND_FLOOR

@@ -222,7 +222,7 @@ class TestnetCampaign:
                 f"候选池: {', '.join(self.symbols)}\n"
                 f"节奏: 每 {self.limits.evaluation_interval_seconds} 秒评估, 最多选择 "
                 f"{self.limits.maximum_candidates_per_round} 个有效信号\n"
-                "入场: 同向预测门控 + 最优被动报价, 未成交即放弃, 不使用市价追单\n"
+                "入场: 实时确认信号优先 + 最优被动报价, 未成交即放弃, 不使用市价追单\n"
                 f"仓位: 最多 {self._parallel_limit()} 个; 单笔保证金不超过 "
                 f"{self.limits.margin_budget} USDT\n"
                 "持仓信号: 最新有效信号接管; 同向可加仓, 反向先平后换向\n"
@@ -555,7 +555,6 @@ class TestnetCampaign:
                 expected_skip = isinstance(exc, TestnetProbeError) and str(exc) in {
                     "EXPERIMENT_PREDICTIVE_LIMIT_NOT_FILLED",
                     "EXPERIMENT_PREDICTIVE_EDGE_INSUFFICIENT",
-                    "EXPERIMENT_PREDICTIVE_DIRECTION_CONFLICT",
                 }
                 self._append_event(
                     {
@@ -1247,6 +1246,9 @@ def _money(value: object) -> str:
 def _predictive_entry_model_cn(value: str) -> str:
     return {
         "FORECAST_ALIGNED_BEST_QUOTE": "方向一致预测 + 最优被动报价",
+        "FORECAST_CONFLICT_SIGNAL_PRIORITY_BEST_QUOTE": (
+            "预测冲突, 实时确认信号优先 + 最优被动报价"
+        ),
         "FORECAST_CONTINUATION_RETRACE": "趋势延续回撤入场",
         "FORECAST_MEAN_REVERSION_RETRACE": "预测反弹/回落入场",
     }.get(value, value)

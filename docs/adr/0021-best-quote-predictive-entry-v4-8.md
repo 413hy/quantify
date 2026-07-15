@@ -1,6 +1,6 @@
 # ADR 0021：预测方向门控与最优被动报价 V4.8
 
-- 状态：Accepted
+- 状态：Superseded by ADR 0022
 - 日期：2026-07-15
 - 范围：Binance USDⓈ-M Futures Testnet；不解锁生产交易
 

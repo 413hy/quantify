@@ -286,17 +286,21 @@ def test_short_aligned_forecast_joins_the_passive_best_ask() -> None:
     ("direction", "average"),
     [(Direction.LONG, "99.91"), (Direction.SHORT, "100.09")],
 )
-def test_forecast_opposed_to_signal_is_rejected(
+def test_confirmed_signal_keeps_priority_when_linear_forecast_conflicts(
     direction: Direction, average: str
 ) -> None:
-    with pytest.raises(ProbeError, match="EXPERIMENT_PREDICTIVE_DIRECTION_CONFLICT"):
-        predictive_limit_price(
-            direction,
-            bid_price=Decimal("99.99"),
-            ask_price=Decimal("100.01"),
-            tick_size=Decimal("0.01"),
-            predictive_average_20m=Decimal(average),
-        )
+    price, distance, forecast, model = predictive_limit_price(
+        direction,
+        bid_price=Decimal("99.99"),
+        ask_price=Decimal("100.01"),
+        tick_size=Decimal("0.01"),
+        predictive_average_20m=Decimal(average),
+    )
+
+    assert price == (Decimal("99.99") if direction is Direction.LONG else Decimal("100.01"))
+    assert distance == 0
+    assert forecast < 0
+    assert model == "FORECAST_CONFLICT_SIGNAL_PRIORITY_BEST_QUOTE"
 
 
 def test_pretrade_outcome_estimate_enforces_meaningful_fee_adjusted_target() -> None:
