@@ -18,7 +18,7 @@ from ai_quant.features.price_action import (
 )
 from ai_quant.market_data.models import AggregateTrade
 
-TESTNET_EXPERIMENT_STRATEGY_VERSION = "TESTNET_EXPERIMENT_OF_PA_V4_4"
+TESTNET_EXPERIMENT_STRATEGY_VERSION = "TESTNET_EXPERIMENT_OF_PA_V4_5"
 TESTNET_EXPERIMENT_SYMBOLS = (
     "BTCUSDT",
     "ETHUSDT",
@@ -50,7 +50,7 @@ class TestnetBaselineDecision:
     experimental_plan: TestnetExperimentalPlan | None = None
     recent_low: Decimal | None = None
     recent_high: Decimal | None = None
-    range_midpoint_30m: Decimal | None = None
+    predictive_average_20m: Decimal | None = None
 
     @property
     def execution_ready(self) -> bool:
@@ -118,7 +118,7 @@ class TestnetExperimentalPlan:
     entry_reference: Decimal
     stop_anchor: Decimal
     target_reference: Decimal
-    range_midpoint_30m: Decimal = Decimal(0)
+    predictive_average_20m: Decimal = Decimal(0)
     signal_quality_score: Decimal = Decimal(0)
     pa_alignment_count: int = 0
     directional_trade_imbalance: Decimal = Decimal(0)
@@ -140,7 +140,7 @@ class TestnetExperimentalPlan:
             "entry_reference": format(self.entry_reference, "f"),
             "stop_anchor": format(self.stop_anchor, "f"),
             "target_reference": format(self.target_reference, "f"),
-            "range_midpoint_30m": format(self.range_midpoint_30m, "f"),
+            "predictive_average_20m": format(self.predictive_average_20m, "f"),
             "signal_quality_score": format(self.signal_quality_score, "f"),
             "pa_alignment_count": self.pa_alignment_count,
             "directional_trade_imbalance": format(self.directional_trade_imbalance, "f"),
@@ -185,6 +185,34 @@ class TestnetSignalParameters:
             raise ValueError("testnet opposing microprice threshold is invalid")
         if self.minimum_pa_alignment_count not in {1, 2}:
             raise ValueError("testnet PA alignment count is invalid")
+
+
+def predictive_average_10m_before_after(bars_1m: list[ClosedBar]) -> Decimal:
+    """Average ten observed closes with ten linear-regression forecast closes."""
+    if len(bars_1m) < 10:
+        raise ValueError("predictive entry requires ten closed one-minute bars")
+    closes = [bar.close for bar in bars_1m[-10:]]
+    x_values = [Decimal(index) for index in range(10)]
+    mean_x = sum(x_values, Decimal(0)) / Decimal(10)
+    mean_y = sum(closes, Decimal(0)) / Decimal(10)
+    denominator = sum(((value - mean_x) ** 2 for value in x_values), Decimal(0))
+    if denominator <= 0:
+        raise ValueError("predictive entry regression is invalid")
+    slope = (
+        sum(
+            (
+                (x_value - mean_x) * (close - mean_y)
+                for x_value, close in zip(x_values, closes, strict=True)
+            ),
+            Decimal(0),
+        )
+        / denominator
+    )
+    forecasts = [mean_y + slope * (Decimal(index) - mean_x) for index in range(10, 20)]
+    predicted_average = (sum(closes, Decimal(0)) + sum(forecasts, Decimal(0))) / Decimal(20)
+    if predicted_average <= 0:
+        raise ValueError("predictive entry average is invalid")
+    return predicted_average
 
 
 def evaluate_testnet_baseline(
@@ -277,11 +305,7 @@ def evaluate_testnet_baseline(
         experimental_plan=experimental_plan,
         recent_low=min(bar.low for bar in bars_1m[-5:]),
         recent_high=max(bar.high for bar in bars_1m[-5:]),
-        range_midpoint_30m=(
-            max(bar.high for bar in bars_1m[-30:])
-            + min(bar.low for bar in bars_1m[-30:])
-        )
-        / Decimal(2),
+        predictive_average_20m=predictive_average_10m_before_after(bars_1m),
     )
 
 
@@ -302,7 +326,7 @@ def build_market_impulse_plan(
         or decision.pa_1m.atr is None
         or decision.recent_low is None
         or decision.recent_high is None
-        or decision.range_midpoint_30m is None
+        or decision.predictive_average_20m is None
         or decision.spread_bps > parameters.maximum_spread_bps
     ):
         return None
@@ -361,7 +385,7 @@ def build_market_impulse_plan(
         entry_reference=entry,
         stop_anchor=stop,
         target_reference=target,
-        range_midpoint_30m=decision.range_midpoint_30m,
+        predictive_average_20m=decision.predictive_average_20m,
         signal_quality_score=quality_score,
         pa_alignment_count=pa_alignment_count,
         directional_trade_imbalance=directional_trade,
@@ -464,11 +488,7 @@ def _experimental_plan(
         entry_reference=entry,
         stop_anchor=stop,
         target_reference=target,
-        range_midpoint_30m=(
-            max(bar.high for bar in bars_1m[-30:])
-            + min(bar.low for bar in bars_1m[-30:])
-        )
-        / Decimal(2),
+        predictive_average_20m=predictive_average_10m_before_after(bars_1m),
         signal_quality_score=quality_score,
         pa_alignment_count=pa_alignment_count,
         directional_trade_imbalance=directional_trade,

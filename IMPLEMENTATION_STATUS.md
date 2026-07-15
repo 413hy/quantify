@@ -132,7 +132,7 @@ calibration, 72-hour, or live authorization evidence. No production exchange ord
   Chinese per-trade and aggregate Telegram notifications passed. Evidence is under
   `/var/lib/ai-quant/evidence/testnet/parallel/20260714-sample-01/`.
 - `aiq-testnet-campaign.service` is enabled for a three-day, owner-authorized Testnet experiment.
-  V4.4 fixes the universe to BTCUSDT, ETHUSDT, BNBUSDT, SOLUSDT and XRPUSDT and can hold zero to five
+  V4.5 fixes the universe to BTCUSDT, ETHUSDT, BNBUSDT, SOLUSDT and XRPUSDT and can hold zero to five
   different symbols in parallel, each using the exchange-maximum initial leverage while keeping
   margin at or below 1 USDT. ADR 0009 applies the same
   dynamic exchange-maximum policy to future production. Estimated stop, fees and slippage

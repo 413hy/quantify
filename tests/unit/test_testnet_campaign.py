@@ -9,7 +9,7 @@ import pytest
 
 import ai_quant.strategy.testnet_baseline as baseline
 from ai_quant.features.order_flow import OrderFlowFrame
-from ai_quant.features.price_action import Direction, PriceActionFrame, Regime, Structure
+from ai_quant.features.price_action import ClosedBar, Direction, PriceActionFrame, Regime, Structure
 from ai_quant.services.testnet_campaign import (
     CampaignLimits,
     _apply_market_impulse_plans,
@@ -29,7 +29,33 @@ from ai_quant.strategy.testnet_baseline import (
 from ai_quant.strategy.testnet_baseline import (
     evaluate_testnet_baseline,
     gross_target_bps_for_symbol,
+    predictive_average_10m_before_after,
 )
+
+
+def test_predictive_average_combines_ten_observed_and_ten_forecast_closes() -> None:
+    start = datetime(2026, 7, 14, 12, tzinfo=UTC)
+    bars = [
+        ClosedBar(
+            symbol="BTCUSDT",
+            timeframe="1m",
+            open_time=start + timedelta(minutes=index),
+            close_time=start + timedelta(minutes=index + 1),
+            open=Decimal(100 + index),
+            high=Decimal(100 + index),
+            low=Decimal(100 + index),
+            close=Decimal(100 + index),
+            volume=Decimal(1),
+        )
+        for index in range(10)
+    ]
+
+    assert predictive_average_10m_before_after(bars) == Decimal("109.5")
+
+
+def test_predictive_average_requires_ten_closed_minutes() -> None:
+    with pytest.raises(ValueError, match="requires ten closed"):
+        predictive_average_10m_before_after([])
 
 
 def test_testnet_baseline_rejects_neutral_price_action_and_unconfirmed_book() -> None:
@@ -239,7 +265,7 @@ def test_testnet_experiment_builds_structural_stop_without_time_exit(
     assert (plan.target_reference - plan.entry_reference) / plan.entry_reference * Decimal(
         10_000
     ) == Decimal("32")
-    assert plan.strategy_version == "TESTNET_EXPERIMENT_OF_PA_V4_4"
+    assert plan.strategy_version == "TESTNET_EXPERIMENT_OF_PA_V4_5"
     assert "maximum_holding" not in str(plan.evidence()).lower()
 
 
@@ -684,5 +710,5 @@ def _neutral_impulse_decision(symbol: str, mid: str) -> baseline.TestnetBaseline
         reason_codes=("PA_1M_NOT_LONG", "PA_5M_NOT_LONG"),
         recent_low=mid_value * Decimal("0.999"),
         recent_high=mid_value * Decimal("1.001"),
-        range_midpoint_30m=mid_value,
+        predictive_average_20m=mid_value,
     )

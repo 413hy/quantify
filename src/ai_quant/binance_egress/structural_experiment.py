@@ -114,21 +114,24 @@ def predictive_limit_price(
     bid_price: Decimal,
     ask_price: Decimal,
     tick_size: Decimal,
-    range_midpoint_30m: Decimal,
+    predictive_average_20m: Decimal,
 ) -> tuple[Decimal, Decimal]:
-    """Use the midpoint of the latest closed 30-minute high-low range as entry."""
-    if min(bid_price, ask_price, tick_size, range_midpoint_30m) <= 0 or bid_price >= ask_price:
+    """Use the observed/predicted 10+10 minute average as a passive entry."""
+    if (
+        min(bid_price, ask_price, tick_size, predictive_average_20m) <= 0
+        or bid_price >= ask_price
+    ):
         raise TestnetProbeError("EXPERIMENT_MAKER_PRICE_INPUT_INVALID")
     if direction is Direction.LONG:
-        if range_midpoint_30m >= bid_price:
-            raise TestnetProbeError("EXPERIMENT_PREDICTIVE_MIDPOINT_NOT_PASSIVE")
-        price = _decimal_step(range_midpoint_30m, tick_size, ROUND_FLOOR)
+        if predictive_average_20m >= bid_price:
+            raise TestnetProbeError("EXPERIMENT_PREDICTIVE_AVERAGE_NOT_PASSIVE")
+        price = _decimal_step(predictive_average_20m, tick_size, ROUND_FLOOR)
         pullback_bps = (bid_price - price) / bid_price * Decimal(10_000)
         return price, pullback_bps
     if direction is Direction.SHORT:
-        if range_midpoint_30m <= ask_price:
-            raise TestnetProbeError("EXPERIMENT_PREDICTIVE_MIDPOINT_NOT_PASSIVE")
-        price = _decimal_step(range_midpoint_30m, tick_size, ROUND_CEILING)
+        if predictive_average_20m <= ask_price:
+            raise TestnetProbeError("EXPERIMENT_PREDICTIVE_AVERAGE_NOT_PASSIVE")
+        price = _decimal_step(predictive_average_20m, tick_size, ROUND_CEILING)
         pullback_bps = (price - ask_price) / ask_price * Decimal(10_000)
         return price, pullback_bps
     raise TestnetProbeError("EXPERIMENT_DIRECTION_INVALID")
@@ -146,7 +149,7 @@ def _predictive_limit_entry(
     sleep: Callable[[float], None],
     polling_attempts: int = 120,
 ) -> tuple[dict[str, Any] | None, Decimal, str]:
-    """Wait up to 30 seconds for the predicted midpoint, then cancel without chasing."""
+    """Wait up to 30 seconds for the predicted average, then cancel without chasing."""
     try:
         document = client.place_order(
             {
@@ -247,7 +250,7 @@ def run_structural_experiment(
         bid_price=bid_price,
         ask_price=ask_price,
         tick_size=tick_size,
-        range_midpoint_30m=plan.range_midpoint_30m,
+        predictive_average_20m=plan.predictive_average_20m,
     )
     quantity = plan_market_quantity(
         exchange_info,

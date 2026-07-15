@@ -120,20 +120,20 @@ def test_protected_position_event_exposes_leverage_margin_and_fee_adjusted_targe
     assert event["predicted_pullback_bps"] == "5"
 
 
-def test_predictive_entry_uses_closed_thirty_minute_range_midpoint() -> None:
+def test_predictive_entry_uses_observed_and_forecast_twenty_minute_average() -> None:
     long_price, long_pullback = predictive_limit_price(
         Direction.LONG,
         bid_price=Decimal("99.99"),
         ask_price=Decimal("100.01"),
         tick_size=Decimal("0.01"),
-        range_midpoint_30m=Decimal("99.95"),
+        predictive_average_20m=Decimal("99.95"),
     )
     short_price, short_pullback = predictive_limit_price(
         Direction.SHORT,
         bid_price=Decimal("99.99"),
         ask_price=Decimal("100.01"),
         tick_size=Decimal("0.01"),
-        range_midpoint_30m=Decimal("100.06"),
+        predictive_average_20m=Decimal("100.06"),
     )
     assert long_price == Decimal("99.95")
     assert short_price == Decimal("100.06")
@@ -145,16 +145,16 @@ def test_predictive_entry_uses_closed_thirty_minute_range_midpoint() -> None:
     ("direction", "midpoint"),
     [(Direction.LONG, "100.00"), (Direction.SHORT, "100.01")],
 )
-def test_predictive_midpoint_rejects_a_non_passive_entry(
+def test_predictive_average_rejects_a_non_passive_entry(
     direction: Direction, midpoint: str
 ) -> None:
-    with pytest.raises(ProbeError, match="EXPERIMENT_PREDICTIVE_MIDPOINT_NOT_PASSIVE"):
+    with pytest.raises(ProbeError, match="EXPERIMENT_PREDICTIVE_AVERAGE_NOT_PASSIVE"):
         predictive_limit_price(
             direction,
             bid_price=Decimal("100.00"),
             ask_price=Decimal("100.01"),
             tick_size=Decimal("0.01"),
-            range_midpoint_30m=Decimal(midpoint),
+            predictive_average_20m=Decimal(midpoint),
         )
 
 

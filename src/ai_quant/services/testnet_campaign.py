@@ -214,7 +214,7 @@ class TestnetCampaign:
                 f"候选池: {', '.join(self.symbols)}\n"
                 f"节奏: 每 {self.limits.evaluation_interval_seconds} 秒评估, 最多选择 "
                 f"{self.limits.maximum_candidates_per_round} 个有效信号\n"
-                "入场: 预测回撤限价, 未成交即放弃, 不使用市价追单\n"
+                "入场: 前后 10 分钟预测均价限价, 未成交即放弃, 不使用市价追单\n"
                 f"仓位: 最多 {self._parallel_limit()} 个; 单笔保证金不超过 "
                 f"{self.limits.margin_budget} USDT\n"
                 "退出: 交易所原生止盈/止损"
@@ -433,7 +433,7 @@ class TestnetCampaign:
                 occurred_at = datetime.now(UTC)
                 expected_skip = isinstance(exc, TestnetProbeError) and str(exc) in {
                     "EXPERIMENT_PREDICTIVE_LIMIT_NOT_FILLED",
-                    "EXPERIMENT_PREDICTIVE_MIDPOINT_NOT_PASSIVE",
+                    "EXPERIMENT_PREDICTIVE_AVERAGE_NOT_PASSIVE",
                 }
                 self._append_event(
                     {
@@ -503,7 +503,7 @@ class TestnetCampaign:
                     f"止损: {event['stop_trigger']} | 预计 -"
                     f"{_money(event['estimated_stop_net_loss'])} U\n"
                     "────────────\n"
-                    f"入场: {event['entry_price']} (预测回撤 "
+                    f"入场: {event['entry_price']} (距盘口 "
                     f"{_two_decimals(event.get('predicted_pullback_bps', 0))} bps)\n"
                     f"保证金: {_money(event['actual_initial_margin'])} U | "
                     f"数量: {event['quantity']}\n"
