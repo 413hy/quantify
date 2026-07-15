@@ -229,6 +229,7 @@ def run_structural_experiment(
     maximum_net_loss: Decimal = Decimal("1.00"),
     minimum_estimated_net_target: Decimal = Decimal("0.10"),
     risk_sizing_slippage_rate: Decimal = Decimal("0.0012"),
+    on_entry_attempt: Callable[[dict[str, Any]], None] | None = None,
     on_position_protected: Callable[[dict[str, Any]], None] | None = None,
     stop_requested: Callable[[], bool] = lambda: False,
     sleep: Callable[[float], None] = time.sleep,
@@ -324,6 +325,28 @@ def run_structural_experiment(
     entry_execution_mode = "UNRESOLVED"
     maker_executed_quantity = Decimal(0)
     try:
+        if on_entry_attempt is not None:
+            on_entry_attempt(
+                {
+                    "record_type": "TESTNET_PREDICTIVE_LIMIT_SUBMITTED",
+                    "environment": "testnet",
+                    "validation_status": "UNVALIDATED_TESTNET_EXPERIMENT",
+                    "strategy": plan.strategy_version,
+                    "symbol": symbol,
+                    "direction": plan.direction,
+                    "initial_leverage": leverage,
+                    "quantity": format(quantity, "f"),
+                    "current_bid_price": format(bid_price, "f"),
+                    "current_ask_price": format(ask_price, "f"),
+                    "predictive_average_20m": format(plan.predictive_average_20m, "f"),
+                    "predictive_limit_price": format(predictive_price, "f"),
+                    "predicted_pullback_bps": format(predicted_pullback_bps, "f"),
+                    "directional_forecast_bps": format(directional_forecast_bps, "f"),
+                    "predictive_entry_model": predictive_entry_model,
+                    "attempted_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+                    "production_endpoint_requests": 0,
+                }
+            )
         entry, maker_executed_quantity, entry_execution_mode = _predictive_limit_entry(
             client,
             symbol=symbol,

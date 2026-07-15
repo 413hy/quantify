@@ -406,6 +406,7 @@ class TestnetCampaign:
                 maximum_net_loss=self.limits.maximum_net_loss_per_trade,
                 minimum_estimated_net_target=self.limits.minimum_estimated_net_target,
                 risk_sizing_slippage_rate=(self.limits.risk_sizing_slippage_bps / Decimal(10_000)),
+                on_entry_attempt=self.position_events.put,
                 on_position_protected=self.position_events.put,
                 stop_requested=lambda: self.stop_requested,
             )
@@ -500,8 +501,10 @@ class TestnetCampaign:
                 event = self.position_events.get_nowait()
             except Empty:
                 return
-            self.protected_symbols.add(str(event["symbol"]))
             self._append_event(event)
+            if event.get("record_type") != "TESTNET_POSITION_PROTECTED":
+                continue
+            self.protected_symbols.add(str(event["symbol"]))
             self._notify(
                 severity="INFO",
                 event_type="测试网仓位已建立并完成保护",
