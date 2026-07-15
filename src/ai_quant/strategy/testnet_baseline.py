@@ -18,7 +18,7 @@ from ai_quant.features.price_action import (
 )
 from ai_quant.market_data.models import AggregateTrade
 
-TESTNET_EXPERIMENT_STRATEGY_VERSION = "TESTNET_EXPERIMENT_OF_PA_V4_1"
+TESTNET_EXPERIMENT_STRATEGY_VERSION = "TESTNET_EXPERIMENT_OF_PA_V4_2"
 TESTNET_EXPERIMENT_SYMBOLS = (
     "BTCUSDT",
     "ETHUSDT",
@@ -284,6 +284,7 @@ def build_market_impulse_plan(
     momentum_bps: Decimal,
     breadth_count: int,
     parameters: TestnetSignalParameters,
+    setup_type: str = "MARKET_BREADTH_IMPULSE_FAST",
 ) -> TestnetExperimentalPlan | None:
     """Build a Testnet-only fast plan when market breadth and local flow agree."""
     if direction not in {Direction.LONG, Direction.SHORT} or breadth_count < 3:
@@ -358,7 +359,7 @@ def build_market_impulse_plan(
         directional_microprice_bps=directional_microprice,
         aggressive_notional=decision.order_flow.aggressive_notional,
         observed_spread_bps=decision.spread_bps,
-        setup_type="MARKET_BREADTH_IMPULSE",
+        setup_type=setup_type,
         market_momentum_bps=momentum_bps,
         market_breadth_count=breadth_count,
     )

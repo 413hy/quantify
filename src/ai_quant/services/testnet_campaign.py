@@ -66,7 +66,10 @@ class CampaignLimits:
     impulse_minimum_activity_ratio: Decimal = Decimal("1.25")
     impulse_lookback_rounds: int = 5
     impulse_minimum_momentum_bps: Decimal = Decimal("2.00")
+    impulse_maximum_momentum_bps: Decimal = Decimal("12.00")
     impulse_minimum_breadth_count: int = 3
+    sustained_lookback_rounds: int = 12
+    sustained_minimum_momentum_bps: Decimal = Decimal("5.00")
 
     def __post_init__(self) -> None:
         if not 60 <= self.duration_seconds <= 604_800:
@@ -113,8 +116,14 @@ class CampaignLimits:
             raise ValueError("campaign impulse lookback is invalid")
         if not Decimal(0) < self.impulse_minimum_momentum_bps <= Decimal(20):
             raise ValueError("campaign impulse momentum threshold is invalid")
+        if not self.impulse_minimum_momentum_bps < self.impulse_maximum_momentum_bps <= Decimal(30):
+            raise ValueError("campaign impulse exhaustion threshold is invalid")
         if not 3 <= self.impulse_minimum_breadth_count <= len(TESTNET_EXPERIMENT_SYMBOLS):
             raise ValueError("campaign impulse breadth threshold is invalid")
+        if not self.impulse_lookback_rounds < self.sustained_lookback_rounds <= 30:
+            raise ValueError("campaign sustained lookback is invalid")
+        if not self.impulse_minimum_momentum_bps < self.sustained_minimum_momentum_bps:
+            raise ValueError("campaign sustained momentum threshold is invalid")
         TestnetSignalParameters(
             maximum_spread_bps=self.maximum_entry_spread_bps,
             minimum_trade_imbalance=self.minimum_trade_imbalance,
@@ -725,7 +734,14 @@ class TestnetCampaign:
             "impulse_minimum_momentum_bps": format(
                 self.limits.impulse_minimum_momentum_bps, "f"
             ),
+            "impulse_maximum_momentum_bps": format(
+                self.limits.impulse_maximum_momentum_bps, "f"
+            ),
             "impulse_minimum_breadth_count": self.limits.impulse_minimum_breadth_count,
+            "sustained_lookback_rounds": self.limits.sustained_lookback_rounds,
+            "sustained_minimum_momentum_bps": format(
+                self.limits.sustained_minimum_momentum_bps, "f"
+            ),
             "elapsed_time_exit_enabled": False,
         }
 
@@ -846,7 +862,7 @@ def _update_pending_signals(
         activity_values = sorted(Decimal(value) for value in history)
         activity_median = _median_decimal(activity_values)
         activity_ratio = Decimal(0) if activity_median <= 0 else current_activity / activity_median
-        is_impulse = plan is not None and plan.setup_type == "MARKET_BREADTH_IMPULSE"
+        is_impulse = plan is not None and plan.setup_type.startswith("MARKET_BREADTH_")
         required = (
             impulse_required_rounds
             if is_impulse and impulse_required_rounds is not None
@@ -897,11 +913,12 @@ def _apply_market_impulse_plans(
     limits: CampaignLimits,
     evaluation_round: int,
 ) -> list[TestnetBaselineDecision]:
-    """Promote the strongest breadth-aligned neutral-PA impulses to Testnet plans."""
+    """Promote fast or sustained breadth-aligned BTC/ETH moves to Testnet plans."""
     histories = cast(
         dict[str, list[dict[str, str | int]]], state.setdefault("mid_price_history", {})
     )
-    momentum_by_symbol: dict[str, Decimal] = {}
+    fast_momentum: dict[str, Decimal] = {}
+    sustained_momentum: dict[str, Decimal] = {}
     for decision in decisions:
         history = histories.setdefault(decision.symbol, [])
         history.append(
@@ -910,25 +927,76 @@ def _apply_market_impulse_plans(
                 "mid_price": format(decision.mid_price, "f"),
             }
         )
-        del history[:-limits.impulse_lookback_rounds]
-        if len(history) < limits.impulse_lookback_rounds:
-            continue
-        start = Decimal(str(history[0]["mid_price"]))
-        momentum_by_symbol[decision.symbol] = (
-            (decision.mid_price / start - Decimal(1)) * Decimal(10_000)
+        del history[:-limits.sustained_lookback_rounds]
+        if len(history) >= limits.impulse_lookback_rounds:
+            fast_start = Decimal(str(history[-limits.impulse_lookback_rounds]["mid_price"]))
+            fast_momentum[decision.symbol] = (
+                (decision.mid_price / fast_start - Decimal(1)) * Decimal(10_000)
+            )
+        if len(history) >= limits.sustained_lookback_rounds:
+            sustained_start = Decimal(str(history[0]["mid_price"]))
+            sustained_momentum[decision.symbol] = (
+                (decision.mid_price / sustained_start - Decimal(1)) * Decimal(10_000)
+            )
+
+    def breadth(momentum: dict[str, Decimal], threshold: Decimal) -> tuple[int, int]:
+        return (
+            sum(value >= threshold for value in momentum.values()),
+            sum(value <= -threshold for value in momentum.values()),
         )
-    long_breadth = sum(
-        value >= limits.impulse_minimum_momentum_bps for value in momentum_by_symbol.values()
+
+    fast_long, fast_short = breadth(fast_momentum, limits.impulse_minimum_momentum_bps)
+    sustained_long, sustained_short = breadth(
+        sustained_momentum, limits.sustained_minimum_momentum_bps
     )
-    short_breadth = sum(
-        value <= -limits.impulse_minimum_momentum_bps for value in momentum_by_symbol.values()
-    )
-    if max(long_breadth, short_breadth) < limits.impulse_minimum_breadth_count:
+    context: tuple[str, Direction, int, dict[str, Decimal], Decimal] | None = None
+    if (
+        max(fast_long, fast_short) >= limits.impulse_minimum_breadth_count
+        and fast_long != fast_short
+    ):
+        context = (
+            "MARKET_BREADTH_IMPULSE_FAST",
+            Direction.LONG if fast_long > fast_short else Direction.SHORT,
+            max(fast_long, fast_short),
+            fast_momentum,
+            limits.impulse_minimum_momentum_bps,
+        )
+    elif (
+        max(sustained_long, sustained_short) >= limits.impulse_minimum_breadth_count
+        and sustained_long != sustained_short
+    ):
+        context = (
+            "MARKET_BREADTH_TREND",
+            Direction.LONG if sustained_long > sustained_short else Direction.SHORT,
+            max(sustained_long, sustained_short),
+            sustained_momentum,
+            limits.sustained_minimum_momentum_bps,
+        )
+
+    diagnostics: dict[str, object] = {
+        "evaluation_round": evaluation_round,
+        "fast_long_breadth": fast_long,
+        "fast_short_breadth": fast_short,
+        "sustained_long_breadth": sustained_long,
+        "sustained_short_breadth": sustained_short,
+        "selected_setup": None if context is None else context[0],
+        "symbols": {},
+    }
+    state["last_signal_diagnostics"] = diagnostics
+    counters = cast(dict[str, int], state.setdefault("signal_gate_counts", {}))
+
+    def count(reason: str) -> None:
+        counters[reason] = counters.get(reason, 0) + 1
+
+    if context is None:
+        count(
+            "INSUFFICIENT_HISTORY"
+            if len(sustained_momentum) < len(decisions)
+            else "MARKET_BREADTH_INSUFFICIENT"
+        )
         return decisions
-    if long_breadth == short_breadth:
-        return decisions
-    direction = Direction.LONG if long_breadth > short_breadth else Direction.SHORT
-    breadth_count = max(long_breadth, short_breadth)
+
+    setup_type, direction, breadth_count, momentum_by_symbol, threshold = context
     parameters = TestnetSignalParameters(
         maximum_spread_bps=limits.maximum_entry_spread_bps,
         minimum_trade_imbalance=limits.minimum_trade_imbalance,
@@ -940,12 +1008,12 @@ def _apply_market_impulse_plans(
     promoted: list[TestnetBaselineDecision] = []
     for decision in decisions:
         momentum = momentum_by_symbol.get(decision.symbol, Decimal(0))
-        aligned = (
-            momentum >= limits.impulse_minimum_momentum_bps
-            if direction is Direction.LONG
-            else momentum <= -limits.impulse_minimum_momentum_bps
-        )
+        directional_momentum = momentum if direction is Direction.LONG else -momentum
+        aligned = threshold <= directional_momentum <= limits.impulse_maximum_momentum_bps
         plan = decision.experimental_plan
+        reason = "EXISTING_TREND_PLAN" if plan is not None else "ENTRY_SYMBOL_EXCLUDED"
+        if plan is None and decision.symbol in TESTNET_IMPULSE_ENTRY_SYMBOLS and not aligned:
+            reason = "LOCAL_MOMENTUM_INSUFFICIENT_OR_EXHAUSTED"
         if plan is None and aligned and decision.symbol in TESTNET_IMPULSE_ENTRY_SYMBOLS:
             plan = build_market_impulse_plan(
                 decision,
@@ -953,7 +1021,19 @@ def _apply_market_impulse_plans(
                 momentum_bps=momentum,
                 breadth_count=breadth_count,
                 parameters=parameters,
+                setup_type=setup_type,
             )
+            reason = "PLAN_GENERATED" if plan is not None else "MICROSTRUCTURE_OR_PA_REJECTED"
+        symbol_diagnostics = cast(dict[str, object], diagnostics["symbols"])
+        symbol_diagnostics[decision.symbol] = {
+            "fast_momentum_bps": format(fast_momentum.get(decision.symbol, Decimal(0)), "f"),
+            "sustained_momentum_bps": format(
+                sustained_momentum.get(decision.symbol, Decimal(0)), "f"
+            ),
+            "gate_result": reason,
+            "plan_generated": plan is not None,
+        }
+        count(reason)
         promoted.append(replace(decision, experimental_plan=plan))
     return promoted
 
@@ -979,6 +1059,8 @@ def _setup_type_cn(value: str) -> str:
     return {
         "TREND_CONFIRMATION": "趋势确认",
         "MARKET_BREADTH_IMPULSE": "多币联动冲量",
+        "MARKET_BREADTH_IMPULSE_FAST": "多币快速联动",
+        "MARKET_BREADTH_TREND": "多币持续联动",
     }.get(value, value)
 
 
@@ -1048,7 +1130,10 @@ def main() -> int:
     parser.add_argument("--impulse-minimum-activity-ratio", type=Decimal, default=Decimal("1.25"))
     parser.add_argument("--impulse-lookback-rounds", type=int, default=5)
     parser.add_argument("--impulse-minimum-momentum-bps", type=Decimal, default=Decimal("2.00"))
+    parser.add_argument("--impulse-maximum-momentum-bps", type=Decimal, default=Decimal("12.00"))
     parser.add_argument("--impulse-minimum-breadth-count", type=int, default=3)
+    parser.add_argument("--sustained-lookback-rounds", type=int, default=12)
+    parser.add_argument("--sustained-minimum-momentum-bps", type=Decimal, default=Decimal("5.00"))
     arguments = parser.parse_args()
     limits = CampaignLimits(
         duration_seconds=arguments.duration_seconds,
@@ -1077,7 +1162,10 @@ def main() -> int:
         impulse_minimum_activity_ratio=arguments.impulse_minimum_activity_ratio,
         impulse_lookback_rounds=arguments.impulse_lookback_rounds,
         impulse_minimum_momentum_bps=arguments.impulse_minimum_momentum_bps,
+        impulse_maximum_momentum_bps=arguments.impulse_maximum_momentum_bps,
         impulse_minimum_breadth_count=arguments.impulse_minimum_breadth_count,
+        sustained_lookback_rounds=arguments.sustained_lookback_rounds,
+        sustained_minimum_momentum_bps=arguments.sustained_minimum_momentum_bps,
     )
     arguments.lock_file.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     with arguments.lock_file.open("w", encoding="ascii") as lock:

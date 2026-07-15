@@ -238,7 +238,7 @@ def test_testnet_experiment_builds_structural_stop_without_time_exit(
     assert (plan.target_reference - plan.entry_reference) / plan.entry_reference * Decimal(
         10_000
     ) == Decimal("32")
-    assert plan.strategy_version == "TESTNET_EXPERIMENT_OF_PA_V4_1"
+    assert plan.strategy_version == "TESTNET_EXPERIMENT_OF_PA_V4_2"
     assert "maximum_holding" not in str(plan.evidence()).lower()
 
 
@@ -470,9 +470,51 @@ def test_market_breadth_promotes_only_btc_eth_locally_aligned_impulses() -> None
         if decision.experimental_plan is not None
     }
     assert set(plans) == {"BTCUSDT", "ETHUSDT"}
-    assert all(plan.setup_type == "MARKET_BREADTH_IMPULSE" for plan in plans.values())
+    assert all(plan.setup_type == "MARKET_BREADTH_IMPULSE_FAST" for plan in plans.values())
     assert all(plan.direction is Direction.LONG for plan in plans.values())
     assert all(plan.market_breadth_count == 3 for plan in plans.values())
+    assert state["last_signal_diagnostics"]["selected_setup"] == (
+        "MARKET_BREADTH_IMPULSE_FAST"
+    )
+    assert state["signal_gate_counts"]["PLAN_GENERATED"] == 2
+
+
+def test_sustained_breadth_catches_gradual_move_and_rejects_exhaustion() -> None:
+    gradual = [
+        "100", "100.01", "100.02", "100.03", "100.04", "100.05",
+        "100.06", "100.075", "100.08", "100.085", "100.09",
+    ]
+    state: dict[str, Any] = {
+        "mid_price_history": {
+            symbol: [
+                {"evaluation_round": index + 1, "mid_price": price}
+                for index, price in enumerate(gradual)
+            ]
+            for symbol in baseline.TESTNET_EXPERIMENT_SYMBOLS
+        }
+    }
+    decisions = [
+        _neutral_impulse_decision("BTCUSDT", "100.095"),
+        _neutral_impulse_decision("ETHUSDT", "100.20"),
+        _neutral_impulse_decision("BNBUSDT", "100.095"),
+        _neutral_impulse_decision("SOLUSDT", "100.095"),
+        _neutral_impulse_decision("XRPUSDT", "100.095"),
+    ]
+
+    promoted = _apply_market_impulse_plans(
+        state, decisions, limits=CampaignLimits(), evaluation_round=12
+    )
+    plans = {
+        decision.symbol: decision.experimental_plan
+        for decision in promoted
+        if decision.experimental_plan is not None
+    }
+
+    assert set(plans) == {"BTCUSDT"}
+    assert plans["BTCUSDT"].setup_type == "MARKET_BREADTH_TREND"
+    assert state["last_signal_diagnostics"]["symbols"]["ETHUSDT"]["gate_result"] == (
+        "LOCAL_MOMENTUM_INSUFFICIENT_OR_EXHAUSTED"
+    )
 
 
 def test_impulse_pending_uses_two_rounds_without_forcing_slot_fill() -> None:
