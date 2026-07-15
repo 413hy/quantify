@@ -239,7 +239,7 @@ def test_testnet_experiment_builds_structural_stop_without_time_exit(
     assert (plan.target_reference - plan.entry_reference) / plan.entry_reference * Decimal(
         10_000
     ) == Decimal("32")
-    assert plan.strategy_version == "TESTNET_EXPERIMENT_OF_PA_V4_3"
+    assert plan.strategy_version == "TESTNET_EXPERIMENT_OF_PA_V4_4"
     assert "maximum_holding" not in str(plan.evidence()).lower()
 
 
@@ -684,4 +684,5 @@ def _neutral_impulse_decision(symbol: str, mid: str) -> baseline.TestnetBaseline
         reason_codes=("PA_1M_NOT_LONG", "PA_5M_NOT_LONG"),
         recent_low=mid_value * Decimal("0.999"),
         recent_high=mid_value * Decimal("1.001"),
+        range_midpoint_30m=mid_value,
     )

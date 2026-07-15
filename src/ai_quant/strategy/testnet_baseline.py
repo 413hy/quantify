@@ -18,7 +18,7 @@ from ai_quant.features.price_action import (
 )
 from ai_quant.market_data.models import AggregateTrade
 
-TESTNET_EXPERIMENT_STRATEGY_VERSION = "TESTNET_EXPERIMENT_OF_PA_V4_3"
+TESTNET_EXPERIMENT_STRATEGY_VERSION = "TESTNET_EXPERIMENT_OF_PA_V4_4"
 TESTNET_EXPERIMENT_SYMBOLS = (
     "BTCUSDT",
     "ETHUSDT",
@@ -50,6 +50,7 @@ class TestnetBaselineDecision:
     experimental_plan: TestnetExperimentalPlan | None = None
     recent_low: Decimal | None = None
     recent_high: Decimal | None = None
+    range_midpoint_30m: Decimal | None = None
 
     @property
     def execution_ready(self) -> bool:
@@ -117,6 +118,7 @@ class TestnetExperimentalPlan:
     entry_reference: Decimal
     stop_anchor: Decimal
     target_reference: Decimal
+    range_midpoint_30m: Decimal = Decimal(0)
     signal_quality_score: Decimal = Decimal(0)
     pa_alignment_count: int = 0
     directional_trade_imbalance: Decimal = Decimal(0)
@@ -138,6 +140,7 @@ class TestnetExperimentalPlan:
             "entry_reference": format(self.entry_reference, "f"),
             "stop_anchor": format(self.stop_anchor, "f"),
             "target_reference": format(self.target_reference, "f"),
+            "range_midpoint_30m": format(self.range_midpoint_30m, "f"),
             "signal_quality_score": format(self.signal_quality_score, "f"),
             "pa_alignment_count": self.pa_alignment_count,
             "directional_trade_imbalance": format(self.directional_trade_imbalance, "f"),
@@ -274,6 +277,11 @@ def evaluate_testnet_baseline(
         experimental_plan=experimental_plan,
         recent_low=min(bar.low for bar in bars_1m[-5:]),
         recent_high=max(bar.high for bar in bars_1m[-5:]),
+        range_midpoint_30m=(
+            max(bar.high for bar in bars_1m[-30:])
+            + min(bar.low for bar in bars_1m[-30:])
+        )
+        / Decimal(2),
     )
 
 
@@ -294,6 +302,7 @@ def build_market_impulse_plan(
         or decision.pa_1m.atr is None
         or decision.recent_low is None
         or decision.recent_high is None
+        or decision.range_midpoint_30m is None
         or decision.spread_bps > parameters.maximum_spread_bps
     ):
         return None
@@ -352,6 +361,7 @@ def build_market_impulse_plan(
         entry_reference=entry,
         stop_anchor=stop,
         target_reference=target,
+        range_midpoint_30m=decision.range_midpoint_30m,
         signal_quality_score=quality_score,
         pa_alignment_count=pa_alignment_count,
         directional_trade_imbalance=directional_trade,
@@ -454,6 +464,11 @@ def _experimental_plan(
         entry_reference=entry,
         stop_anchor=stop,
         target_reference=target,
+        range_midpoint_30m=(
+            max(bar.high for bar in bars_1m[-30:])
+            + min(bar.low for bar in bars_1m[-30:])
+        )
+        / Decimal(2),
         signal_quality_score=quality_score,
         pa_alignment_count=pa_alignment_count,
         directional_trade_imbalance=directional_trade,

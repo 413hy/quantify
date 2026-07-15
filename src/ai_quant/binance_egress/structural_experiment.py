@@ -108,39 +108,33 @@ def quantize_protection(
     return stop, target
 
 
-def maker_limit_price(
+def predictive_limit_price(
     direction: Direction,
     *,
     bid_price: Decimal,
     ask_price: Decimal,
     tick_size: Decimal,
-) -> Decimal:
-    """Return a same-side best price that can rest as a GTX maker order."""
-    if min(bid_price, ask_price, tick_size) <= 0 or bid_price >= ask_price:
+    range_midpoint_30m: Decimal,
+) -> tuple[Decimal, Decimal]:
+    """Use the midpoint of the latest closed 30-minute high-low range as entry."""
+    if min(bid_price, ask_price, tick_size, range_midpoint_30m) <= 0 or bid_price >= ask_price:
         raise TestnetProbeError("EXPERIMENT_MAKER_PRICE_INPUT_INVALID")
     if direction is Direction.LONG:
-        return _decimal_step(bid_price, tick_size, ROUND_FLOOR)
+        if range_midpoint_30m >= bid_price:
+            raise TestnetProbeError("EXPERIMENT_PREDICTIVE_MIDPOINT_NOT_PASSIVE")
+        price = _decimal_step(range_midpoint_30m, tick_size, ROUND_FLOOR)
+        pullback_bps = (bid_price - price) / bid_price * Decimal(10_000)
+        return price, pullback_bps
     if direction is Direction.SHORT:
-        return _decimal_step(ask_price, tick_size, ROUND_CEILING)
+        if range_midpoint_30m <= ask_price:
+            raise TestnetProbeError("EXPERIMENT_PREDICTIVE_MIDPOINT_NOT_PASSIVE")
+        price = _decimal_step(range_midpoint_30m, tick_size, ROUND_CEILING)
+        pullback_bps = (price - ask_price) / ask_price * Decimal(10_000)
+        return price, pullback_bps
     raise TestnetProbeError("EXPERIMENT_DIRECTION_INVALID")
 
 
-def market_fallback_allowed(
-    direction: Direction,
-    *,
-    initial_reference: Decimal,
-    current_reference: Decimal,
-    maximum_chase_bps: Decimal = Decimal("3"),
-) -> bool:
-    """Allow a taker fallback only while adverse chase distance remains bounded."""
-    if min(initial_reference, current_reference, maximum_chase_bps) <= 0:
-        return False
-    sign = Decimal(1) if direction is Direction.LONG else Decimal(-1)
-    chase_bps = sign * (current_reference / initial_reference - Decimal(1)) * Decimal(10_000)
-    return chase_bps <= maximum_chase_bps
-
-
-def _maker_first_entry(
+def _predictive_limit_entry(
     client: BinanceTestnetClient,
     *,
     symbol: str,
@@ -150,9 +144,9 @@ def _maker_first_entry(
     price: Decimal,
     client_order_id: str,
     sleep: Callable[[float], None],
-    polling_attempts: int = 6,
+    polling_attempts: int = 120,
 ) -> tuple[dict[str, Any] | None, Decimal, str]:
-    """Try a bounded GTX entry and return any executed quantity after cancellation."""
+    """Wait up to 30 seconds for the predicted midpoint, then cancel without chasing."""
     try:
         document = client.place_order(
             {
@@ -168,7 +162,7 @@ def _maker_first_entry(
             }
         )
     except TestnetProbeError:
-        return None, Decimal(0), "GTX_REJECTED"
+        return None, Decimal(0), "PREDICTIVE_GTX_REJECTED"
     latest = document
     for _ in range(polling_attempts):
         if latest.get("status") in {
@@ -186,10 +180,10 @@ def _maker_first_entry(
         latest = client.query_order(symbol, client_order_id)
     executed = Decimal(str(latest.get("executedQty", "0")))
     if executed >= quantity and latest.get("status") == "FILLED":
-        return latest, executed, "GTX_FILLED"
+        return latest, executed, "PREDICTIVE_GTX_FILLED"
     if executed > 0:
-        return latest, executed, "GTX_PARTIALLY_FILLED"
-    return latest, Decimal(0), "GTX_NOT_FILLED"
+        return latest, executed, "PREDICTIVE_GTX_PARTIALLY_FILLED"
+    return latest, Decimal(0), "PREDICTIVE_GTX_NOT_FILLED"
 
 
 def run_structural_experiment(
@@ -234,8 +228,6 @@ def run_structural_experiment(
     ticker = client.book_ticker(symbol)
     commission_document = client.commission_rate(symbol)
     try:
-        price_key = "askPrice" if plan.direction is Direction.LONG else "bidPrice"
-        reference = Decimal(str(ticker[price_key]))
         bid_price = Decimal(str(ticker["bidPrice"]))
         ask_price = Decimal(str(ticker["askPrice"]))
         tick_size = Decimal(str(_symbol_filters(exchange_info, symbol)["PRICE_FILTER"]["tickSize"]))
@@ -250,19 +242,26 @@ def run_structural_experiment(
         taker_fee_rate=taker_fee_rate,
         adverse_slippage_rate=risk_sizing_slippage_rate,
     )
+    predictive_price, predicted_pullback_bps = predictive_limit_price(
+        plan.direction,
+        bid_price=bid_price,
+        ask_price=ask_price,
+        tick_size=tick_size,
+        range_midpoint_30m=plan.range_midpoint_30m,
+    )
     quantity = plan_market_quantity(
         exchange_info,
         symbol=symbol,
-        reference_price=reference,
+        reference_price=predictive_price,
         margin_budget=effective_margin_budget,
         leverage=leverage,
     )
     pretrade_stop, pretrade_target = quantize_protection(
-        plan, actual_entry=reference, tick_size=tick_size
+        plan, actual_entry=predictive_price, tick_size=tick_size
     )
     _, _, estimated_net_target, _ = estimated_position_outcomes(
         quantity=quantity,
-        actual_entry=reference,
+        actual_entry=predictive_price,
         stop_trigger=pretrade_stop,
         target_trigger=pretrade_target,
         taker_fee_rate=taker_fee_rate,
@@ -272,7 +271,6 @@ def run_structural_experiment(
     entry_side = "BUY" if plan.direction is Direction.LONG else "SELL"
     close_side = "SELL" if plan.direction is Direction.LONG else "BUY"
     maker_entry_id = f"aq-t-exp-m-{secrets.token_hex(5)}"
-    market_entry_id = f"aq-t-exp-t-{secrets.token_hex(5)}"
     entry_id = maker_entry_id
     stop_client_id = f"aqa-t-exp-sl-{secrets.token_hex(5)}"
     target_client_id = f"aqa-t-exp-tp-{secrets.token_hex(5)}"
@@ -288,46 +286,20 @@ def run_structural_experiment(
     entry_execution_mode = "UNRESOLVED"
     maker_executed_quantity = Decimal(0)
     try:
-        passive_price = maker_limit_price(
-            plan.direction,
-            bid_price=bid_price,
-            ask_price=ask_price,
-            tick_size=tick_size,
-        )
-        entry, maker_executed_quantity, entry_execution_mode = _maker_first_entry(
+        entry, maker_executed_quantity, entry_execution_mode = _predictive_limit_entry(
             client,
             symbol=symbol,
             direction=plan.direction,
             side=entry_side,
             quantity=quantity,
-            price=passive_price,
+            price=predictive_price,
             client_order_id=maker_entry_id,
             sleep=sleep,
         )
         if maker_executed_quantity > 0:
             quantity = maker_executed_quantity
         else:
-            fallback_ticker = client.book_ticker(symbol)
-            fallback_reference = Decimal(str(fallback_ticker[price_key]))
-            if not market_fallback_allowed(
-                plan.direction,
-                initial_reference=reference,
-                current_reference=fallback_reference,
-            ):
-                raise TestnetProbeError("EXPERIMENT_MAKER_ENTRY_ESCAPED_CHASE_LIMIT")
-            entry_id = market_entry_id
-            entry = client.place_order(
-                {
-                    "symbol": symbol,
-                    "side": entry_side,
-                    "positionSide": "BOTH",
-                    "type": "MARKET",
-                    "quantity": format(quantity, "f"),
-                    "newOrderRespType": "RESULT",
-                    "newClientOrderId": entry_id,
-                }
-            )
-            entry_execution_mode = f"{entry_execution_mode}_MARKET_FALLBACK"
+            raise TestnetProbeError("EXPERIMENT_PREDICTIVE_LIMIT_NOT_FILLED")
         if (
             entry is None
             or entry.get("clientOrderId") != entry_id
@@ -392,7 +364,8 @@ def run_structural_experiment(
             effective_margin_budget=effective_margin_budget,
             taker_fee_rate=taker_fee_rate,
             entry_execution_mode=entry_execution_mode,
-            maker_limit_price=passive_price,
+            predictive_limit_price=predictive_price,
+            predicted_pullback_bps=predicted_pullback_bps,
         )
         if on_position_protected is not None:
             on_position_protected(protected_position)
@@ -455,7 +428,8 @@ def run_structural_experiment(
         "actual_initial_margin": format(position_notional / Decimal(leverage), "f"),
         "position_notional": format(position_notional, "f"),
         "entry_execution_mode": entry_execution_mode,
-        "maker_limit_price": format(passive_price, "f"),
+        "predictive_limit_price": format(predictive_price, "f"),
+        "predicted_pullback_bps": format(predicted_pullback_bps, "f"),
         "maker_executed_quantity": format(maker_executed_quantity, "f"),
         "maximum_net_loss_budget": format(maximum_net_loss, "f"),
         "minimum_estimated_net_target": format(minimum_estimated_net_target, "f"),
@@ -607,7 +581,8 @@ def _protected_position_event(
     effective_margin_budget: Decimal,
     taker_fee_rate: Decimal,
     entry_execution_mode: str,
-    maker_limit_price: Decimal,
+    predictive_limit_price: Decimal,
+    predicted_pullback_bps: Decimal,
 ) -> dict[str, Any]:
     target_gross, round_trip_fee, target_net, stop_net_loss = estimated_position_outcomes(
         quantity=quantity,
@@ -632,7 +607,8 @@ def _protected_position_event(
         "position_notional": format(notional, "f"),
         "actual_initial_margin": format(notional / Decimal(leverage), "f"),
         "entry_execution_mode": entry_execution_mode,
-        "maker_limit_price": format(maker_limit_price, "f"),
+        "predictive_limit_price": format(predictive_limit_price, "f"),
+        "predicted_pullback_bps": format(predicted_pullback_bps, "f"),
         "effective_margin_budget": format(effective_margin_budget, "f"),
         "signal_quality_score": format(plan.signal_quality_score, "f"),
         "signal_confirmation_rounds": plan.signal_confirmation_rounds,

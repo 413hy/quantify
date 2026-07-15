@@ -1,10 +1,10 @@
 # Binance Testnet 三日实验交易
 
-该服务只连接 Binance USDⓈ-M Futures Testnet，不连接生产交易端点。V4.3 固定使用
+该服务只连接 Binance USDⓈ-M Futures Testnet，不连接生产交易端点。V4.4 固定使用
 BTCUSDT、ETHUSDT、BNBUSDT、SOLUSDT 和 XRPUSDT。它每 10 秒读取闭合 1 分钟/5 分钟 K 线、20 档
 深度及最近 5 秒 WebSocket 聚合成交，并以最多 5 个观察 worker 并行生成信号。
 
-## 实验规则（V4.3）
+## 实验规则（V4.4）
 
 这是 `UNVALIDATED_TESTNET_EXPERIMENT`，不能声称已经盈利，也不能用于生产交易：
 
@@ -19,10 +19,11 @@ BTCUSDT、ETHUSDT、BNBUSDT、SOLUSDT 和 XRPUSDT。它每 10 秒读取闭合 1 
 - 状态文件持续记录 `last_signal_diagnostics` 和累计 `signal_gate_counts`，区分历史不足、市场
   宽度不足、本币动量不足或过热、微观结构/PA 拒绝、交易池排除和已生成计划，避免再次只看到
   “0 交易”却无法定位具体门控；
-- V4.3 入场使用 maker-first：信号触发后先在同侧最优价提交 `LIMIT + GTX`，最多轮询约
-  1.5 秒。完全未成交会撤单；只有最新可成交价相对原参考价的追价距离不超过 3 bps 时才允许
-  `MARKET` 兜底，超过则放弃该次入场。部分成交后立即撤销余量，并且只有实际数量仍满足
-  费用后 0.10 USDT 目标才建立原生保护，否则立即清仓并记录拒绝；
+- V4.4 不再把同侧最优价冒充“预测限价”。策略使用最近 30 根已闭合 1 分钟 K 线的最高价
+  与最低价中位数 `(high + low) / 2`：做多仅在中位数低于买一时挂单，做空仅在中位数高于
+  卖一时挂单，否则放弃该信号。使用 `LIMIT + GTX` 等待最多约 30 秒；未成交就撤销并放弃，
+  彻底取消市价兜底和追单。部分成交后立即
+  撤销余量，并且只有实际数量仍满足费用后 0.10 USDT 目标才建立原生保护，否则立即清仓；
 
 - 最近主动成交失衡至少达到 0.25 时确定多空方向；book imbalance 至少 0.03 或
   microprice 至少 0.10 bps 同向；
@@ -84,7 +85,7 @@ jq . /var/lib/ai-quant/evidence/testnet/user-stream/current/state.json
 ```bash
 uv run python scripts/review-testnet-results.py \
   --observations /var/lib/ai-quant/evidence/testnet/campaign/current/observations.jsonl \
-  --strategy TESTNET_EXPERIMENT_OF_PA_V4_3
+  --strategy TESTNET_EXPERIMENT_OF_PA_V4_4
 ```
 
 少于 30 个已完成 V4 样本时报告固定为 `INSUFFICIENT_SAMPLE`，不能据此宣称策略有效。

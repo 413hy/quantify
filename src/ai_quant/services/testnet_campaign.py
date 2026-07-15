@@ -17,7 +17,11 @@ from queue import Empty, SimpleQueue
 from typing import Any, cast
 
 from ai_quant.binance_egress.structural_experiment import run_structural_experiment
-from ai_quant.binance_egress.testnet_probe import BinanceTestnetClient, _credential
+from ai_quant.binance_egress.testnet_probe import (
+    BinanceTestnetClient,
+    TestnetProbeError,
+    _credential,
+)
 from ai_quant.binance_egress.testnet_stream import TestnetAggregateTradeStream
 from ai_quant.features.price_action import Direction
 from ai_quant.notifications import (
@@ -208,18 +212,12 @@ class TestnetCampaign:
             event_type="测试网实验交易已启动",
             summary=(
                 f"候选池: {', '.join(self.symbols)}\n"
-                f"计划运行: {self.limits.duration_seconds // 86_400} 天\n"
-                f"评估间隔: {self.limits.evaluation_interval_seconds} 秒\n"
-                f"运行模式: Testnet 实验下单 (最多 {self._parallel_limit()} 个币种并行)\n"
-                "仓位规则: 0 到上限均正常, 不为补满仓位而开仓\n"
-                f"信号确认: 连续 {self.limits.signal_confirmation_rounds} 轮同方向且质量分不低于 "
-                f"{self.limits.minimum_signal_quality_score}\n"
-                "决策来源: Testnet 确定性规则策略 (不依赖 Codex 在线状态)\n"
-                f"单笔保证金: 最高 {self.limits.margin_budget} USDT\n"
-                "杠杆: 各币种 Testnet 当前允许的最高初始杠杆\n"
-                f"单笔预计净亏损预算: {self.limits.maximum_net_loss_per_trade} USDT\n"
-                "退出方式: 原生结构止损/止盈, 不使用持仓时间到期平仓\n"
-                "说明: 这是未验证实验策略, 仅用于收集测试网真实成交样本。"
+                f"节奏: 每 {self.limits.evaluation_interval_seconds} 秒评估, 最多选择 "
+                f"{self.limits.maximum_candidates_per_round} 个有效信号\n"
+                "入场: 预测回撤限价, 未成交即放弃, 不使用市价追单\n"
+                f"仓位: 最多 {self._parallel_limit()} 个; 单笔保证金不超过 "
+                f"{self.limits.margin_budget} USDT\n"
+                "退出: 交易所原生止盈/止损"
             ),
             key=f"campaign-start-{state['started_at']}",
         )
@@ -422,28 +420,6 @@ class TestnetCampaign:
                 }
             )
             self._append_event(event)
-            self._notify(
-                severity="INFO",
-                event_type="测试网开仓信号已提交",
-                summary=(
-                    f"交易对: {plan.symbol}\n"
-                    f"方向: {'做多' if str(plan.direction) == 'LONG' else '做空'}\n"
-                    f"参考入场: {plan.entry_reference}\n"
-                    f"结构止损: {plan.stop_anchor}\n"
-                    f"目标止盈: {plan.target_reference}\n"
-                    f"信号质量分: {plan.signal_quality_score.quantize(Decimal('0.01'))}\n"
-                    f"连续确认: {plan.signal_confirmation_rounds} 轮\n"
-                    f"PA 同向周期: {plan.pa_alignment_count}/2\n"
-                    f"信号类型: {_setup_type_cn(plan.setup_type)}\n"
-                    f"联动同向币数: {plan.market_breadth_count}\n"
-                    f"短周期动量: {plan.market_momentum_bps.quantize(Decimal('0.01'))} bps\n"
-                    "主动成交活跃度: "
-                    f"{plan.aggressive_notional_ratio.quantize(Decimal('0.01'))}x 近期中位数\n"
-                    "决策来源: Testnet 确定性规则策略 (不依赖 Codex)\n"
-                    "实际杠杆、数量和保证金将在仓位保护确认后通知。"
-                ),
-                key=f"experiment-submit-{plan.symbol}-{observed_at.timestamp()}",
-            )
             available -= 1
 
     def _reap_completed_trades(self, state: dict[str, Any]) -> None:
@@ -455,15 +431,25 @@ class TestnetCampaign:
                 result = future.result()
             except Exception as exc:
                 occurred_at = datetime.now(UTC)
+                expected_skip = isinstance(exc, TestnetProbeError) and str(exc) in {
+                    "EXPERIMENT_PREDICTIVE_LIMIT_NOT_FILLED",
+                    "EXPERIMENT_PREDICTIVE_MIDPOINT_NOT_PASSIVE",
+                }
                 self._append_event(
                     {
-                        "record_type": "TESTNET_EXPERIMENT_ERROR",
+                        "record_type": (
+                            "TESTNET_EXPERIMENT_SKIPPED"
+                            if expected_skip
+                            else "TESTNET_EXPERIMENT_ERROR"
+                        ),
                         "occurred_at": occurred_at.isoformat().replace("+00:00", "Z"),
                         "symbol": symbol,
                         "reason_code": type(exc).__name__,
                         "message": str(exc),
                     }
                 )
+                if expected_skip:
+                    continue
                 self._notify(
                     severity="ERROR",
                     event_type="测试网交易执行失败",
@@ -485,21 +471,13 @@ class TestnetCampaign:
                 severity="INFO" if net >= 0 else "WARNING",
                 event_type="测试网交易已平仓",
                 summary=(
-                    f"交易对: {symbol}\n"
-                    f"方向: {'做多' if result['direction'] == 'LONG' else '做空'}\n"
-                    f"杠杆: {result['initial_leverage']}x (交易所当前最大)\n"
-                    f"数量: {result['quantity']}\n"
-                    f"名义价值: {_money(result['position_notional'])} USDT\n"
-                    f"实际初始保证金: {_money(result['actual_initial_margin'])} USDT\n"
-                    f"入场价: {result['entry_price']}\n"
-                    f"平仓价: {result['exit_price']}\n"
-                    f"止盈触发价: {result['target_trigger']}\n"
-                    f"止损触发价: {result['stop_trigger']}\n"
+                    f"{symbol} | {'做多' if result['direction'] == 'LONG' else '做空'} | "
+                    f"{result['initial_leverage']}x\n"
+                    f"价格: {result['entry_price']} → {result['exit_price']}\n"
                     f"退出原因: {_exit_reason_cn(str(result['exit_reason']))}\n"
-                    f"已实现盈亏: {_money(result['realized_pnl'])} USDT\n"
-                    f"手续费: {_money(result['commission_paid'])} USDT\n"
-                    f"净结果: {_money(result['net_pnl'])} USDT\n"
-                    "决策来源: Testnet 确定性规则策略"
+                    f"已实现: {_money(result['realized_pnl'])} U | "
+                    f"手续费: {_money(result['commission_paid'])} U\n"
+                    f"净结果: {_money(result['net_pnl'])} U"
                 ),
                 key=f"experiment-result-{symbol}-{result['completed_at']}",
             )
@@ -515,36 +493,18 @@ class TestnetCampaign:
                 severity="INFO",
                 event_type="测试网仓位已建立并完成保护",
                 summary=(
-                    f"交易对: {event['symbol']}\n"
-                    f"方向: {'做多' if event['direction'] == 'LONG' else '做空'}\n"
-                    f"杠杆: {event['initial_leverage']}x (交易所当前最大)\n"
+                    f"{event['symbol']} | "
+                    f"{'做多' if event['direction'] == 'LONG' else '做空'} | "
+                    f"{event['initial_leverage']}x\n"
+                    f"入场: {event['entry_price']} (预测回撤 "
+                    f"{_two_decimals(event.get('predicted_pullback_bps', 0))} bps)\n"
+                    f"保证金: {_money(event['actual_initial_margin'])} U | "
                     f"数量: {event['quantity']}\n"
-                    f"名义价值: {_money(event['position_notional'])} USDT\n"
-                    f"实际初始保证金: {_money(event['actual_initial_margin'])} USDT\n"
-                    "信号质量分: "
-                    f"{Decimal(str(event['signal_quality_score'])).quantize(Decimal('0.01'))}\n"
-                    "信号类型: "
-                    f"{_setup_type_cn(str(event.get('setup_type', 'TREND_CONFIRMATION')))}\n"
-                    f"联动同向币数: {event.get('market_breadth_count', 0)}\n"
-                    "短周期动量: "
-                    f"{_two_decimals(event.get('market_momentum_bps', 0))} bps\n"
-                    f"连续确认: {event['signal_confirmation_rounds']} 轮\n"
-                    f"PA 同向周期: {event['pa_alignment_count']}/2\n"
-                    "主动成交活跃度: "
-                    f"{_two_decimals(event['aggressive_notional_ratio'])}x "
-                    "近期中位数\n"
-                    f"成交入场价: {event['entry_price']}\n"
-                    "入场执行: "
-                    f"{_entry_execution_cn(str(event.get('entry_execution_mode', '?')))}\n"
-                    f"预测挂单价: {event.get('maker_limit_price', '?')}\n"
-                    f"止盈触发价: {event['target_trigger']}\n"
-                    f"预计止盈毛收益: {_money(event['estimated_target_gross_pnl'])} USDT\n"
-                    f"预计扣费滑点后止盈: {_money(event['estimated_target_net_pnl'])} USDT\n"
-                    f"止损触发价: {event['stop_trigger']}\n"
-                    f"预计止损净亏损: {_money(event['estimated_stop_net_loss'])} USDT\n"
-                    "保护状态: 交易所原生止盈/止损均已确认\n"
-                    "触发价格: 合约成交价 (CONTRACT_PRICE)\n"
-                    "决策来源: Testnet 确定性规则策略 (不依赖 Codex)"
+                    f"止盈: {event['target_trigger']} | 预计净 +"
+                    f"{_money(event['estimated_target_net_pnl'])} U\n"
+                    f"止损: {event['stop_trigger']} | 预计净 -"
+                    f"{_money(event['estimated_stop_net_loss'])} U\n"
+                    "保护: 原生止盈/止损已生效"
                 ),
                 key=f"experiment-protected-{event['symbol']}-{event['protected_at']}",
             )
@@ -1056,25 +1016,6 @@ def _experimental_candidate_rank(decision: TestnetBaselineDecision) -> tuple[Dec
     if plan is None:
         return Decimal("Infinity"), decision.symbol
     return -plan.signal_quality_score, decision.symbol
-
-
-def _setup_type_cn(value: str) -> str:
-    return {
-        "TREND_CONFIRMATION": "趋势确认",
-        "MARKET_BREADTH_IMPULSE": "多币联动冲量",
-        "MARKET_BREADTH_IMPULSE_FAST": "多币快速联动",
-        "MARKET_BREADTH_TREND": "多币持续联动",
-    }.get(value, value)
-
-
-def _entry_execution_cn(value: str) -> str:
-    if value == "GTX_FILLED":
-        return "GTX 被动限价成交"
-    if value == "GTX_PARTIALLY_FILLED":
-        return "GTX 被动限价部分成交后保护"
-    if value.endswith("_MARKET_FALLBACK"):
-        return "GTX 限价未成交 / 3 bps 内市价兜底"
-    return value
 
 
 def _money(value: object) -> str:

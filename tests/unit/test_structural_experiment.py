@@ -10,9 +10,8 @@ from ai_quant.binance_egress.structural_experiment import (
     _protected_position_event,
     estimated_position_outcomes,
     exchange_maximum_initial_leverage,
-    maker_limit_price,
-    market_fallback_allowed,
     plan_market_quantity,
+    predictive_limit_price,
     quantize_protection,
     risk_adjusted_margin_budget,
 )
@@ -106,8 +105,9 @@ def test_protected_position_event_exposes_leverage_margin_and_fee_adjusted_targe
         target_trigger=Decimal("1.0035"),
         effective_margin_budget=Decimal("0.95"),
         taker_fee_rate=Decimal("0.0004"),
-        entry_execution_mode="GTX_FILLED",
-        maker_limit_price=Decimal("0.9999"),
+        entry_execution_mode="PREDICTIVE_GTX_FILLED",
+        predictive_limit_price=Decimal("0.9995"),
+        predicted_pullback_bps=Decimal("5"),
     )
 
     assert event["initial_leverage"] == 75
@@ -115,43 +115,47 @@ def test_protected_position_event_exposes_leverage_margin_and_fee_adjusted_targe
     assert event["position_notional"] == "71.25"
     assert Decimal(str(event["estimated_target_net_pnl"])) == Decimal("0.178125")
     assert event["protection_working_type"] == "CONTRACT_PRICE"
-    assert event["entry_execution_mode"] == "GTX_FILLED"
-    assert event["maker_limit_price"] == "0.9999"
+    assert event["entry_execution_mode"] == "PREDICTIVE_GTX_FILLED"
+    assert event["predictive_limit_price"] == "0.9995"
+    assert event["predicted_pullback_bps"] == "5"
 
 
-def test_maker_entry_uses_same_side_price_and_bounds_market_chase() -> None:
-    assert maker_limit_price(
+def test_predictive_entry_uses_closed_thirty_minute_range_midpoint() -> None:
+    long_price, long_pullback = predictive_limit_price(
         Direction.LONG,
         bid_price=Decimal("99.99"),
         ask_price=Decimal("100.01"),
         tick_size=Decimal("0.01"),
-    ) == Decimal("99.99")
-    assert maker_limit_price(
+        range_midpoint_30m=Decimal("99.95"),
+    )
+    short_price, short_pullback = predictive_limit_price(
         Direction.SHORT,
         bid_price=Decimal("99.99"),
         ask_price=Decimal("100.01"),
         tick_size=Decimal("0.01"),
-    ) == Decimal("100.01")
-    assert market_fallback_allowed(
-        Direction.LONG,
-        initial_reference=Decimal("100"),
-        current_reference=Decimal("100.02"),
+        range_midpoint_30m=Decimal("100.06"),
     )
-    assert not market_fallback_allowed(
-        Direction.LONG,
-        initial_reference=Decimal("100"),
-        current_reference=Decimal("100.04"),
-    )
-    assert market_fallback_allowed(
-        Direction.SHORT,
-        initial_reference=Decimal("100"),
-        current_reference=Decimal("99.98"),
-    )
-    assert not market_fallback_allowed(
-        Direction.SHORT,
-        initial_reference=Decimal("100"),
-        current_reference=Decimal("99.96"),
-    )
+    assert long_price == Decimal("99.95")
+    assert short_price == Decimal("100.06")
+    assert Decimal("4") < long_pullback < Decimal("4.01")
+    assert Decimal("4.99") < short_pullback < Decimal("5")
+
+
+@pytest.mark.parametrize(
+    ("direction", "midpoint"),
+    [(Direction.LONG, "100.00"), (Direction.SHORT, "100.01")],
+)
+def test_predictive_midpoint_rejects_a_non_passive_entry(
+    direction: Direction, midpoint: str
+) -> None:
+    with pytest.raises(ProbeError, match="EXPERIMENT_PREDICTIVE_MIDPOINT_NOT_PASSIVE"):
+        predictive_limit_price(
+            direction,
+            bid_price=Decimal("100.00"),
+            ask_price=Decimal("100.01"),
+            tick_size=Decimal("0.01"),
+            range_midpoint_30m=Decimal(midpoint),
+        )
 
 
 def test_pretrade_outcome_estimate_enforces_meaningful_fee_adjusted_target() -> None:
