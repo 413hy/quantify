@@ -71,6 +71,8 @@ uv run python scripts/review-testnet-results.py \
 ```
 
 少于 30 个已完成 V3 样本时报告固定为 `INSUFFICIENT_SAMPLE`，不能据此宣称策略有效。
+2026-07-15 的实际结果、观测序列因果回放、参数小样本风险和旧结构代理交叉检查见
+`docs/testnet-v3-backtest-review-20260715.md`。
 
 独立的只读用户数据流观察器 `aiq-testnet-user-stream.service` 与实验执行线程解耦。它只连接
 当前 Testnet 私有 stream，维护 listen key、自动重连并对 `ORDER_TRADE_UPDATE`、
