@@ -270,9 +270,9 @@ def test_testnet_experiment_builds_structural_stop_without_time_exit(
 
 
 def test_v4_target_matches_fixed_symbol_execution_economics() -> None:
-    assert gross_target_bps_for_symbol("BTCUSDT") == Decimal("20")
-    assert gross_target_bps_for_symbol("ETHUSDT") == Decimal("22")
-    assert gross_target_bps_for_symbol("BNBUSDT") == Decimal("25")
+    assert gross_target_bps_for_symbol("BTCUSDT") == Decimal("23")
+    assert gross_target_bps_for_symbol("ETHUSDT") == Decimal("26")
+    assert gross_target_bps_for_symbol("BNBUSDT") == Decimal("28")
     assert gross_target_bps_for_symbol("SOLUSDT") == Decimal("32")
     assert gross_target_bps_for_symbol("XRPUSDT") == Decimal("25")
     with pytest.raises(ValueError, match="outside the fixed universe"):

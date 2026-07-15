@@ -28,9 +28,9 @@ TESTNET_EXPERIMENT_SYMBOLS = (
 )
 TESTNET_IMPULSE_ENTRY_SYMBOLS = TESTNET_EXPERIMENT_SYMBOLS
 _GROSS_TARGET_BPS_BY_SYMBOL = {
-    "BTCUSDT": Decimal("20"),
-    "ETHUSDT": Decimal("22"),
-    "BNBUSDT": Decimal("25"),
+    "BTCUSDT": Decimal("23"),
+    "ETHUSDT": Decimal("26"),
+    "BNBUSDT": Decimal("28"),
     "SOLUSDT": Decimal("32"),
     "XRPUSDT": Decimal("25"),
 }
