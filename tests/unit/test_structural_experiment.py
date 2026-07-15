@@ -4,9 +4,12 @@ import pytest
 
 import ai_quant.binance_egress.structural_experiment as experiment
 from ai_quant.binance_egress.structural_experiment import (
+    PositionSignalControl,
     _classify_native_exit,
     _exit_trade_price,
     _place_protection,
+    _predictive_limit_entry,
+    _prepare_scale_in,
     _protected_position_event,
     estimated_position_outcomes,
     exchange_maximum_initial_leverage,
@@ -51,6 +54,104 @@ def test_market_quantity_stays_inside_one_usdt_margin_budget() -> None:
 
     assert quantity == Decimal("0.06")
     assert quantity * Decimal("150") / Decimal(10) <= Decimal("1")
+
+
+def test_position_signal_control_discards_stale_mail_and_returns_latest() -> None:
+    control = PositionSignalControl()
+    old = ExperimentalPlan(
+        symbol="SOLUSDT",
+        direction=Direction.LONG,
+        entry_reference=Decimal("100"),
+        stop_anchor=Decimal("99.5"),
+        target_reference=Decimal("100.4"),
+    )
+    latest = ExperimentalPlan(
+        symbol="SOLUSDT",
+        direction=Direction.SHORT,
+        entry_reference=Decimal("100"),
+        stop_anchor=Decimal("100.5"),
+        target_reference=Decimal("99.6"),
+    )
+    control.submit(old)
+    control.submit(latest)
+
+    assert control.take_latest() is latest
+    assert control.take_latest() is None
+
+
+def test_scale_limit_is_canceled_if_the_parent_position_closes() -> None:
+    class Client:
+        canceled = False
+
+        def place_order(self, params: dict[str, str]) -> dict[str, str]:
+            return {"status": "NEW", "executedQty": "0"}
+
+        def cancel_order(self, symbol: str, client_order_id: str) -> dict[str, str]:
+            self.canceled = True
+            return {"status": "CANCELED"}
+
+        def query_order(self, symbol: str, client_order_id: str) -> dict[str, str]:
+            return {"status": "CANCELED", "executedQty": "0"}
+
+    client = Client()
+    _, executed, mode = _predictive_limit_entry(
+        client,  # type: ignore[arg-type]
+        symbol="SOLUSDT",
+        direction=Direction.LONG,
+        side="BUY",
+        quantity=Decimal("0.1"),
+        price=Decimal("99.9"),
+        client_order_id="scale-test",
+        sleep=lambda _: None,
+        position_guard=lambda: False,
+    )
+
+    assert client.canceled
+    assert executed == 0
+    assert mode == "PARENT_POSITION_CLOSED"
+
+
+def test_same_direction_scale_is_sized_against_whole_position_loss_budget() -> None:
+    class Client:
+        def book_ticker(self, symbol: str) -> dict[str, str]:
+            assert symbol == "SOLUSDT"
+            return {"bidPrice": "99.99", "askPrice": "100.01"}
+
+    plan = ExperimentalPlan(
+        symbol="SOLUSDT",
+        direction=Direction.LONG,
+        entry_reference=Decimal("100"),
+        stop_anchor=Decimal("99.5"),
+        target_reference=Decimal("100.4"),
+        predictive_average_20m=Decimal("100.09"),
+    )
+
+    prepared = _prepare_scale_in(
+        Client(),  # type: ignore[arg-type]
+        plan=plan,
+        exchange_info=_exchange_info(),
+        leverage=75,
+        margin_ceiling=Decimal("1"),
+        maximum_net_loss=Decimal("1"),
+        minimum_estimated_net_target=Decimal("0.10"),
+        risk_sizing_slippage_rate=Decimal("0.0012"),
+        taker_fee_rate=Decimal("0.0004"),
+        current_quantity=Decimal("0.5"),
+        current_entry=Decimal("100"),
+        current_stop=Decimal("99.5"),
+    )
+
+    combined_quantity = Decimal("0.5") + prepared.quantity
+    _, _, _, stop_loss = estimated_position_outcomes(
+        quantity=combined_quantity,
+        actual_entry=prepared.combined_entry,
+        stop_trigger=prepared.stop_trigger,
+        target_trigger=prepared.target_trigger,
+        taker_fee_rate=Decimal("0.0004"),
+        adverse_slippage_rate=Decimal("0.0012"),
+    )
+    assert prepared.quantity > 0
+    assert stop_loss <= Decimal("1")
 
 
 def test_market_quantity_rejects_exchange_minimum_above_budget() -> None:
@@ -109,7 +210,7 @@ def test_protected_position_event_exposes_leverage_margin_and_fee_adjusted_targe
         predictive_limit_price=Decimal("0.9995"),
         predicted_pullback_bps=Decimal("5"),
         directional_forecast_bps=Decimal("8"),
-        predictive_entry_model="FORECAST_CONTINUATION_RETRACE",
+        predictive_entry_model="FORECAST_ALIGNED_BEST_QUOTE",
     )
 
     assert event["initial_leverage"] == 75
@@ -121,7 +222,7 @@ def test_protected_position_event_exposes_leverage_margin_and_fee_adjusted_targe
     assert event["predictive_limit_price"] == "0.9995"
     assert event["predicted_pullback_bps"] == "5"
     assert event["directional_forecast_bps"] == "8"
-    assert event["predictive_entry_model"] == "FORECAST_CONTINUATION_RETRACE"
+    assert event["predictive_entry_model"] == "FORECAST_ALIGNED_BEST_QUOTE"
 
 
 def test_predictive_entry_uses_observed_and_forecast_twenty_minute_average() -> None:
@@ -139,19 +240,19 @@ def test_predictive_entry_uses_observed_and_forecast_twenty_minute_average() -> 
         tick_size=Decimal("0.01"),
         predictive_average_20m=Decimal("99.91"),
     )
-    assert long_price == Decimal("99.94")
-    assert short_price == Decimal("100.06")
-    assert Decimal("5") < long_pullback < Decimal("5.01")
-    assert Decimal("4.99") < short_pullback < Decimal("5")
+    assert long_price == Decimal("99.99")
+    assert short_price == Decimal("100.01")
+    assert long_pullback == 0
+    assert short_pullback == 0
     assert long_forecast > 0
     assert short_forecast > 0
-    assert long_model == "FORECAST_CONTINUATION_RETRACE"
-    assert short_model == "FORECAST_CONTINUATION_RETRACE"
+    assert long_model == "FORECAST_ALIGNED_BEST_QUOTE"
+    assert short_model == "FORECAST_ALIGNED_BEST_QUOTE"
 
 
 @pytest.mark.parametrize(
     ("direction", "average"),
-    [(Direction.LONG, "100.005"), (Direction.SHORT, "100.005")],
+    [(Direction.LONG, "100.01"), (Direction.SHORT, "100.00")],
 )
 def test_predictive_average_rejects_an_uninformative_forecast(
     direction: Direction, average: str
@@ -166,7 +267,7 @@ def test_predictive_average_rejects_an_uninformative_forecast(
         )
 
 
-def test_short_forecast_below_market_becomes_a_passive_retrace_sell() -> None:
+def test_short_aligned_forecast_joins_the_passive_best_ask() -> None:
     price, distance, forecast, model = predictive_limit_price(
         Direction.SHORT,
         bid_price=Decimal("99.99"),
@@ -175,10 +276,27 @@ def test_short_forecast_below_market_becomes_a_passive_retrace_sell() -> None:
         predictive_average_20m=Decimal("99.91"),
     )
 
-    assert price > Decimal("100.01")
-    assert Decimal("2") <= distance <= Decimal("8.01")
+    assert price == Decimal("100.01")
+    assert distance == 0
     assert forecast > 0
-    assert model == "FORECAST_CONTINUATION_RETRACE"
+    assert model == "FORECAST_ALIGNED_BEST_QUOTE"
+
+
+@pytest.mark.parametrize(
+    ("direction", "average"),
+    [(Direction.LONG, "99.91"), (Direction.SHORT, "100.09")],
+)
+def test_forecast_opposed_to_signal_is_rejected(
+    direction: Direction, average: str
+) -> None:
+    with pytest.raises(ProbeError, match="EXPERIMENT_PREDICTIVE_DIRECTION_CONFLICT"):
+        predictive_limit_price(
+            direction,
+            bid_price=Decimal("99.99"),
+            ask_price=Decimal("100.01"),
+            tick_size=Decimal("0.01"),
+            predictive_average_20m=Decimal(average),
+        )
 
 
 def test_pretrade_outcome_estimate_enforces_meaningful_fee_adjusted_target() -> None:

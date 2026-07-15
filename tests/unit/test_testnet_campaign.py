@@ -265,7 +265,7 @@ def test_testnet_experiment_builds_structural_stop_without_time_exit(
     assert (plan.target_reference - plan.entry_reference) / plan.entry_reference * Decimal(
         10_000
     ) == Decimal("32")
-    assert plan.strategy_version == "TESTNET_EXPERIMENT_OF_PA_V4_6"
+    assert plan.strategy_version == "TESTNET_EXPERIMENT_OF_PA_V4_8"
     assert "maximum_holding" not in str(plan.evidence()).lower()
 
 
@@ -422,6 +422,52 @@ def test_pending_signal_requires_two_consecutive_rounds_and_does_not_fill_slots(
         minimum_activity_ratio=Decimal("0.5"),
     ) == [decision]
     assert len(state["pending_signals"]) == 1
+
+
+def test_confirmed_signal_can_reach_the_single_owner_of_a_protected_position() -> None:
+    state: dict[str, Any] = {}
+    decision = _decision_for_rank("BNBUSDT", Direction.SHORT)
+
+    confirmed = _update_pending_signals(
+        state,
+        [decision],
+        active_symbols={"BNBUSDT"},
+        controllable_symbols={"BNBUSDT"},
+        evaluation_round=1,
+        required_rounds=1,
+        minimum_quality_score=Decimal("2"),
+        activity_lookback_rounds=12,
+        minimum_activity_samples=1,
+        minimum_activity_ratio=Decimal("0.5"),
+    )
+
+    assert confirmed == [decision]
+    assert state["last_confirmation_diagnostics"]["symbols"]["BNBUSDT"][
+        "gate_result"
+    ] == "CONFIRMED"
+
+
+def test_pending_entry_remains_blocked_until_it_becomes_protected() -> None:
+    state: dict[str, Any] = {}
+    decision = _decision_for_rank("BNBUSDT", Direction.SHORT)
+
+    confirmed = _update_pending_signals(
+        state,
+        [decision],
+        active_symbols={"BNBUSDT"},
+        controllable_symbols=set(),
+        evaluation_round=1,
+        required_rounds=1,
+        minimum_quality_score=Decimal("2"),
+        activity_lookback_rounds=12,
+        minimum_activity_samples=1,
+        minimum_activity_ratio=Decimal("0.5"),
+    )
+
+    assert confirmed == []
+    assert state["last_confirmation_diagnostics"]["symbols"]["BNBUSDT"][
+        "gate_result"
+    ] == "ALREADY_IN_FLIGHT"
 
 
 def test_pending_signal_rejects_activity_far_below_recent_median() -> None:

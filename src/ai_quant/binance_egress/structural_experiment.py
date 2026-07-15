@@ -5,9 +5,11 @@ from __future__ import annotations
 import secrets
 import time
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
 from pathlib import Path
+from queue import Empty, SimpleQueue
 from typing import Any
 
 from ai_quant.binance_egress.testnet_probe import (
@@ -23,6 +25,200 @@ from ai_quant.binance_egress.testnet_probe import (
 )
 from ai_quant.features.price_action import Direction
 from ai_quant.strategy.testnet_baseline import TestnetExperimentalPlan
+
+
+@dataclass(slots=True)
+class PositionSignalControl:
+    """Single-owner mailbox for confirmed signals targeting an existing position."""
+
+    signals: SimpleQueue[TestnetExperimentalPlan] = field(default_factory=SimpleQueue)
+    replacement_plan: TestnetExperimentalPlan | None = None
+
+    def submit(self, plan: TestnetExperimentalPlan) -> None:
+        self.signals.put(plan)
+
+    def take_latest(self) -> TestnetExperimentalPlan | None:
+        latest: TestnetExperimentalPlan | None = None
+        while True:
+            try:
+                latest = self.signals.get_nowait()
+            except Empty:
+                return latest
+
+
+@dataclass(frozen=True, slots=True)
+class _ScaleInPreparation:
+    quantity: Decimal
+    predictive_price: Decimal
+    predicted_pullback_bps: Decimal
+    directional_forecast_bps: Decimal
+    predictive_entry_model: str
+    effective_margin_budget: Decimal
+    combined_entry: Decimal
+    stop_trigger: Decimal
+    target_trigger: Decimal
+
+
+def _position_snapshot(
+    client: BinanceTestnetClient,
+    symbol: str,
+    direction: Direction,
+) -> tuple[Decimal, Decimal]:
+    matches = [
+        item
+        for item in client.position_risk(symbol)
+        if (direction is Direction.LONG and Decimal(str(item.get("positionAmt", "0"))) > 0)
+        or (direction is Direction.SHORT and Decimal(str(item.get("positionAmt", "0"))) < 0)
+    ]
+    if len(matches) != 1:
+        raise TestnetProbeError("EXPERIMENT_POSITION_SNAPSHOT_MISSING")
+    quantity = abs(Decimal(str(matches[0].get("positionAmt", "0"))))
+    entry_price = Decimal(str(matches[0].get("entryPrice", "0")))
+    if quantity <= 0 or entry_price <= 0:
+        raise TestnetProbeError("EXPERIMENT_POSITION_SNAPSHOT_MISSING")
+    return quantity, entry_price
+
+
+def _prepare_scale_in(
+    client: BinanceTestnetClient,
+    *,
+    plan: TestnetExperimentalPlan,
+    exchange_info: Mapping[str, Any],
+    leverage: int,
+    margin_ceiling: Decimal,
+    maximum_net_loss: Decimal,
+    minimum_estimated_net_target: Decimal,
+    risk_sizing_slippage_rate: Decimal,
+    taker_fee_rate: Decimal,
+    current_quantity: Decimal,
+    current_entry: Decimal,
+    current_stop: Decimal,
+) -> _ScaleInPreparation:
+    """Size one same-direction add while keeping the whole position in budget."""
+    ticker = client.book_ticker(plan.symbol)
+    filters = _symbol_filters(exchange_info, plan.symbol)
+    try:
+        bid_price = Decimal(str(ticker["bidPrice"]))
+        ask_price = Decimal(str(ticker["askPrice"]))
+        tick_size = Decimal(str(filters["PRICE_FILTER"]["tickSize"]))
+        lot = filters.get("MARKET_LOT_SIZE") or filters["LOT_SIZE"]
+        step_size = Decimal(str(lot["stepSize"]))
+        minimum_quantity = Decimal(str(lot["minQty"]))
+        minimum_notional = Decimal(str(filters.get("MIN_NOTIONAL", {}).get("notional", "0")))
+    except (KeyError, ArithmeticError) as exc:
+        raise TestnetProbeError("TEST_SYMBOL_FILTERS_INVALID") from exc
+    (
+        predictive_price,
+        predicted_pullback_bps,
+        directional_forecast_bps,
+        predictive_entry_model,
+    ) = predictive_limit_price(
+        plan.direction,
+        bid_price=bid_price,
+        ask_price=ask_price,
+        tick_size=tick_size,
+        predictive_average_20m=plan.predictive_average_20m,
+    )
+    loss_sign = Decimal(1) if plan.direction is Direction.LONG else Decimal(-1)
+    cost_rate = taker_fee_rate * Decimal(2) + risk_sizing_slippage_rate
+    existing_unit_risk = max(
+        Decimal(0), loss_sign * (current_entry - current_stop)
+    ) + current_entry * cost_rate
+    existing_risk = current_quantity * existing_unit_risk
+    remaining_risk = maximum_net_loss - existing_risk
+    if remaining_risk <= 0:
+        raise TestnetProbeError("EXPERIMENT_SCALE_RISK_BUDGET_EXHAUSTED")
+    effective_margin_budget = risk_adjusted_margin_budget(
+        plan,
+        margin_ceiling=margin_ceiling,
+        leverage=leverage,
+        maximum_net_loss=remaining_risk,
+        taker_fee_rate=taker_fee_rate,
+        adverse_slippage_rate=risk_sizing_slippage_rate,
+    )
+    desired_quantity = plan_market_quantity(
+        exchange_info,
+        symbol=plan.symbol,
+        reference_price=predictive_price,
+        margin_budget=effective_margin_budget,
+        leverage=leverage,
+    )
+    added_unit_risk = max(
+        Decimal(0), loss_sign * (predictive_price - current_stop)
+    ) + predictive_price * cost_rate
+    if added_unit_risk <= 0:
+        raise TestnetProbeError("EXPERIMENT_SCALE_RISK_ESTIMATE_INVALID")
+    risk_limited_quantity = _decimal_step(
+        remaining_risk / added_unit_risk, step_size, ROUND_FLOOR
+    )
+    quantity = min(desired_quantity, risk_limited_quantity)
+    required_quantity = minimum_quantity
+    if minimum_notional > 0:
+        required_quantity = max(
+            required_quantity,
+            _decimal_step(
+                minimum_notional / predictive_price, step_size, ROUND_CEILING
+            ),
+        )
+    if quantity < required_quantity or quantity <= 0:
+        raise TestnetProbeError("EXPERIMENT_SCALE_REMAINING_RISK_BELOW_EXCHANGE_MINIMUM")
+    combined_quantity = current_quantity + quantity
+    combined_entry = (
+        current_quantity * current_entry + quantity * predictive_price
+    ) / combined_quantity
+    combined_plan = replace(plan, stop_anchor=current_stop)
+    stop_trigger, target_trigger = quantize_protection(
+        combined_plan,
+        actual_entry=combined_entry,
+        tick_size=tick_size,
+    )
+    if (plan.direction is Direction.LONG and target_trigger <= ask_price) or (
+        plan.direction is Direction.SHORT and target_trigger >= bid_price
+    ):
+        raise TestnetProbeError("EXPERIMENT_SCALE_TARGET_ALREADY_CROSSED")
+    _, _, target_net, stop_net_loss = estimated_position_outcomes(
+        quantity=combined_quantity,
+        actual_entry=combined_entry,
+        stop_trigger=stop_trigger,
+        target_trigger=target_trigger,
+        taker_fee_rate=taker_fee_rate,
+        adverse_slippage_rate=risk_sizing_slippage_rate,
+    )
+    if stop_net_loss > maximum_net_loss:
+        raise TestnetProbeError("EXPERIMENT_SCALE_EXCEEDS_LOSS_BUDGET")
+    if target_net < minimum_estimated_net_target:
+        raise TestnetProbeError("EXPERIMENT_SCALE_NET_TARGET_INSUFFICIENT")
+    return _ScaleInPreparation(
+        quantity=quantity,
+        predictive_price=predictive_price,
+        predicted_pullback_bps=predicted_pullback_bps,
+        directional_forecast_bps=directional_forecast_bps,
+        predictive_entry_model=predictive_entry_model,
+        effective_margin_budget=effective_margin_budget,
+        combined_entry=combined_entry,
+        stop_trigger=stop_trigger,
+        target_trigger=target_trigger,
+    )
+
+
+def _position_control_event(
+    *,
+    record_type: str,
+    plan: TestnetExperimentalPlan,
+    reason_code: str,
+) -> dict[str, Any]:
+    return {
+        "record_type": record_type,
+        "environment": "testnet",
+        "validation_status": "UNVALIDATED_TESTNET_EXPERIMENT",
+        "strategy": plan.strategy_version,
+        "symbol": plan.symbol,
+        "direction": plan.direction,
+        "signal_quality_score": format(plan.signal_quality_score, "f"),
+        "reason_code": reason_code,
+        "occurred_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        "production_endpoint_requests": 0,
+    }
 
 
 def plan_market_quantity(
@@ -116,10 +312,10 @@ def predictive_limit_price(
     tick_size: Decimal,
     predictive_average_20m: Decimal,
     minimum_forecast_edge_bps: Decimal = Decimal("1"),
-    minimum_entry_distance_bps: Decimal = Decimal("2"),
-    maximum_entry_distance_bps: Decimal = Decimal("8"),
+    minimum_entry_distance_bps: Decimal = Decimal("0"),
+    maximum_entry_distance_bps: Decimal = Decimal("0"),
 ) -> tuple[Decimal, Decimal, Decimal, str]:
-    """Convert the forecast average into a directional passive retracement entry."""
+    """Use an aligned forecast as a gate and join the passive best quote."""
     if (
         min(
             bid_price,
@@ -127,11 +323,10 @@ def predictive_limit_price(
             tick_size,
             predictive_average_20m,
             minimum_forecast_edge_bps,
-            minimum_entry_distance_bps,
-            maximum_entry_distance_bps,
         )
         <= 0
         or bid_price >= ask_price
+        or minimum_entry_distance_bps < 0
         or minimum_entry_distance_bps > maximum_entry_distance_bps
     ):
         raise TestnetProbeError("EXPERIMENT_MAKER_PRICE_INPUT_INVALID")
@@ -140,18 +335,13 @@ def predictive_limit_price(
     directional_forecast_bps = (
         sign * (predictive_average_20m / mid_price - Decimal(1)) * Decimal(10_000)
     )
-    if abs(directional_forecast_bps) < minimum_forecast_edge_bps:
+    if directional_forecast_bps <= 0:
+        raise TestnetProbeError("EXPERIMENT_PREDICTIVE_DIRECTION_CONFLICT")
+    if directional_forecast_bps < minimum_forecast_edge_bps:
         raise TestnetProbeError("EXPERIMENT_PREDICTIVE_EDGE_INSUFFICIENT")
-    planned_distance_bps = max(
-        minimum_entry_distance_bps,
-        min(maximum_entry_distance_bps, abs(directional_forecast_bps) / Decimal(2)),
-    )
+    planned_distance_bps = minimum_entry_distance_bps
     distance_rate = planned_distance_bps / Decimal(10_000)
-    entry_model = (
-        "FORECAST_CONTINUATION_RETRACE"
-        if directional_forecast_bps > 0
-        else "FORECAST_MEAN_REVERSION_RETRACE"
-    )
+    entry_model = "FORECAST_ALIGNED_BEST_QUOTE"
     if direction is Direction.LONG:
         price = _decimal_step(
             bid_price * (Decimal(1) - distance_rate), tick_size, ROUND_FLOOR
@@ -178,6 +368,9 @@ def _predictive_limit_entry(
     client_order_id: str,
     sleep: Callable[[float], None],
     polling_attempts: int = 120,
+    position_guard: Callable[[], bool] | None = None,
+    maximum_wait_seconds: float = 30.0,
+    monotonic: Callable[[], float] = time.monotonic,
 ) -> tuple[dict[str, Any] | None, Decimal, str]:
     """Wait up to 30 seconds for the predicted average, then cancel without chasing."""
     try:
@@ -197,6 +390,7 @@ def _predictive_limit_entry(
     except TestnetProbeError:
         return None, Decimal(0), "PREDICTIVE_GTX_REJECTED"
     latest = document
+    deadline = monotonic() + maximum_wait_seconds
     for _ in range(polling_attempts):
         if latest.get("status") in {
             "FILLED",
@@ -206,7 +400,14 @@ def _predictive_limit_entry(
             "REJECTED",
         }:
             break
-        sleep(0.25)
+        if position_guard is not None and not position_guard():
+            client.cancel_order(symbol, client_order_id)
+            latest = client.query_order(symbol, client_order_id)
+            return latest, Decimal(0), "PARENT_POSITION_CLOSED"
+        remaining = deadline - monotonic()
+        if remaining <= 0:
+            break
+        sleep(min(0.25, remaining))
         latest = client.query_order(symbol, client_order_id)
     if latest.get("status") in {"NEW", "PARTIALLY_FILLED"}:
         client.cancel_order(symbol, client_order_id)
@@ -231,6 +432,8 @@ def run_structural_experiment(
     risk_sizing_slippage_rate: Decimal = Decimal("0.0012"),
     on_entry_attempt: Callable[[dict[str, Any]], None] | None = None,
     on_position_protected: Callable[[dict[str, Any]], None] | None = None,
+    on_position_control: Callable[[dict[str, Any]], None] | None = None,
+    position_control: PositionSignalControl | None = None,
     stop_requested: Callable[[], bool] = lambda: False,
     sleep: Callable[[float], None] = time.sleep,
 ) -> dict[str, Any]:
@@ -324,6 +527,8 @@ def run_structural_experiment(
     target_final_status = "UNRESOLVED"
     entry_execution_mode = "UNRESOLVED"
     maker_executed_quantity = Decimal(0)
+    scale_in_count = 0
+    current_plan = plan
     try:
         if on_entry_attempt is not None:
             on_entry_attempt(
@@ -357,6 +562,26 @@ def run_structural_experiment(
             client_order_id=maker_entry_id,
             sleep=sleep,
         )
+        if on_entry_attempt is not None:
+            on_entry_attempt(
+                {
+                    "record_type": "TESTNET_PREDICTIVE_LIMIT_RESULT",
+                    "environment": "testnet",
+                    "validation_status": "UNVALIDATED_TESTNET_EXPERIMENT",
+                    "strategy": plan.strategy_version,
+                    "symbol": symbol,
+                    "direction": plan.direction,
+                    "client_order_id": maker_entry_id,
+                    "predictive_limit_price": format(predictive_price, "f"),
+                    "execution_mode": entry_execution_mode,
+                    "order_status": None if entry is None else entry.get("status"),
+                    "executed_quantity": format(maker_executed_quantity, "f"),
+                    "completed_at": datetime.now(UTC)
+                    .isoformat()
+                    .replace("+00:00", "Z"),
+                    "production_endpoint_requests": 0,
+                }
+            )
         if maker_executed_quantity > 0:
             quantity = maker_executed_quantity
         else:
@@ -434,8 +659,239 @@ def run_structural_experiment(
             on_position_protected(protected_position)
 
         while _position_quantity(client, symbol) != 0 and not stop_requested():
-            sleep(1)
-        if _position_quantity(client, symbol) != 0:
+            latest_plan = None if position_control is None else position_control.take_latest()
+            if latest_plan is None:
+                sleep(1)
+                continue
+            if latest_plan.direction is not current_plan.direction:
+                if position_control is not None:
+                    position_control.replacement_plan = latest_plan
+                if on_position_control is not None:
+                    on_position_control(
+                        {
+                            "record_type": "TESTNET_POSITION_REVERSAL_REQUESTED",
+                            "environment": "testnet",
+                            "validation_status": "UNVALIDATED_TESTNET_EXPERIMENT",
+                            "strategy": latest_plan.strategy_version,
+                            "symbol": symbol,
+                            "old_direction": current_plan.direction,
+                            "new_direction": latest_plan.direction,
+                            "signal_quality_score": format(
+                                latest_plan.signal_quality_score, "f"
+                            ),
+                            "requested_at": datetime.now(UTC)
+                            .isoformat()
+                            .replace("+00:00", "Z"),
+                            "production_endpoint_requests": 0,
+                        }
+                    )
+                stop_final_status = _terminalize_algo_after_flat(
+                    client,
+                    symbol=symbol,
+                    algo_id=stop_id,
+                    client_algo_id=stop_client_id,
+                )
+                target_final_status = _terminalize_algo_after_flat(
+                    client,
+                    symbol=symbol,
+                    algo_id=target_id,
+                    client_algo_id=target_client_id,
+                )
+                closed = _flatten_position(client, symbol)
+                if closed is None or closed.get("status") != "FILLED":
+                    raise TestnetProbeError("EXPERIMENT_SIGNAL_REVERSAL_NOT_FILLED")
+                exit_reason = "SIGNAL_REVERSAL"
+                break
+
+            try:
+                scale = _prepare_scale_in(
+                    client,
+                    plan=latest_plan,
+                    exchange_info=exchange_info,
+                    leverage=leverage,
+                    margin_ceiling=margin_budget,
+                    maximum_net_loss=maximum_net_loss,
+                    minimum_estimated_net_target=minimum_estimated_net_target,
+                    risk_sizing_slippage_rate=risk_sizing_slippage_rate,
+                    taker_fee_rate=taker_fee_rate,
+                    current_quantity=quantity,
+                    current_entry=actual_entry,
+                    current_stop=stop_trigger,
+                )
+            except TestnetProbeError as exc:
+                if on_position_control is not None:
+                    on_position_control(
+                        _position_control_event(
+                            record_type="TESTNET_POSITION_SCALE_SKIPPED",
+                            plan=latest_plan,
+                            reason_code=str(exc),
+                        )
+                    )
+                continue
+            scale_order_id = f"aq-t-scale-m-{secrets.token_hex(5)}"
+            scale_side = "BUY" if latest_plan.direction is Direction.LONG else "SELL"
+            if on_entry_attempt is not None:
+                on_entry_attempt(
+                    {
+                        "record_type": "TESTNET_PREDICTIVE_SCALE_LIMIT_SUBMITTED",
+                        "environment": "testnet",
+                        "validation_status": "UNVALIDATED_TESTNET_EXPERIMENT",
+                        "strategy": latest_plan.strategy_version,
+                        "symbol": symbol,
+                        "direction": latest_plan.direction,
+                        "quantity": format(scale.quantity, "f"),
+                        "predictive_limit_price": format(scale.predictive_price, "f"),
+                        "predicted_pullback_bps": format(
+                            scale.predicted_pullback_bps, "f"
+                        ),
+                        "directional_forecast_bps": format(
+                            scale.directional_forecast_bps, "f"
+                        ),
+                        "predictive_entry_model": scale.predictive_entry_model,
+                        "attempted_at": datetime.now(UTC)
+                        .isoformat()
+                        .replace("+00:00", "Z"),
+                        "production_endpoint_requests": 0,
+                    }
+                )
+            scale_direction = latest_plan.direction
+
+            def position_still_open(direction: Direction = scale_direction) -> bool:
+                position = _position_quantity(client, symbol)
+                return position > 0 if direction is Direction.LONG else position < 0
+
+            scale_document, added_quantity, scale_execution_mode = _predictive_limit_entry(
+                client,
+                symbol=symbol,
+                direction=latest_plan.direction,
+                side=scale_side,
+                quantity=scale.quantity,
+                price=scale.predictive_price,
+                client_order_id=scale_order_id,
+                sleep=sleep,
+                position_guard=position_still_open,
+            )
+            if on_entry_attempt is not None:
+                on_entry_attempt(
+                    {
+                        "record_type": "TESTNET_PREDICTIVE_SCALE_LIMIT_RESULT",
+                        "environment": "testnet",
+                        "validation_status": "UNVALIDATED_TESTNET_EXPERIMENT",
+                        "strategy": latest_plan.strategy_version,
+                        "symbol": symbol,
+                        "direction": latest_plan.direction,
+                        "client_order_id": scale_order_id,
+                        "predictive_limit_price": format(scale.predictive_price, "f"),
+                        "execution_mode": scale_execution_mode,
+                        "order_status": (
+                            None if scale_document is None else scale_document.get("status")
+                        ),
+                        "executed_quantity": format(added_quantity, "f"),
+                        "completed_at": datetime.now(UTC)
+                        .isoformat()
+                        .replace("+00:00", "Z"),
+                        "production_endpoint_requests": 0,
+                    }
+                )
+            if added_quantity <= 0:
+                if on_position_control is not None:
+                    on_position_control(
+                        _position_control_event(
+                            record_type="TESTNET_POSITION_SCALE_SKIPPED",
+                            plan=latest_plan,
+                            reason_code=scale_execution_mode,
+                        )
+                    )
+                continue
+            signed_position = _position_quantity(client, symbol)
+            if (latest_plan.direction is Direction.LONG and signed_position <= 0) or (
+                latest_plan.direction is Direction.SHORT and signed_position >= 0
+            ):
+                raise TestnetProbeError("EXPERIMENT_POSITION_CLOSED_DURING_SCALE")
+            new_quantity, new_entry = _position_snapshot(client, symbol, latest_plan.direction)
+            combined_plan = replace(latest_plan, stop_anchor=stop_trigger)
+            new_stop, new_target = quantize_protection(
+                combined_plan,
+                actual_entry=new_entry,
+                tick_size=tick_size,
+            )
+            _, _, new_target_net, new_stop_loss = estimated_position_outcomes(
+                quantity=new_quantity,
+                actual_entry=new_entry,
+                stop_trigger=new_stop,
+                target_trigger=new_target,
+                taker_fee_rate=taker_fee_rate,
+                adverse_slippage_rate=risk_sizing_slippage_rate,
+            )
+            if new_stop_loss > maximum_net_loss:
+                raise TestnetProbeError("EXPERIMENT_SCALE_FILL_EXCEEDS_LOSS_BUDGET")
+            if new_target_net < minimum_estimated_net_target:
+                raise TestnetProbeError("EXPERIMENT_SCALE_FILL_NET_TARGET_INSUFFICIENT")
+            stop_final_status = _terminalize_algo_after_flat(
+                client,
+                symbol=symbol,
+                algo_id=stop_id,
+                client_algo_id=stop_client_id,
+            )
+            target_final_status = _terminalize_algo_after_flat(
+                client,
+                symbol=symbol,
+                algo_id=target_id,
+                client_algo_id=target_client_id,
+            )
+            stop_client_id = f"aqa-t-scale-sl-{secrets.token_hex(5)}"
+            target_client_id = f"aqa-t-scale-tp-{secrets.token_hex(5)}"
+            stop_doc = _place_protection(
+                client,
+                symbol=symbol,
+                side=close_side,
+                client_algo_id=stop_client_id,
+                order_type="STOP_MARKET",
+                trigger_price=new_stop,
+            )
+            stop_id = _confirmed_algo_id(stop_doc, stop_client_id, "STOP")
+            _require_algo_new(client, symbol, stop_id, stop_client_id, "STOP")
+            target_doc = _place_protection(
+                client,
+                symbol=symbol,
+                side=close_side,
+                client_algo_id=target_client_id,
+                order_type="TAKE_PROFIT_MARKET",
+                trigger_price=new_target,
+            )
+            target_id = _confirmed_algo_id(target_doc, target_client_id, "TAKE_PROFIT")
+            _require_algo_new(client, symbol, target_id, target_client_id, "TAKE_PROFIT")
+            quantity = new_quantity
+            actual_entry = new_entry
+            stop_trigger = new_stop
+            target_trigger = new_target
+            current_plan = latest_plan
+            effective_margin_budget += scale.effective_margin_budget
+            maker_executed_quantity += added_quantity
+            scale_in_count += 1
+            if on_position_control is not None:
+                scaled_event = _protected_position_event(
+                    plan=current_plan,
+                    leverage=leverage,
+                    quantity=quantity,
+                    actual_entry=actual_entry,
+                    stop_trigger=stop_trigger,
+                    target_trigger=target_trigger,
+                    effective_margin_budget=effective_margin_budget,
+                    taker_fee_rate=taker_fee_rate,
+                    entry_execution_mode=scale_execution_mode,
+                    predictive_limit_price=scale.predictive_price,
+                    predicted_pullback_bps=scale.predicted_pullback_bps,
+                    directional_forecast_bps=scale.directional_forecast_bps,
+                    predictive_entry_model=scale.predictive_entry_model,
+                )
+                scaled_event["record_type"] = "TESTNET_POSITION_SCALED_AND_REPROTECTED"
+                scaled_event["added_quantity"] = format(added_quantity, "f")
+                scaled_event["scale_in_count"] = scale_in_count
+                on_position_control(scaled_event)
+        if exit_reason == "SIGNAL_REVERSAL":
+            pass
+        elif _position_quantity(client, symbol) != 0:
             closed = _flatten_position(client, symbol)
             if closed is None or closed.get("status") != "FILLED":
                 raise TestnetProbeError("EXPERIMENT_OPERATOR_EXIT_NOT_FILLED")
@@ -468,7 +924,9 @@ def run_structural_experiment(
             except TestnetProbeError:
                 pass
 
-    trades = _load_run_trades(client, symbol, server_time_ms, sleep)
+    trades = _load_run_trades(
+        client, symbol, server_time_ms, sleep, expected_exit_side=close_side
+    )
     realized = sum((Decimal(str(item.get("realizedPnl", "0"))) for item in trades), Decimal(0))
     commission = sum((Decimal(str(item.get("commission", "0"))) for item in trades), Decimal(0))
     net = realized - commission
@@ -496,6 +954,7 @@ def run_structural_experiment(
         "directional_forecast_bps": format(directional_forecast_bps, "f"),
         "predictive_entry_model": predictive_entry_model,
         "maker_executed_quantity": format(maker_executed_quantity, "f"),
+        "scale_in_count": scale_in_count,
         "maximum_net_loss_budget": format(maximum_net_loss, "f"),
         "minimum_estimated_net_target": format(minimum_estimated_net_target, "f"),
         "risk_sizing_slippage_rate": format(risk_sizing_slippage_rate, "f"),
@@ -773,10 +1232,14 @@ def _load_run_trades(
     symbol: str,
     start_time_ms: int,
     sleep: Callable[[float], None],
+    *,
+    expected_exit_side: str,
 ) -> list[dict[str, Any]]:
     for _ in range(10):
         trades = client.account_trades(symbol, start_time_ms=start_time_ms)
-        if len(trades) >= 2:
+        if len(trades) >= 2 and any(
+            str(item.get("side")) == expected_exit_side for item in trades
+        ):
             return trades
         sleep(0.2)
     raise TestnetProbeError("EXPERIMENT_TRADES_INCOMPLETE")

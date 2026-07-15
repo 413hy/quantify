@@ -13,6 +13,8 @@ while true; do
     .status == "RUNNING"
     and (.active_symbols | type == "array")
     and (.active_symbols | length == 0)
+    and (.pending_entry_symbols | type == "array")
+    and (.pending_entry_symbols | length == 0)
   ' "$state_file" >/dev/null; then
     break
   fi
@@ -25,7 +27,7 @@ for _attempt in $(seq 1 30); do
   if systemctl is-active --quiet "$service" \
     && jq -e '
       .status == "RUNNING"
-      and .strategy == "TESTNET_EXPERIMENT_OF_PA_V4_6"
+      and .strategy == "TESTNET_EXPERIMENT_OF_PA_V4_8"
       and .symbols == ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"]
     ' "$state_file" >/dev/null; then
     exit 0

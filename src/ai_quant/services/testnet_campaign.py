@@ -16,7 +16,10 @@ from pathlib import Path
 from queue import Empty, SimpleQueue
 from typing import Any, cast
 
-from ai_quant.binance_egress.structural_experiment import run_structural_experiment
+from ai_quant.binance_egress.structural_experiment import (
+    PositionSignalControl,
+    run_structural_experiment,
+)
 from ai_quant.binance_egress.testnet_probe import (
     BinanceTestnetClient,
     TestnetProbeError,
@@ -36,6 +39,7 @@ from ai_quant.strategy.testnet_baseline import (
     TESTNET_EXPERIMENT_SYMBOLS,
     TESTNET_IMPULSE_ENTRY_SYMBOLS,
     TestnetBaselineDecision,
+    TestnetExperimentalPlan,
     TestnetSignalParameters,
     build_market_impulse_plan,
     evaluate_testnet_baseline,
@@ -191,6 +195,9 @@ class TestnetCampaign:
             thread_name_prefix="testnet-experiment",
         )
         self.active_trades: dict[str, Future[dict[str, Any]]] = {}
+        self.position_controls: dict[str, PositionSignalControl] = {}
+        self.position_directions: dict[str, Direction] = {}
+        self.reversal_plans: dict[str, TestnetExperimentalPlan] = {}
         self.protected_symbols: set[str] = set()
         self.position_events: SimpleQueue[dict[str, Any]] = SimpleQueue()
         self.stop_requested = False
@@ -215,10 +222,11 @@ class TestnetCampaign:
                 f"候选池: {', '.join(self.symbols)}\n"
                 f"节奏: 每 {self.limits.evaluation_interval_seconds} 秒评估, 最多选择 "
                 f"{self.limits.maximum_candidates_per_round} 个有效信号\n"
-                "入场: 方向化预测回撤限价, 未成交即放弃, 不使用市价追单\n"
+                "入场: 同向预测门控 + 最优被动报价, 未成交即放弃, 不使用市价追单\n"
                 f"仓位: 最多 {self._parallel_limit()} 个; 单笔保证金不超过 "
                 f"{self.limits.margin_budget} USDT\n"
-                "退出: 交易所原生止盈/止损"
+                "持仓信号: 最新有效信号接管; 同向可加仓, 反向先平后换向\n"
+                "退出: 交易所原生止盈/止损或有效反向信号"
             ),
             key=f"campaign-start-{state['started_at']}",
         )
@@ -275,7 +283,7 @@ class TestnetCampaign:
         stopped_by_operator = self.stop_requested
         self.stop_requested = True
         while self.active_trades:
-            self._drain_position_events()
+            self._drain_position_events(state)
             self._reap_completed_trades(state)
             if self.active_trades:
                 time.sleep(1)
@@ -293,7 +301,7 @@ class TestnetCampaign:
         return result_code
 
     def _evaluate_once(self, state: dict[str, Any]) -> dict[str, Any]:
-        self._drain_position_events()
+        self._drain_position_events(state)
         self._reap_completed_trades(state)
         _, server_offset_ms = self.client.synchronize_time()
         worker_count = self._parallel_limit()
@@ -342,6 +350,7 @@ class TestnetCampaign:
             state,
             decisions,
             active_symbols=set(self.active_trades),
+            controllable_symbols=set(self.protected_symbols),
             evaluation_round=int(state["evaluation_round_count"]),
             required_rounds=self.limits.signal_confirmation_rounds,
             minimum_quality_score=self.limits.minimum_signal_quality_score,
@@ -351,32 +360,89 @@ class TestnetCampaign:
             impulse_required_rounds=self.limits.impulse_confirmation_rounds,
             impulse_minimum_activity_ratio=self.limits.impulse_minimum_activity_ratio,
         )
+        self._submit_reversal_plans(state, observed_at)
+        candidates = sorted(confirmed, key=_experimental_candidate_rank)
+        pending = cast(dict[str, dict[str, object]], state["pending_signals"])
+        new_position_plans: list[TestnetExperimentalPlan] = []
+        actionable_count = 0
+        dispatched = cast(
+            dict[str, str], state.setdefault("position_control_dispatch_episodes", {})
+        )
+        for decision in candidates:
+            if actionable_count >= self.limits.maximum_candidates_per_round:
+                break
+            plan = decision.experimental_plan
+            if plan is None:
+                continue
+            signal_state = pending.get(plan.symbol, {})
+            consecutive = int(str(signal_state.get("consecutive_rounds", 1)))
+            plan = replace(
+                plan,
+                signal_confirmation_rounds=consecutive,
+                aggressive_notional_ratio=Decimal(
+                    str(signal_state.get("aggressive_notional_ratio", "0"))
+                ),
+            )
+            if plan.symbol in self.active_trades and plan.symbol not in self.protected_symbols:
+                continue
+            if plan.symbol not in self.protected_symbols:
+                new_position_plans.append(plan)
+                actionable_count += 1
+                continue
+            episode_start = int(state["evaluation_round_count"]) - consecutive + 1
+            episode_key = f"{plan.direction}:{plan.setup_type}:{episode_start}"
+            if dispatched.get(plan.symbol) == episode_key:
+                continue
+            control = self.position_controls.get(plan.symbol)
+            if control is None:
+                continue
+            if self.position_directions.get(plan.symbol) is plan.direction:
+                allowed, reason = campaign_trade_allowed(
+                    now=observed_at,
+                    last_trade_at=None,
+                    daily_trade_count=(
+                        int(state["daily_trade_count"]) + len(self.active_trades)
+                    ),
+                    daily_net_pnl=Decimal(str(state["daily_net_pnl"])),
+                    limits=self.limits,
+                )
+                if not allowed:
+                    event = plan.evidence()
+                    event.update(
+                        {
+                            "record_type": "TESTNET_POSITION_SCALE_BLOCKED",
+                            "observed_at": observed_at.isoformat().replace(
+                                "+00:00", "Z"
+                            ),
+                            "reason_code": str(reason),
+                        }
+                    )
+                    self._append_event(event)
+                    continue
+            control.submit(plan)
+            dispatched[plan.symbol] = episode_key
+            actionable_count += 1
+            event = plan.evidence()
+            event.update(
+                {
+                    "record_type": "TESTNET_POSITION_SIGNAL_DISPATCHED",
+                    "observed_at": observed_at.isoformat().replace("+00:00", "Z"),
+                    "signal_episode": episode_key,
+                    "position_control_policy": "LATEST_CONFIRMED_SIGNAL_OWNS_POSITION",
+                }
+            )
+            self._append_event(event)
+
         available = min(
             self._parallel_limit() - len(self.active_trades),
             self.limits.maximum_candidates_per_round,
         )
         if available <= 0:
             return
-        candidates = sorted(
-            confirmed,
-            key=_experimental_candidate_rank,
-        )
         last_by_symbol = cast(dict[str, str], state.setdefault("last_trade_by_symbol", {}))
-        for decision in candidates:
+        for plan in new_position_plans:
             if available <= 0:
                 break
-            plan = decision.experimental_plan
-            if plan is None:
-                continue
-            pending = cast(dict[str, dict[str, object]], state["pending_signals"])
-            signal_state = pending.get(plan.symbol, {})
-            plan = replace(
-                plan,
-                signal_confirmation_rounds=int(str(signal_state.get("consecutive_rounds", 1))),
-                aggressive_notional_ratio=Decimal(
-                    str(signal_state.get("aggressive_notional_ratio", "0"))
-                ),
-            )
             last_value = last_by_symbol.get(plan.symbol)
             allowed, reason = campaign_trade_allowed(
                 now=observed_at,
@@ -396,41 +462,91 @@ class TestnetCampaign:
                 )
                 self._append_event(event)
                 continue
-            future = self.trade_executor.submit(
-                run_structural_experiment,
-                api_key_file=self.api_key_file,
-                api_secret_file=self.api_secret_file,
-                repository_root=self.repository_root,
-                plan=plan,
-                margin_budget=self.limits.margin_budget,
-                maximum_net_loss=self.limits.maximum_net_loss_per_trade,
-                minimum_estimated_net_target=self.limits.minimum_estimated_net_target,
-                risk_sizing_slippage_rate=(self.limits.risk_sizing_slippage_bps / Decimal(10_000)),
-                on_entry_attempt=self.position_events.put,
-                on_position_protected=self.position_events.put,
-                stop_requested=lambda: self.stop_requested,
-            )
-            self.active_trades[plan.symbol] = future
-            pending.pop(plan.symbol, None)
-            state["submitted_trade_count"] = int(state.get("submitted_trade_count", 0)) + 1
-            timestamp = observed_at.isoformat().replace("+00:00", "Z")
-            event = plan.evidence()
-            event.update(
-                {
-                    "record_type": "TESTNET_EXPERIMENT_SUBMITTED",
-                    "observed_at": timestamp,
-                    "decision_authority": "TESTNET_DETERMINISTIC_RULE",
-                    "validation_status": "UNVALIDATED_TESTNET_EXPERIMENT",
-                }
-            )
-            self._append_event(event)
+            self._launch_experiment(state, plan, observed_at, submission_reason="NEW_SIGNAL")
             available -= 1
+
+    def _submit_reversal_plans(
+        self, state: dict[str, Any], observed_at: datetime
+    ) -> None:
+        for symbol, plan in list(self.reversal_plans.items()):
+            if len(self.active_trades) >= self._parallel_limit():
+                return
+            if symbol in self.active_trades:
+                continue
+            del self.reversal_plans[symbol]
+            allowed, reason = campaign_trade_allowed(
+                now=observed_at,
+                last_trade_at=None,
+                daily_trade_count=int(state["daily_trade_count"]) + len(self.active_trades),
+                daily_net_pnl=Decimal(str(state["daily_net_pnl"])),
+                limits=self.limits,
+            )
+            if not allowed:
+                event = plan.evidence()
+                event.update(
+                    {
+                        "record_type": "TESTNET_SIGNAL_REVERSAL_BLOCKED",
+                        "observed_at": observed_at.isoformat().replace("+00:00", "Z"),
+                        "reason_code": str(reason),
+                    }
+                )
+                self._append_event(event)
+                continue
+            self._launch_experiment(
+                state, plan, observed_at, submission_reason="SIGNAL_REVERSAL"
+            )
+
+    def _launch_experiment(
+        self,
+        state: dict[str, Any],
+        plan: TestnetExperimentalPlan,
+        observed_at: datetime,
+        *,
+        submission_reason: str,
+    ) -> None:
+        control = PositionSignalControl()
+        future = self.trade_executor.submit(
+            run_structural_experiment,
+            api_key_file=self.api_key_file,
+            api_secret_file=self.api_secret_file,
+            repository_root=self.repository_root,
+            plan=plan,
+            margin_budget=self.limits.margin_budget,
+            maximum_net_loss=self.limits.maximum_net_loss_per_trade,
+            minimum_estimated_net_target=self.limits.minimum_estimated_net_target,
+            risk_sizing_slippage_rate=(
+                self.limits.risk_sizing_slippage_bps / Decimal(10_000)
+            ),
+            on_entry_attempt=self.position_events.put,
+            on_position_protected=self.position_events.put,
+            on_position_control=self.position_events.put,
+            position_control=control,
+            stop_requested=lambda: self.stop_requested,
+        )
+        self.active_trades[plan.symbol] = future
+        self.position_controls[plan.symbol] = control
+        pending = cast(dict[str, dict[str, object]], state["pending_signals"])
+        pending.pop(plan.symbol, None)
+        state["submitted_trade_count"] = int(state.get("submitted_trade_count", 0)) + 1
+        event = plan.evidence()
+        event.update(
+            {
+                "record_type": "TESTNET_EXPERIMENT_SUBMITTED",
+                "observed_at": observed_at.isoformat().replace("+00:00", "Z"),
+                "decision_authority": "TESTNET_DETERMINISTIC_RULE",
+                "validation_status": "UNVALIDATED_TESTNET_EXPERIMENT",
+                "submission_reason": submission_reason,
+            }
+        )
+        self._append_event(event)
 
     def _reap_completed_trades(self, state: dict[str, Any]) -> None:
         for symbol, future in list(self.active_trades.items()):
             if not future.done():
                 continue
             del self.active_trades[symbol]
+            control = self.position_controls.pop(symbol, None)
+            self.position_directions.pop(symbol, None)
             self.protected_symbols.discard(symbol)
             try:
                 result = future.result()
@@ -439,6 +555,7 @@ class TestnetCampaign:
                 expected_skip = isinstance(exc, TestnetProbeError) and str(exc) in {
                     "EXPERIMENT_PREDICTIVE_LIMIT_NOT_FILLED",
                     "EXPERIMENT_PREDICTIVE_EDGE_INSUFFICIENT",
+                    "EXPERIMENT_PREDICTIVE_DIRECTION_CONFLICT",
                 }
                 self._append_event(
                     {
@@ -462,6 +579,12 @@ class TestnetCampaign:
                     key=f"experiment-error-{symbol}-{occurred_at:%Y%m%d%H%M%S}",
                 )
                 continue
+            if (
+                result.get("exit_reason") == "SIGNAL_REVERSAL"
+                and control is not None
+                and control.replacement_plan is not None
+            ):
+                self.reversal_plans[symbol] = control.replacement_plan
             self._append_event(result)
             net = Decimal(str(result["net_pnl"]))
             state["trade_count"] = int(state["trade_count"]) + 1
@@ -495,16 +618,50 @@ class TestnetCampaign:
                 key=f"experiment-result-{symbol}-{result['completed_at']}",
             )
 
-    def _drain_position_events(self) -> None:
+    def _drain_position_events(self, state: dict[str, Any]) -> None:
         while True:
             try:
                 event = self.position_events.get_nowait()
             except Empty:
                 return
             self._append_event(event)
-            if event.get("record_type") != "TESTNET_POSITION_PROTECTED":
+            record_type = event.get("record_type")
+            if record_type not in {
+                "TESTNET_POSITION_PROTECTED",
+                "TESTNET_POSITION_SCALED_AND_REPROTECTED",
+            }:
                 continue
             self.protected_symbols.add(str(event["symbol"]))
+            self.position_directions[str(event["symbol"])] = Direction(
+                str(event["direction"])
+            )
+            if record_type == "TESTNET_POSITION_SCALED_AND_REPROTECTED":
+                state["submitted_trade_count"] = (
+                    int(state.get("submitted_trade_count", 0)) + 1
+                )
+                state["daily_trade_count"] = int(state["daily_trade_count"]) + 1
+                self._notify(
+                    severity="INFO",
+                    event_type="测试网同向信号已加仓并重设保护",
+                    summary=(
+                        f"{event['symbol']} | "
+                        f"{'做多' if event['direction'] == 'LONG' else '做空'} | "
+                        f"{event['initial_leverage']}x\n"
+                        f"本次增加: {event['added_quantity']} | "
+                        f"当前总量: {event['quantity']}\n"
+                        f"加权入场: {event['entry_price']}\n"
+                        "────────────\n"
+                        f"整仓止盈: {event['target_trigger']} | 预计 +"
+                        f"{_money(event['estimated_target_net_pnl'])} U\n"
+                        f"整仓止损: {event['stop_trigger']} | 预计 -"
+                        f"{_money(event['estimated_stop_net_loss'])} U"
+                    ),
+                    key=(
+                        f"experiment-scaled-{event['symbol']}-"
+                        f"{event['protected_at']}"
+                    ),
+                )
+                continue
             self._notify(
                 severity="INFO",
                 event_type="测试网仓位已建立并完成保护",
@@ -773,6 +930,7 @@ def _exit_reason_cn(reason: str) -> str:
     return {
         "TAKE_PROFIT": "达到止盈目标",
         "STOP_LOSS": "跌破/突破结构止损",
+        "SIGNAL_REVERSAL": "最新反向信号接管仓位",
         "OPERATOR_SERVICE_STOP": "服务停止时人工平仓",
         "NATIVE_EXIT_UNCLASSIFIED": "交易所原生保护单平仓",
     }.get(reason, reason)
@@ -817,6 +975,7 @@ def _update_pending_signals(
     decisions: list[TestnetBaselineDecision],
     *,
     active_symbols: set[str],
+    controllable_symbols: set[str] | None = None,
     evaluation_round: int,
     required_rounds: int,
     minimum_quality_score: Decimal,
@@ -827,6 +986,8 @@ def _update_pending_signals(
     impulse_minimum_activity_ratio: Decimal | None = None,
 ) -> list[TestnetBaselineDecision]:
     """Require consecutive same-direction evidence without treating slots as a target."""
+    controllable = set() if controllable_symbols is None else controllable_symbols
+    blocked_symbols = active_symbols - controllable
     pending = cast(dict[str, dict[str, object]], state.setdefault("pending_signals", {}))
     activity_history = cast(
         dict[str, list[str]], state.setdefault("aggressive_notional_history", {})
@@ -845,7 +1006,7 @@ def _update_pending_signals(
 
     current_symbols = {decision.symbol for decision in decisions}
     for symbol in list(pending):
-        if symbol not in current_symbols or symbol in active_symbols:
+        if symbol not in current_symbols or symbol in blocked_symbols:
             pending.pop(symbol, None)
 
     confirmed: list[TestnetBaselineDecision] = []
@@ -874,7 +1035,7 @@ def _update_pending_signals(
             continue
         diagnostics["plan_count"] = int(str(diagnostics["plan_count"])) + 1
         reason = "WAITING_CONFIRMATION"
-        if plan.symbol in active_symbols:
+        if plan.symbol in blocked_symbols:
             reason = "ALREADY_IN_FLIGHT"
         elif plan.signal_quality_score < minimum_quality_score:
             reason = "QUALITY_BELOW_THRESHOLD"
@@ -1085,6 +1246,7 @@ def _money(value: object) -> str:
 
 def _predictive_entry_model_cn(value: str) -> str:
     return {
+        "FORECAST_ALIGNED_BEST_QUOTE": "方向一致预测 + 最优被动报价",
         "FORECAST_CONTINUATION_RETRACE": "趋势延续回撤入场",
         "FORECAST_MEAN_REVERSION_RETRACE": "预测反弹/回落入场",
     }.get(value, value)
