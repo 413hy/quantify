@@ -27,6 +27,8 @@ from ai_quant.notifications import (
     TelegramSender,
 )
 from ai_quant.strategy.testnet_baseline import (
+    TESTNET_EXPERIMENT_STRATEGY_VERSION,
+    TESTNET_EXPERIMENT_SYMBOLS,
     TestnetBaselineDecision,
     TestnetSignalParameters,
     evaluate_testnet_baseline,
@@ -36,18 +38,18 @@ from ai_quant.strategy.testnet_baseline import (
 @dataclass(frozen=True, slots=True)
 class CampaignLimits:
     duration_seconds: int = 259_200
-    evaluation_interval_seconds: int = 60
-    trade_cooldown_seconds: int = 300
-    maximum_trades_per_day: int = 8
+    evaluation_interval_seconds: int = 10
+    trade_cooldown_seconds: int = 60
+    maximum_trades_per_day: int = 100
     daily_net_loss_limit: Decimal = Decimal("1.00")
     margin_budget: Decimal = Decimal("1")
-    maximum_net_loss_per_trade: Decimal = Decimal("0.35")
+    maximum_net_loss_per_trade: Decimal = Decimal("1.00")
     maximum_parallel_positions: int = 5
-    signal_confirmation_rounds: int = 2
+    signal_confirmation_rounds: int = 3
     minimum_signal_quality_score: Decimal = Decimal("2.00")
     minimum_estimated_net_target: Decimal = Decimal("0.10")
     risk_sizing_slippage_bps: Decimal = Decimal("12.00")
-    maximum_entry_spread_bps: Decimal = Decimal("8.00")
+    maximum_entry_spread_bps: Decimal = Decimal("5.00")
     minimum_trade_imbalance: Decimal = Decimal("0.25")
     minimum_book_imbalance: Decimal = Decimal("0.03")
     minimum_microprice_bps: Decimal = Decimal("0.10")
@@ -55,7 +57,7 @@ class CampaignLimits:
     maximum_opposing_microprice_bps: Decimal = Decimal("0.25")
     aggressive_notional_lookback_rounds: int = 12
     minimum_aggressive_notional_samples: int = 6
-    minimum_aggressive_notional_ratio: Decimal = Decimal("0.50")
+    minimum_aggressive_notional_ratio: Decimal = Decimal("2.00")
 
     def __post_init__(self) -> None:
         if not 60 <= self.duration_seconds <= 604_800:
@@ -140,10 +142,8 @@ class TestnetCampaign:
         self.repository_root = repository_root
         self.evidence_directory = evidence_directory
         self.state_file = state_file
-        if not symbols or len(symbols) > 10 or len(set(symbols)) != len(symbols):
-            raise ValueError("campaign symbols must contain 1 to 10 unique entries")
-        if any(not symbol.isalnum() or symbol != symbol.upper() for symbol in symbols):
-            raise ValueError("campaign symbols are invalid")
+        if symbols != TESTNET_EXPERIMENT_SYMBOLS:
+            raise ValueError("campaign symbols must match the fixed V4 universe")
         self.symbols = symbols
         self.limits = limits
         config = TelegramFileConfig.load(token_file, chat_ids_file)
@@ -570,11 +570,13 @@ class TestnetCampaign:
             if not isinstance(loaded, dict) or not all(isinstance(key, str) for key in loaded):
                 raise ValueError("campaign state document is invalid")
             document = cast(dict[str, Any], loaded)
-            if document.get("status") == "RUNNING" and document.get("symbols") == list(
-                self.symbols
+            if (
+                document.get("status") == "RUNNING"
+                and document.get("symbols") == list(self.symbols)
+                and document.get("strategy") == TESTNET_EXPERIMENT_STRATEGY_VERSION
             ):
                 document["limits"] = self._limits_document()
-                document["strategy"] = "TESTNET_EXPERIMENT_OF_PA_V3"
+                document["strategy"] = TESTNET_EXPERIMENT_STRATEGY_VERSION
                 document["validation_status"] = "UNVALIDATED_TESTNET_EXPERIMENT"
                 document["decision_authority"] = "TESTNET_DETERMINISTIC_RULE"
                 document["codex_dependency"] = False
@@ -602,7 +604,7 @@ class TestnetCampaign:
             "schema_version": "1.0.0",
             "status": "RUNNING",
             "environment": "testnet",
-            "strategy": "TESTNET_EXPERIMENT_OF_PA_V3",
+            "strategy": TESTNET_EXPERIMENT_STRATEGY_VERSION,
             "validation_status": "UNVALIDATED_TESTNET_EXPERIMENT",
             "decision_authority": "TESTNET_DETERMINISTIC_RULE",
             "codex_dependency": False,
@@ -878,14 +880,14 @@ def main() -> int:
     parser.add_argument("--evidence-directory", required=True, type=Path)
     parser.add_argument("--state-file", required=True, type=Path)
     parser.add_argument("--lock-file", required=True, type=Path)
-    parser.add_argument("--symbols", default="SOLUSDT,BNBUSDT,XRPUSDT,DOGEUSDT,ADAUSDT")
+    parser.add_argument("--symbols", default=",".join(TESTNET_EXPERIMENT_SYMBOLS))
     parser.add_argument("--duration-seconds", type=int, default=259_200)
     parser.add_argument("--evaluation-interval-seconds", type=int, default=60)
     parser.add_argument("--trade-cooldown-seconds", type=int, default=300)
     parser.add_argument("--maximum-trades-per-day", type=int, default=8)
     parser.add_argument("--daily-net-loss-limit", type=Decimal, default=Decimal("1.00"))
     parser.add_argument("--margin-budget", type=Decimal, default=Decimal("1"))
-    parser.add_argument("--maximum-net-loss-per-trade", type=Decimal, default=Decimal("0.35"))
+    parser.add_argument("--maximum-net-loss-per-trade", type=Decimal, default=Decimal("1.00"))
     parser.add_argument("--maximum-parallel-positions", type=int, default=5)
     parser.add_argument("--signal-confirmation-rounds", type=int, default=2)
     parser.add_argument("--minimum-signal-quality-score", type=Decimal, default=Decimal("2.00"))

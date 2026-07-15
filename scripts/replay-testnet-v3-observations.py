@@ -64,9 +64,22 @@ def main() -> int:
             target_bps_override=Decimal("20"),
         ),
         ReplayParameters(
+            "FIXED_TARGET_20_ACTIVITY_2_SPREAD_5",
+            minimum_activity_ratio=Decimal("2.00"),
+            maximum_spread_bps=Decimal("5.00"),
+            target_bps_override=Decimal("20"),
+        ),
+        ReplayParameters(
             "FIXED_TARGET_20_ACTIVITY_2_CONFIRM_3",
             confirmation_rounds=3,
             minimum_activity_ratio=Decimal("2.00"),
+            target_bps_override=Decimal("20"),
+        ),
+        ReplayParameters(
+            "FIXED_TARGET_20_ACTIVITY_2_CONFIRM_3_SPREAD_5",
+            confirmation_rounds=3,
+            minimum_activity_ratio=Decimal("2.00"),
+            maximum_spread_bps=Decimal("5.00"),
             target_bps_override=Decimal("20"),
         ),
         ReplayParameters("TARGET_50", minimum_target_bps=Decimal("50")),

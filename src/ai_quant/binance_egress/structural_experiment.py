@@ -115,7 +115,7 @@ def run_structural_experiment(
     repository_root: Path,
     plan: TestnetExperimentalPlan,
     margin_budget: Decimal = Decimal("1"),
-    maximum_net_loss: Decimal = Decimal("0.35"),
+    maximum_net_loss: Decimal = Decimal("1.00"),
     minimum_estimated_net_target: Decimal = Decimal("0.10"),
     risk_sizing_slippage_rate: Decimal = Decimal("0.0012"),
     on_position_protected: Callable[[dict[str, Any]], None] | None = None,

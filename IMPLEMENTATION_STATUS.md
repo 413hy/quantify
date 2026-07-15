@@ -44,7 +44,7 @@ calibration, 72-hour, or live authorization evidence. No production exchange ord
   but no current command can open a position through that non-strategy path.
 - A three-day Testnet campaign applies an explicitly unvalidated experiment across five
   1-USDT-feasible symbols using closed 1m/5m bars, the latest 20-level book and a five-second
-  aggregate-trade window. V3 can hold zero to five different symbols concurrently with native
+  aggregate-trade window. V4 can hold zero to five fixed-universe symbols concurrently with native
   structural stop/target protection, but requires PA alignment, two consecutive same-direction
   rounds, a minimum quality score and a fee-adjusted target estimate. Five is capacity rather than
   a fill target. The strict production decision remains `REJECT`; the
@@ -132,10 +132,11 @@ calibration, 72-hour, or live authorization evidence. No production exchange ord
   Chinese per-trade and aggregate Telegram notifications passed. Evidence is under
   `/var/lib/ai-quant/evidence/testnet/parallel/20260714-sample-01/`.
 - `aiq-testnet-campaign.service` is enabled for a three-day, owner-authorized Testnet experiment.
-  It can hold zero to five different symbols in parallel, each using the exchange-maximum initial
-  leverage while keeping margin near 1 USDT. ADR 0009 applies the same
+  V4 fixes the universe to BTCUSDT, ETHUSDT, BNBUSDT, SOLUSDT and XRPUSDT and can hold zero to five
+  different symbols in parallel, each using the exchange-maximum initial leverage while keeping
+  margin at or below 1 USDT. ADR 0009 applies the same
   dynamic exchange-maximum policy to future production. Estimated stop, fees and slippage
-  remain within 0.35 USDT per trade; estimated fee-adjusted target must be at least 0.10 USDT,
+  remain within 1.00 USDT per trade; estimated fee-adjusted target must be at least 0.10 USDT,
   with native protection and no elapsed-time exit.
   Results remain unvalidated and do not unlock production trading.
   State and append-only observations are under

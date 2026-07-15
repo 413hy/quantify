@@ -18,6 +18,22 @@ from ai_quant.features.price_action import (
 )
 from ai_quant.market_data.models import AggregateTrade
 
+TESTNET_EXPERIMENT_STRATEGY_VERSION = "TESTNET_EXPERIMENT_OF_PA_V4"
+TESTNET_EXPERIMENT_SYMBOLS = (
+    "BTCUSDT",
+    "ETHUSDT",
+    "BNBUSDT",
+    "SOLUSDT",
+    "XRPUSDT",
+)
+_GROSS_TARGET_BPS_BY_SYMBOL = {
+    "BTCUSDT": Decimal("20"),
+    "ETHUSDT": Decimal("22"),
+    "BNBUSDT": Decimal("25"),
+    "SOLUSDT": Decimal("32"),
+    "XRPUSDT": Decimal("25"),
+}
+
 
 @dataclass(frozen=True, slots=True)
 class TestnetBaselineDecision:
@@ -107,7 +123,7 @@ class TestnetExperimentalPlan:
     aggressive_notional_ratio: Decimal = Decimal(0)
     observed_spread_bps: Decimal = Decimal(0)
     signal_confirmation_rounds: int = 1
-    strategy_version: str = "TESTNET_EXPERIMENT_OF_PA_V3"
+    strategy_version: str = TESTNET_EXPERIMENT_STRATEGY_VERSION
 
     def evidence(self) -> dict[str, str | int]:
         return {
@@ -133,7 +149,7 @@ class TestnetExperimentalPlan:
 class TestnetSignalParameters:
     """Explicit Testnet-only thresholds for a candidate signal."""
 
-    maximum_spread_bps: Decimal = Decimal("8.00")
+    maximum_spread_bps: Decimal = Decimal("5.00")
     minimum_trade_imbalance: Decimal = Decimal("0.25")
     minimum_book_imbalance: Decimal = Decimal("0.03")
     minimum_microprice_bps: Decimal = Decimal("0.10")
@@ -310,10 +326,10 @@ def _experimental_plan(
     risk_bps = risk / entry * Decimal(10_000)
     if not Decimal(30) <= risk_bps <= Decimal(120):
         return None
-    # A 20 bps target left too little after two taker fills and adverse
-    # slippage at the observed 50x-75x notional. Keep this a short target, but
-    # require enough gross distance to leave a meaningful fee-adjusted result.
-    target_bps = max(Decimal(35), min(Decimal(60), risk_bps * Decimal("0.75")))
+    # V4 uses a short gross target sized for each fixed symbol's observed
+    # Testnet leverage. Execution still rejects the order unless the actual
+    # quantity, fee and adverse-slippage estimate leave at least 0.10 USDT net.
+    target_bps = gross_target_bps_for_symbol(symbol)
     target_distance = entry * target_bps / Decimal(10_000)
     target = entry + target_distance if long_flow else entry - target_distance
     sign = Decimal(1) if long_flow else Decimal(-1)
@@ -347,6 +363,14 @@ def _experimental_plan(
         aggressive_notional=order_flow.aggressive_notional,
         observed_spread_bps=spread_bps,
     )
+
+
+def gross_target_bps_for_symbol(symbol: str) -> Decimal:
+    """Return the reviewed V4 gross target for one fixed Testnet symbol."""
+    try:
+        return _GROSS_TARGET_BPS_BY_SYMBOL[symbol]
+    except KeyError as exc:
+        raise ValueError("testnet V4 symbol is outside the fixed universe") from exc
 
 
 def _closed_bars(

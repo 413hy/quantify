@@ -18,11 +18,15 @@ from ai_quant.services.testnet_campaign import (
     _update_pending_signals,
     campaign_trade_allowed,
 )
+from ai_quant.services.testnet_campaign import (
+    TestnetCampaign as Campaign,
+)
 from ai_quant.strategy.testnet_baseline import (
     TestnetSignalParameters as SignalParameters,
 )
 from ai_quant.strategy.testnet_baseline import (
     evaluate_testnet_baseline,
+    gross_target_bps_for_symbol,
 )
 
 
@@ -62,7 +66,7 @@ def test_testnet_baseline_rejects_neutral_price_action_and_unconfirmed_book() ->
 def test_campaign_limits_enforce_cooldown_count_and_daily_loss() -> None:
     limits = CampaignLimits()
     assert limits.maximum_parallel_positions == 5
-    assert limits.signal_confirmation_rounds == 2
+    assert limits.signal_confirmation_rounds == 3
     now = datetime(2026, 7, 14, 12, tzinfo=UTC)
     assert campaign_trade_allowed(
         now=now,
@@ -73,7 +77,7 @@ def test_campaign_limits_enforce_cooldown_count_and_daily_loss() -> None:
     ) == (True, None)
     assert campaign_trade_allowed(
         now=now,
-        last_trade_at=now - timedelta(seconds=299),
+        last_trade_at=now - timedelta(seconds=59),
         daily_trade_count=0,
         daily_net_pnl=Decimal("0"),
         limits=limits,
@@ -81,7 +85,7 @@ def test_campaign_limits_enforce_cooldown_count_and_daily_loss() -> None:
     assert campaign_trade_allowed(
         now=now,
         last_trade_at=None,
-        daily_trade_count=8,
+        daily_trade_count=100,
         daily_net_pnl=Decimal("0"),
         limits=limits,
     ) == (False, "DAILY_TRADE_LIMIT_REACHED")
@@ -92,6 +96,23 @@ def test_campaign_limits_enforce_cooldown_count_and_daily_loss() -> None:
         daily_net_pnl=Decimal("-1.00"),
         limits=limits,
     ) == (False, "DAILY_LOSS_LIMIT_REACHED")
+
+
+def test_v4_campaign_rejects_a_different_symbol_universe() -> None:
+    campaign = object.__new__(Campaign)
+    with pytest.raises(ValueError, match="fixed V4 universe"):
+        Campaign.__init__(
+            campaign,
+            api_key_file=None,  # type: ignore[arg-type]
+            api_secret_file=None,  # type: ignore[arg-type]
+            repository_root=None,  # type: ignore[arg-type]
+            token_file=None,  # type: ignore[arg-type]
+            chat_ids_file=None,  # type: ignore[arg-type]
+            evidence_directory=None,  # type: ignore[arg-type]
+            state_file=None,  # type: ignore[arg-type]
+            symbols=("DOGEUSDT",),
+            limits=CampaignLimits(),
+        )
 
 
 def test_testnet_baseline_accepts_only_fully_confirmed_long(
@@ -212,21 +233,21 @@ def test_testnet_experiment_builds_structural_stop_without_time_exit(
     plan = decision.experimental_plan
     assert plan is not None
     assert plan.stop_anchor == Decimal("75.780")
-    assert (
-        Decimal("35")
-        <= ((plan.target_reference - plan.entry_reference) / plan.entry_reference * Decimal(10_000))
-        <= Decimal("60")
-    )
+    assert (plan.target_reference - plan.entry_reference) / plan.entry_reference * Decimal(
+        10_000
+    ) == Decimal("32")
+    assert plan.strategy_version == "TESTNET_EXPERIMENT_OF_PA_V4"
     assert "maximum_holding" not in str(plan.evidence()).lower()
 
 
-def test_fee_adjusted_v2_target_is_larger_than_v1_target() -> None:
-    entry = Decimal("100")
-    risk_bps = Decimal("30")
-    target_bps = max(Decimal(35), min(Decimal(60), risk_bps * Decimal("0.75")))
-
-    assert entry * target_bps / Decimal(10_000) == Decimal("0.35")
-    assert target_bps > Decimal("20")
+def test_v4_target_matches_fixed_symbol_execution_economics() -> None:
+    assert gross_target_bps_for_symbol("BTCUSDT") == Decimal("20")
+    assert gross_target_bps_for_symbol("ETHUSDT") == Decimal("22")
+    assert gross_target_bps_for_symbol("BNBUSDT") == Decimal("25")
+    assert gross_target_bps_for_symbol("SOLUSDT") == Decimal("32")
+    assert gross_target_bps_for_symbol("XRPUSDT") == Decimal("25")
+    with pytest.raises(ValueError, match="outside the fixed universe"):
+        gross_target_bps_for_symbol("ADAUSDT")
 
 
 def test_experimental_candidates_prefer_price_action_alignment() -> None:
