@@ -19,6 +19,14 @@ class ReplayParameters:
     activity_lookback_rounds: int = 12
     minimum_activity_samples: int = 6
     minimum_target_bps: Decimal | None = None
+    target_bps_override: Decimal | None = None
+
+    def __post_init__(self) -> None:
+        if self.minimum_target_bps is not None and self.target_bps_override is not None:
+            raise ValueError("replay target controls are mutually exclusive")
+        for value in (self.minimum_target_bps, self.target_bps_override):
+            if value is not None and value <= 0:
+                raise ValueError("replay target distance must be positive")
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,7 +149,11 @@ def replay_observations(
         entry = Decimal(str(plan["entry_reference"]))
         stop = Decimal(str(plan["stop_anchor"]))
         target = Decimal(str(plan["target_reference"]))
-        if parameters.minimum_target_bps is not None:
+        if parameters.target_bps_override is not None:
+            target_bps = parameters.target_bps_override
+            distance = entry * target_bps / Decimal(10_000)
+            target = entry + distance if direction == "LONG" else entry - distance
+        elif parameters.minimum_target_bps is not None:
             recorded_target_bps = abs(target - entry) / entry * Decimal(10_000)
             target_bps = max(recorded_target_bps, parameters.minimum_target_bps)
             distance = entry * target_bps / Decimal(10_000)
@@ -184,6 +196,11 @@ def replay_observations(
                 None
                 if parameters.minimum_target_bps is None
                 else format(parameters.minimum_target_bps, "f")
+            ),
+            "target_bps_override": (
+                None
+                if parameters.target_bps_override is None
+                else format(parameters.target_bps_override, "f")
             ),
         },
         "observation_count": len(observations),

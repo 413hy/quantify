@@ -78,6 +78,42 @@ def test_replay_can_counterfactually_expand_the_minimum_target_distance() -> Non
     assert Decimal(str(report["net_bps"])) == Decimal("40")
 
 
+def test_replay_can_counterfactually_override_the_target_distance() -> None:
+    start = datetime(2026, 7, 15, tzinfo=UTC)
+    documents = [
+        _observation(start + timedelta(seconds=index * 10), mid=mid, plan=index in {1, 2})
+        for index, mid in enumerate(("100", "100", "100", "100.2"))
+    ]
+
+    report = replay_observations(
+        documents,
+        ReplayParameters(
+            "TEST",
+            activity_lookback_rounds=3,
+            minimum_activity_samples=2,
+            target_bps_override=Decimal("20"),
+        ),
+        start_at=start,
+    )
+
+    assert report["closed_trades"] == 1
+    assert report["target_count"] == 1
+    assert Decimal(str(report["net_bps"])) == Decimal("10")
+
+
+def test_replay_rejects_conflicting_target_controls() -> None:
+    try:
+        ReplayParameters(
+            "TEST",
+            minimum_target_bps=Decimal("20"),
+            target_bps_override=Decimal("20"),
+        )
+    except ValueError as error:
+        assert str(error) == "replay target controls are mutually exclusive"
+    else:
+        raise AssertionError("conflicting target controls must fail")
+
+
 def _observation(
     observed_at: datetime,
     *,

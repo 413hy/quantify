@@ -57,6 +57,12 @@ Profit Factor 为 `0.3125`。低交易量与负收益同时存在：增加活动
 两个为正的筛选只有 3 笔或 1 笔，并且都来自同一小段样本内调参，不能据此上线。把止盈简单
 扩大到 50 或 60 bps 明显降低命中率，也不能解决问题。
 
+针对约 20 bps 毛价格波动的“蚊子肉”目标又执行了一组固定目标回放。12、15、18、20、22、
+25、30、35 bps 八个目标全部为负。20 bps 将胜率提高到 `58.82%`，但双边 8 bps 手续费及
+2 bps 不利滑点后，每次止盈仅剩约 10 bps，而结构止损约亏 40 bps，17 笔合计仍为
+`-180 bps`。增加 2 倍成交活跃度过滤后胜率为 `66.67%`、9 笔合计 `-60 bps`；再要求
+连续确认 3 轮虽得到 3/3、`+30 bps`，样本仍小到不能采信。
+
 ## 旧结构代理复核
 
 原有 1m/5m K 线结构代理也重新执行。它只有 2 笔完成交易、0 胜，按 10 USDT 名义价值净亏
@@ -94,4 +100,3 @@ Profit Factor 为 `0.3125`。低交易量与负收益同时存在：增加活动
 - `/var/lib/ai-quant/evidence/testnet/backtest/20260715-review/v3-actual-results.json`
 - `/var/lib/ai-quant/evidence/testnet/backtest/20260715-review/v3-observation-replay.json`
 - `/var/lib/ai-quant/evidence/testnet/backtest/20260715-review/structural-review.json`
-
