@@ -3,7 +3,7 @@ set -euo pipefail
 
 state_file=/var/lib/ai-quant/evidence/testnet/campaign/current/state.json
 service=aiq-testnet-campaign.service
-lock_file=/run/ai-quant/testnet-v4-cutover.lock
+lock_file=/run/ai-quant/testnet-campaign-cutover.lock
 
 exec 9>"$lock_file"
 flock -n 9
@@ -25,7 +25,7 @@ for _attempt in $(seq 1 30); do
   if systemctl is-active --quiet "$service" \
     && jq -e '
       .status == "RUNNING"
-      and .strategy == "TESTNET_EXPERIMENT_OF_PA_V4"
+      and .strategy == "TESTNET_EXPERIMENT_OF_PA_V4_3"
       and .symbols == ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"]
     ' "$state_file" >/dev/null; then
     exit 0
