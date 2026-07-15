@@ -222,7 +222,7 @@ class TestnetCampaign:
                 f"候选池: {', '.join(self.symbols)}\n"
                 f"节奏: 每 {self.limits.evaluation_interval_seconds} 秒评估, 最多选择 "
                 f"{self.limits.maximum_candidates_per_round} 个有效信号\n"
-                "入场: 实时确认信号优先 + 最优被动报价, 未成交即放弃, 不使用市价追单\n"
+                "入场: 实时确认信号优先; 最优报价 3 秒未成交后市价兜底\n"
                 f"仓位: 最多 {self._parallel_limit()} 个; 单笔保证金不超过 "
                 f"{self.limits.margin_budget} USDT\n"
                 "持仓信号: 最新有效信号接管; 同向可加仓, 反向先平后换向\n"

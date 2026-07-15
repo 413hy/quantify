@@ -1,10 +1,10 @@
 # Binance Testnet 三日实验交易
 
-该服务只连接 Binance USDⓈ-M Futures Testnet，不连接生产交易端点。V4.9 固定使用
+该服务只连接 Binance USDⓈ-M Futures Testnet，不连接生产交易端点。V4.10 固定使用
 BTCUSDT、ETHUSDT、BNBUSDT、SOLUSDT 和 XRPUSDT。它每 10 秒读取闭合 1 分钟/5 分钟 K 线、20 档
 深度及最近 5 秒 WebSocket 聚合成交，并以最多 5 个观察 worker 并行生成信号。
 
-## 实验规则（V4.9）
+## 实验规则（V4.10）
 
 这是 `UNVALIDATED_TESTNET_EXPERIMENT`，不能声称已经盈利，也不能用于生产交易：
 
@@ -18,16 +18,19 @@ BTCUSDT、ETHUSDT、BNBUSDT、SOLUSDT 和 XRPUSDT。它每 10 秒读取闭合 1 
   可能接近冲量尾端，不再新开仓，避免追高或追空；
 - 状态文件持续记录 `last_signal_diagnostics` 和累计 `signal_gate_counts`，区分历史不足、市场
   宽度不足、本币动量不足或过热、微观结构/PA 拒绝、交易池排除和已生成计划，避免再次只看到
-  “0 交易”却无法定位具体门控；V4.9 另记录 `last_confirmation_diagnostics` 和
+  “0 交易”却无法定位具体门控；V4.10 另记录 `last_confirmation_diagnostics` 和
   `confirmation_gate_counts`，继续区分计划后的质量、活跃度样本、活跃度倍率、连续确认和已确认；
-- V4.9 取前 10 根已闭合 1 分钟 K 线收盘价，使用最小二乘直线预测后 10 分钟收盘价，再对
+- V4.10 取前 10 根已闭合 1 分钟 K 线收盘价，使用最小二乘直线预测后 10 分钟收盘价，再对
   前后共 20 个价格取平均。相对当前中间价的方向化预测绝对值必须至少 1 bps；系统分别标记
   预测同向和预测冲突，但实时 PA/订单流已经完成全部确认时，以最新确认信号方向为准，不再把
   滞后的线性预测包装成均值回归交易或用它覆盖实时方向。通过门控后，做多限价
-  加入当时买一、做空限价加入当时卖一，使用 `LIMIT + GTX` 保证订单保持被动，等待最多约
-  30 秒；未成交就撤销并放弃，彻底取消市价兜底和追单。V4.6 的 6 次真实尝试要求额外等待
+  加入当时买一、做空限价加入当时卖一，先使用 `LIMIT + GTX` 尝试约 3 秒；没有任何成交时
+  撤销 Maker 单并使用 `MARKET` 完成已经确认的入场。真实成交后必须用成交均价再次复核费用后
+  目标和整仓最大净损失，复核失败立即 fail-closed 平仓。V4.6 的 6 次真实尝试要求额外等待
   2.00–4.50 bps 回撤，但对应等待窗口实际最大变化仅 0.09–0.84 bps，6 次全部未成交，
-  因此 V4.9 删除了这层未经数据支持的额外价差。部分成交后立即
+  因此 V4.10 删除了这层未经数据支持的额外价差。V4.9 进一步证明即使加入最优报价，3/3
+  Testnet GTX 尝试仍在 30 秒后零成交撤销，因此 V4.10 根据账户所有者明确授权增加市价兜底。
+  部分 Maker 成交后立即
   撤销余量，并且只有实际数量仍满足费用后 0.10 USDT 目标才建立原生保护，否则立即清仓；
 
 - 最近主动成交失衡至少达到 0.25 时确定多空方向；book imbalance 至少 0.03 或
@@ -56,7 +59,7 @@ BTCUSDT、ETHUSDT、BNBUSDT、SOLUSDT 和 XRPUSDT。它每 10 秒读取闭合 1 
   不再错误占用这段平仓冷却；
 - 活动仓位不再从信号评估中排除。只有通过与新仓相同质量、活跃度和连续轮次门控的“最新有效
   信号”才能交给该币种唯一的订单执行器；同一连续信号事件只分发一次，避免每 10 秒重复加仓。
-  同向信号使用相同的预测 `LIMIT + GTX` 逻辑尝试增加仓位，未成交即放弃；成交后以整仓数量和
+  同向信号使用相同的 3 秒 GTX + 市价兜底逻辑尝试增加仓位；成交后以整仓数量和
   交易所报告的加权开仓价重新核算并替换原生止盈止损。加仓后的整仓预计净止损仍不得超过
   1.00 USDT，剩余风险不足交易所最小数量时拒绝加仓；
 - 最新有效信号与持仓反向时，唯一执行器先撤销旧保护并市价平掉旧方向，将退出原因记录为
@@ -99,7 +102,7 @@ jq . /var/lib/ai-quant/evidence/testnet/user-stream/current/state.json
 ```bash
 uv run python scripts/review-testnet-results.py \
   --observations /var/lib/ai-quant/evidence/testnet/campaign/current/observations.jsonl \
-  --strategy TESTNET_EXPERIMENT_OF_PA_V4_9
+  --strategy TESTNET_EXPERIMENT_OF_PA_V4_10
 ```
 
 少于 30 个已完成 V4 样本时报告固定为 `INSUFFICIENT_SAMPLE`，不能据此宣称策略有效。

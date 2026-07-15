@@ -111,6 +111,61 @@ def test_scale_limit_is_canceled_if_the_parent_position_closes() -> None:
     assert mode == "PARENT_POSITION_CLOSED"
 
 
+def test_confirmed_signal_uses_market_after_passive_quote_times_out() -> None:
+    class Client:
+        def __init__(self) -> None:
+            self.canceled = False
+            self.order_types: list[str] = []
+
+        def place_order(self, params: dict[str, str]) -> dict[str, str]:
+            self.order_types.append(params["type"])
+            if params["type"] == "LIMIT":
+                return {
+                    "status": "NEW",
+                    "executedQty": "0",
+                    "clientOrderId": params["newClientOrderId"],
+                }
+            return {
+                "status": "FILLED",
+                "executedQty": params["quantity"],
+                "avgPrice": "100.01",
+                "clientOrderId": params["newClientOrderId"],
+            }
+
+        def cancel_order(self, symbol: str, client_order_id: str) -> dict[str, str]:
+            self.canceled = True
+            return {"status": "CANCELED"}
+
+        def query_order(self, symbol: str, client_order_id: str) -> dict[str, str]:
+            return {
+                "status": "CANCELED" if self.canceled else "NEW",
+                "executedQty": "0",
+                "clientOrderId": client_order_id,
+            }
+
+    client = Client()
+    document, executed, mode = _predictive_limit_entry(
+        client,  # type: ignore[arg-type]
+        symbol="SOLUSDT",
+        direction=Direction.LONG,
+        side="BUY",
+        quantity=Decimal("0.1"),
+        price=Decimal("99.99"),
+        client_order_id="entry-test",
+        sleep=lambda _: None,
+        polling_attempts=1,
+        maximum_wait_seconds=3,
+        market_fallback=True,
+    )
+
+    assert client.canceled
+    assert client.order_types == ["LIMIT", "MARKET"]
+    assert document is not None
+    assert document["clientOrderId"] == "entry-test-fb"
+    assert executed == Decimal("0.1")
+    assert mode == "MAKER_TIMEOUT_MARKET_FILLED"
+
+
 def test_same_direction_scale_is_sized_against_whole_position_loss_budget() -> None:
     class Client:
         def book_ticker(self, symbol: str) -> dict[str, str]:

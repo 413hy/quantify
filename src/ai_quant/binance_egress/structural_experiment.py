@@ -373,8 +373,10 @@ def _predictive_limit_entry(
     position_guard: Callable[[], bool] | None = None,
     maximum_wait_seconds: float = 30.0,
     monotonic: Callable[[], float] = time.monotonic,
+    market_fallback: bool = False,
 ) -> tuple[dict[str, Any] | None, Decimal, str]:
-    """Wait up to 30 seconds for the predicted average, then cancel without chasing."""
+    """Try a passive quote, then optionally use a market fallback for a valid signal."""
+    maker_rejected = False
     try:
         document = client.place_order(
             {
@@ -390,36 +392,65 @@ def _predictive_limit_entry(
             }
         )
     except TestnetProbeError:
-        return None, Decimal(0), "PREDICTIVE_GTX_REJECTED"
-    latest = document
-    deadline = monotonic() + maximum_wait_seconds
-    for _ in range(polling_attempts):
-        if latest.get("status") in {
-            "FILLED",
-            "PARTIALLY_FILLED",
-            "CANCELED",
-            "EXPIRED",
-            "REJECTED",
-        }:
-            break
-        if position_guard is not None and not position_guard():
+        maker_rejected = True
+        latest: dict[str, Any] | None = None
+    if not maker_rejected:
+        latest = document
+        deadline = monotonic() + maximum_wait_seconds
+        for _ in range(polling_attempts):
+            if latest.get("status") in {
+                "FILLED",
+                "PARTIALLY_FILLED",
+                "CANCELED",
+                "EXPIRED",
+                "REJECTED",
+            }:
+                break
+            if position_guard is not None and not position_guard():
+                client.cancel_order(symbol, client_order_id)
+                latest = client.query_order(symbol, client_order_id)
+                return latest, Decimal(0), "PARENT_POSITION_CLOSED"
+            remaining = deadline - monotonic()
+            if remaining <= 0:
+                break
+            sleep(min(0.25, remaining))
+            latest = client.query_order(symbol, client_order_id)
+        if latest.get("status") in {"NEW", "PARTIALLY_FILLED"}:
             client.cancel_order(symbol, client_order_id)
             latest = client.query_order(symbol, client_order_id)
-            return latest, Decimal(0), "PARENT_POSITION_CLOSED"
-        remaining = deadline - monotonic()
-        if remaining <= 0:
-            break
-        sleep(min(0.25, remaining))
-        latest = client.query_order(symbol, client_order_id)
-    if latest.get("status") in {"NEW", "PARTIALLY_FILLED"}:
-        client.cancel_order(symbol, client_order_id)
-        latest = client.query_order(symbol, client_order_id)
-    executed = Decimal(str(latest.get("executedQty", "0")))
-    if executed >= quantity and latest.get("status") == "FILLED":
-        return latest, executed, "PREDICTIVE_GTX_FILLED"
-    if executed > 0:
-        return latest, executed, "PREDICTIVE_GTX_PARTIALLY_FILLED"
-    return latest, Decimal(0), "PREDICTIVE_GTX_NOT_FILLED"
+        executed = Decimal(str(latest.get("executedQty", "0")))
+        if executed >= quantity and latest.get("status") == "FILLED":
+            return latest, executed, "PREDICTIVE_GTX_FILLED"
+        if executed > 0:
+            return latest, executed, "PREDICTIVE_GTX_PARTIALLY_FILLED"
+    if not market_fallback:
+        return (
+            latest,
+            Decimal(0),
+            "PREDICTIVE_GTX_REJECTED"
+            if maker_rejected
+            else "PREDICTIVE_GTX_NOT_FILLED",
+        )
+    if position_guard is not None and not position_guard():
+        return latest, Decimal(0), "PARENT_POSITION_CLOSED"
+    fallback_id = f"{client_order_id}-fb"
+    fallback = client.place_order(
+        {
+            "symbol": symbol,
+            "side": side,
+            "positionSide": "BOTH",
+            "type": "MARKET",
+            "quantity": format(quantity, "f"),
+            "newOrderRespType": "RESULT",
+            "newClientOrderId": fallback_id,
+        }
+    )
+    fallback_executed = Decimal(str(fallback.get("executedQty", "0")))
+    if fallback_executed >= quantity and fallback.get("status") == "FILLED":
+        return fallback, fallback_executed, "MAKER_TIMEOUT_MARKET_FILLED"
+    if fallback_executed > 0:
+        return fallback, fallback_executed, "MAKER_TIMEOUT_MARKET_PARTIALLY_FILLED"
+    return fallback, Decimal(0), "MAKER_FALLBACK_NOT_FILLED"
 
 
 def run_structural_experiment(
@@ -528,7 +559,7 @@ def run_structural_experiment(
     stop_final_status = "UNRESOLVED"
     target_final_status = "UNRESOLVED"
     entry_execution_mode = "UNRESOLVED"
-    maker_executed_quantity = Decimal(0)
+    total_entry_executed_quantity = Decimal(0)
     scale_in_count = 0
     current_plan = plan
     try:
@@ -554,7 +585,7 @@ def run_structural_experiment(
                     "production_endpoint_requests": 0,
                 }
             )
-        entry, maker_executed_quantity, entry_execution_mode = _predictive_limit_entry(
+        entry, total_entry_executed_quantity, entry_execution_mode = _predictive_limit_entry(
             client,
             symbol=symbol,
             direction=plan.direction,
@@ -563,6 +594,8 @@ def run_structural_experiment(
             price=predictive_price,
             client_order_id=maker_entry_id,
             sleep=sleep,
+            maximum_wait_seconds=3.0,
+            market_fallback=True,
         )
         if on_entry_attempt is not None:
             on_entry_attempt(
@@ -573,27 +606,32 @@ def run_structural_experiment(
                     "strategy": plan.strategy_version,
                     "symbol": symbol,
                     "direction": plan.direction,
-                    "client_order_id": maker_entry_id,
+                    "client_order_id": (
+                        maker_entry_id if entry is None else entry.get("clientOrderId")
+                    ),
+                    "maker_client_order_id": maker_entry_id,
                     "predictive_limit_price": format(predictive_price, "f"),
                     "execution_mode": entry_execution_mode,
                     "order_status": None if entry is None else entry.get("status"),
-                    "executed_quantity": format(maker_executed_quantity, "f"),
+                    "executed_quantity": format(total_entry_executed_quantity, "f"),
                     "completed_at": datetime.now(UTC)
                     .isoformat()
                     .replace("+00:00", "Z"),
                     "production_endpoint_requests": 0,
                 }
             )
-        if maker_executed_quantity > 0:
-            quantity = maker_executed_quantity
+        if total_entry_executed_quantity > 0:
+            quantity = total_entry_executed_quantity
         else:
             raise TestnetProbeError("EXPERIMENT_PREDICTIVE_LIMIT_NOT_FILLED")
+        valid_entry_ids = {maker_entry_id, f"{maker_entry_id}-fb"}
         if (
             entry is None
-            or entry.get("clientOrderId") != entry_id
+            or entry.get("clientOrderId") not in valid_entry_ids
             or Decimal(str(entry.get("executedQty", "0"))) <= 0
         ):
             raise TestnetProbeError("EXPERIMENT_ENTRY_NOT_FILLED")
+        entry_id = str(entry["clientOrderId"])
         position = _position_quantity(client, symbol)
         if (plan.direction is Direction.LONG and position <= 0) or (
             plan.direction is Direction.SHORT and position >= 0
@@ -772,6 +810,8 @@ def run_structural_experiment(
                 client_order_id=scale_order_id,
                 sleep=sleep,
                 position_guard=position_still_open,
+                maximum_wait_seconds=3.0,
+                market_fallback=True,
             )
             if on_entry_attempt is not None:
                 on_entry_attempt(
@@ -782,7 +822,12 @@ def run_structural_experiment(
                         "strategy": latest_plan.strategy_version,
                         "symbol": symbol,
                         "direction": latest_plan.direction,
-                        "client_order_id": scale_order_id,
+                        "client_order_id": (
+                            scale_order_id
+                            if scale_document is None
+                            else scale_document.get("clientOrderId")
+                        ),
+                        "maker_client_order_id": scale_order_id,
                         "predictive_limit_price": format(scale.predictive_price, "f"),
                         "execution_mode": scale_execution_mode,
                         "order_status": (
@@ -869,7 +914,7 @@ def run_structural_experiment(
             target_trigger = new_target
             current_plan = latest_plan
             effective_margin_budget += scale.effective_margin_budget
-            maker_executed_quantity += added_quantity
+            total_entry_executed_quantity += added_quantity
             scale_in_count += 1
             if on_position_control is not None:
                 scaled_event = _protected_position_event(
@@ -955,7 +1000,7 @@ def run_structural_experiment(
         "predicted_pullback_bps": format(predicted_pullback_bps, "f"),
         "directional_forecast_bps": format(directional_forecast_bps, "f"),
         "predictive_entry_model": predictive_entry_model,
-        "maker_executed_quantity": format(maker_executed_quantity, "f"),
+        "entry_executed_quantity": format(total_entry_executed_quantity, "f"),
         "scale_in_count": scale_in_count,
         "maximum_net_loss_budget": format(maximum_net_loss, "f"),
         "minimum_estimated_net_target": format(minimum_estimated_net_target, "f"),

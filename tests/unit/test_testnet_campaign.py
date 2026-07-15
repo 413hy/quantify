@@ -265,7 +265,7 @@ def test_testnet_experiment_builds_structural_stop_without_time_exit(
     assert (plan.target_reference - plan.entry_reference) / plan.entry_reference * Decimal(
         10_000
     ) == Decimal("32")
-    assert plan.strategy_version == "TESTNET_EXPERIMENT_OF_PA_V4_9"
+    assert plan.strategy_version == "TESTNET_EXPERIMENT_OF_PA_V4_10"
     assert "maximum_holding" not in str(plan.evidence()).lower()
 
 

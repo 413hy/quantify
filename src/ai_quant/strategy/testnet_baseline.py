@@ -18,7 +18,7 @@ from ai_quant.features.price_action import (
 )
 from ai_quant.market_data.models import AggregateTrade
 
-TESTNET_EXPERIMENT_STRATEGY_VERSION = "TESTNET_EXPERIMENT_OF_PA_V4_9"
+TESTNET_EXPERIMENT_STRATEGY_VERSION = "TESTNET_EXPERIMENT_OF_PA_V4_10"
 TESTNET_EXPERIMENT_SYMBOLS = (
     "BTCUSDT",
     "ETHUSDT",
