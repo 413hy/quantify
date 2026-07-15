@@ -1,10 +1,10 @@
 # Binance Testnet 三日实验交易
 
-该服务只连接 Binance USDⓈ-M Futures Testnet，不连接生产交易端点。V4.5 固定使用
+该服务只连接 Binance USDⓈ-M Futures Testnet，不连接生产交易端点。V4.6 固定使用
 BTCUSDT、ETHUSDT、BNBUSDT、SOLUSDT 和 XRPUSDT。它每 10 秒读取闭合 1 分钟/5 分钟 K 线、20 档
 深度及最近 5 秒 WebSocket 聚合成交，并以最多 5 个观察 worker 并行生成信号。
 
-## 实验规则（V4.5）
+## 实验规则（V4.6）
 
 这是 `UNVALIDATED_TESTNET_EXPERIMENT`，不能声称已经盈利，也不能用于生产交易：
 
@@ -19,10 +19,12 @@ BTCUSDT、ETHUSDT、BNBUSDT、SOLUSDT 和 XRPUSDT。它每 10 秒读取闭合 1 
 - 状态文件持续记录 `last_signal_diagnostics` 和累计 `signal_gate_counts`，区分历史不足、市场
   宽度不足、本币动量不足或过热、微观结构/PA 拒绝、交易池排除和已生成计划，避免再次只看到
   “0 交易”却无法定位具体门控；
-- V4.5 不再把同侧最优价冒充“预测限价”。策略取前 10 根已闭合 1 分钟 K 线收盘价，使用
-  最小二乘直线预测后 10 分钟收盘价，再对前后共 20 个价格取平均：做多仅在预测均价低于
-  买一时挂单，做空仅在预测均价高于卖一时挂单，否则放弃。使用 `LIMIT + GTX` 等待最多
-  约 30 秒；未成交就撤销并放弃，彻底取消市价兜底和追单。部分成交后立即
+- V4.6 取前 10 根已闭合 1 分钟 K 线收盘价，使用最小二乘直线预测后 10 分钟收盘价，再对
+  前后共 20 个价格取平均。预测均价不再直接作为订单价格，而是相对当前中间价形成有方向的
+  预测幅度：预测与信号同向时采用“延续趋势中的回撤入场”，预测与信号反向时采用“预测反弹/
+  回落后的均值回归入场”。挂单距离为预测幅度绝对值的一半，限制在 2–8 bps；预测幅度不足
+  1 bps 时跳过。做多始终挂在买一以下、做空始终挂在卖一以上，使用 `LIMIT + GTX` 等待
+  最多约 30 秒；未成交就撤销并放弃，彻底取消市价兜底和追单。部分成交后立即
   撤销余量，并且只有实际数量仍满足费用后 0.10 USDT 目标才建立原生保护，否则立即清仓；
 
 - 最近主动成交失衡至少达到 0.25 时确定多空方向；book imbalance 至少 0.03 或
@@ -47,7 +49,8 @@ BTCUSDT、ETHUSDT、BNBUSDT、SOLUSDT 和 XRPUSDT。它每 10 秒读取闭合 1 
   Testnet leverage bracket，使用该币种当前允许的最高初始杠杆（当前候选约 50–125 倍）。
   系统按结构止损距离、双边 taker 手续费和 12 bps 风险定仓缓冲自动缩小保证金，使单笔
   预计净亏损不超过 1.00 USDT；实际成交后还会用真实入场价再次复核，超限立即拒绝继续持仓。
-  目标净额仍按 2 bps 常规不利滑点估算；同币平仓后至少冷却 60 秒；
+  目标净额仍按 2 bps 常规不利滑点估算；同币真实成交并平仓后至少冷却 60 秒，未成交限价
+  不再错误占用这段平仓冷却；
 - 下单前按当前盘口、数量、实际 taker 费和 2 bps 不利滑点预估目标净额；低于 0.10 USDT
   直接拒绝，不再提交只有“蚊子腿”级费用后空间的仓位；
 - 每日最多 100 个已提交/活动样本，每日净亏损达到 1.00 USDT 后不再新增仓；
@@ -85,7 +88,7 @@ jq . /var/lib/ai-quant/evidence/testnet/user-stream/current/state.json
 ```bash
 uv run python scripts/review-testnet-results.py \
   --observations /var/lib/ai-quant/evidence/testnet/campaign/current/observations.jsonl \
-  --strategy TESTNET_EXPERIMENT_OF_PA_V4_5
+  --strategy TESTNET_EXPERIMENT_OF_PA_V4_6
 ```
 
 少于 30 个已完成 V4 样本时报告固定为 `INSUFFICIENT_SAMPLE`，不能据此宣称策略有效。

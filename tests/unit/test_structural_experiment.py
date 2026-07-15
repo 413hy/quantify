@@ -108,6 +108,8 @@ def test_protected_position_event_exposes_leverage_margin_and_fee_adjusted_targe
         entry_execution_mode="PREDICTIVE_GTX_FILLED",
         predictive_limit_price=Decimal("0.9995"),
         predicted_pullback_bps=Decimal("5"),
+        directional_forecast_bps=Decimal("8"),
+        predictive_entry_model="FORECAST_CONTINUATION_RETRACE",
     )
 
     assert event["initial_leverage"] == 75
@@ -118,44 +120,65 @@ def test_protected_position_event_exposes_leverage_margin_and_fee_adjusted_targe
     assert event["entry_execution_mode"] == "PREDICTIVE_GTX_FILLED"
     assert event["predictive_limit_price"] == "0.9995"
     assert event["predicted_pullback_bps"] == "5"
+    assert event["directional_forecast_bps"] == "8"
+    assert event["predictive_entry_model"] == "FORECAST_CONTINUATION_RETRACE"
 
 
 def test_predictive_entry_uses_observed_and_forecast_twenty_minute_average() -> None:
-    long_price, long_pullback = predictive_limit_price(
+    long_price, long_pullback, long_forecast, long_model = predictive_limit_price(
         Direction.LONG,
         bid_price=Decimal("99.99"),
         ask_price=Decimal("100.01"),
         tick_size=Decimal("0.01"),
-        predictive_average_20m=Decimal("99.95"),
+        predictive_average_20m=Decimal("100.09"),
     )
-    short_price, short_pullback = predictive_limit_price(
+    short_price, short_pullback, short_forecast, short_model = predictive_limit_price(
         Direction.SHORT,
         bid_price=Decimal("99.99"),
         ask_price=Decimal("100.01"),
         tick_size=Decimal("0.01"),
-        predictive_average_20m=Decimal("100.06"),
+        predictive_average_20m=Decimal("99.91"),
     )
-    assert long_price == Decimal("99.95")
+    assert long_price == Decimal("99.94")
     assert short_price == Decimal("100.06")
-    assert Decimal("4") < long_pullback < Decimal("4.01")
+    assert Decimal("5") < long_pullback < Decimal("5.01")
     assert Decimal("4.99") < short_pullback < Decimal("5")
+    assert long_forecast > 0
+    assert short_forecast > 0
+    assert long_model == "FORECAST_CONTINUATION_RETRACE"
+    assert short_model == "FORECAST_CONTINUATION_RETRACE"
 
 
 @pytest.mark.parametrize(
-    ("direction", "midpoint"),
-    [(Direction.LONG, "100.00"), (Direction.SHORT, "100.01")],
+    ("direction", "average"),
+    [(Direction.LONG, "100.005"), (Direction.SHORT, "100.005")],
 )
-def test_predictive_average_rejects_a_non_passive_entry(
-    direction: Direction, midpoint: str
+def test_predictive_average_rejects_an_uninformative_forecast(
+    direction: Direction, average: str
 ) -> None:
-    with pytest.raises(ProbeError, match="EXPERIMENT_PREDICTIVE_AVERAGE_NOT_PASSIVE"):
+    with pytest.raises(ProbeError, match="EXPERIMENT_PREDICTIVE_EDGE_INSUFFICIENT"):
         predictive_limit_price(
             direction,
             bid_price=Decimal("100.00"),
             ask_price=Decimal("100.01"),
             tick_size=Decimal("0.01"),
-            predictive_average_20m=Decimal(midpoint),
+            predictive_average_20m=Decimal(average),
         )
+
+
+def test_short_forecast_below_market_becomes_a_passive_retrace_sell() -> None:
+    price, distance, forecast, model = predictive_limit_price(
+        Direction.SHORT,
+        bid_price=Decimal("99.99"),
+        ask_price=Decimal("100.01"),
+        tick_size=Decimal("0.01"),
+        predictive_average_20m=Decimal("99.91"),
+    )
+
+    assert price > Decimal("100.01")
+    assert Decimal("2") <= distance <= Decimal("8.01")
+    assert forecast > 0
+    assert model == "FORECAST_CONTINUATION_RETRACE"
 
 
 def test_pretrade_outcome_estimate_enforces_meaningful_fee_adjusted_target() -> None:

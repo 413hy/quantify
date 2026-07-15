@@ -191,6 +191,7 @@ class TestnetCampaign:
             thread_name_prefix="testnet-experiment",
         )
         self.active_trades: dict[str, Future[dict[str, Any]]] = {}
+        self.protected_symbols: set[str] = set()
         self.position_events: SimpleQueue[dict[str, Any]] = SimpleQueue()
         self.stop_requested = False
 
@@ -214,7 +215,7 @@ class TestnetCampaign:
                 f"候选池: {', '.join(self.symbols)}\n"
                 f"节奏: 每 {self.limits.evaluation_interval_seconds} 秒评估, 最多选择 "
                 f"{self.limits.maximum_candidates_per_round} 个有效信号\n"
-                "入场: 前后 10 分钟预测均价限价, 未成交即放弃, 不使用市价追单\n"
+                "入场: 方向化预测回撤限价, 未成交即放弃, 不使用市价追单\n"
                 f"仓位: 最多 {self._parallel_limit()} 个; 单笔保证金不超过 "
                 f"{self.limits.margin_budget} USDT\n"
                 "退出: 交易所原生止盈/止损"
@@ -279,6 +280,7 @@ class TestnetCampaign:
             if self.active_trades:
                 time.sleep(1)
         state["active_symbols"] = []
+        state["pending_entry_symbols"] = []
         self._notify(
             severity="INFO",
             event_type="测试网实验交易已结束",
@@ -322,7 +324,10 @@ class TestnetCampaign:
         latest_observed_at = max(decision.observed_at for decision in decisions)
         self._reset_daily_state_if_needed(state, latest_observed_at)
         self._submit_experiments(state, decisions, latest_observed_at)
-        state["active_symbols"] = sorted(self.active_trades)
+        state["active_symbols"] = sorted(self.protected_symbols)
+        state["pending_entry_symbols"] = sorted(
+            set(self.active_trades) - self.protected_symbols
+        )
         state["updated_at"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
         _atomic_write_json(self.state_file, state)
         return state
@@ -408,8 +413,6 @@ class TestnetCampaign:
             pending.pop(plan.symbol, None)
             state["submitted_trade_count"] = int(state.get("submitted_trade_count", 0)) + 1
             timestamp = observed_at.isoformat().replace("+00:00", "Z")
-            last_by_symbol[plan.symbol] = timestamp
-            state["last_trade_at"] = timestamp
             event = plan.evidence()
             event.update(
                 {
@@ -427,13 +430,14 @@ class TestnetCampaign:
             if not future.done():
                 continue
             del self.active_trades[symbol]
+            self.protected_symbols.discard(symbol)
             try:
                 result = future.result()
             except Exception as exc:
                 occurred_at = datetime.now(UTC)
                 expected_skip = isinstance(exc, TestnetProbeError) and str(exc) in {
                     "EXPERIMENT_PREDICTIVE_LIMIT_NOT_FILLED",
-                    "EXPERIMENT_PREDICTIVE_AVERAGE_NOT_PASSIVE",
+                    "EXPERIMENT_PREDICTIVE_EDGE_INSUFFICIENT",
                 }
                 self._append_event(
                     {
@@ -467,6 +471,12 @@ class TestnetCampaign:
             )
             if result["target_achieved"]:
                 state["target_hit_count"] = int(state["target_hit_count"]) + 1
+            completed_at = str(result["completed_at"])
+            last_by_symbol = cast(
+                dict[str, str], state.setdefault("last_trade_by_symbol", {})
+            )
+            last_by_symbol[symbol] = completed_at
+            state["last_trade_at"] = completed_at
             self._notify(
                 severity="INFO" if net >= 0 else "WARNING",
                 event_type="测试网交易已平仓",
@@ -490,6 +500,7 @@ class TestnetCampaign:
                 event = self.position_events.get_nowait()
             except Empty:
                 return
+            self.protected_symbols.add(str(event["symbol"]))
             self._append_event(event)
             self._notify(
                 severity="INFO",
@@ -505,6 +516,8 @@ class TestnetCampaign:
                     "────────────\n"
                     f"入场: {event['entry_price']} (距盘口 "
                     f"{_two_decimals(event.get('predicted_pullback_bps', 0))} bps)\n"
+                    "模型: "
+                    f"{_predictive_entry_model_cn(str(event.get('predictive_entry_model', '?')))}\n"
                     f"保证金: {_money(event['actual_initial_margin'])} U | "
                     f"数量: {event['quantity']}\n"
                     "保护: 原生止盈/止损已生效"
@@ -597,6 +610,7 @@ class TestnetCampaign:
                 document["codex_dependency"] = False
                 document.setdefault("last_trade_by_symbol", {})
                 document.setdefault("active_symbols", [])
+                document.setdefault("pending_entry_symbols", [])
                 document.setdefault("pending_signals", {})
                 document.setdefault("aggressive_notional_history", {})
                 document.setdefault("mid_price_history", {})
@@ -614,16 +628,8 @@ class TestnetCampaign:
                 "observation_count": document.get("observation_count", 0),
                 "trade_count": document.get("trade_count", 0),
                 "cumulative_net_pnl": document.get("cumulative_net_pnl", "0"),
-                "daily_utc_date": document.get("daily_utc_date"),
-                "daily_trade_count": document.get("daily_trade_count", 0),
-                "daily_net_pnl": document.get("daily_net_pnl", "0"),
-                "last_trade_at": document.get("last_trade_at"),
-                "last_trade_by_symbol": document.get("last_trade_by_symbol", {}),
             }
         now = datetime.now(UTC)
-        daily_continuity = _daily_state_continuity(
-            prior_campaign, today=now.date().isoformat()
-        )
         state: dict[str, Any] = {
             "schema_version": "1.0.0",
             "status": "RUNNING",
@@ -646,12 +652,13 @@ class TestnetCampaign:
             "cumulative_net_pnl": "0",
             "last_observed_at": None,
             "last_reason_codes": [],
-            "last_trade_at": daily_continuity["last_trade_at"],
+            "last_trade_at": None,
             "daily_utc_date": now.date().isoformat(),
-            "daily_trade_count": daily_continuity["daily_trade_count"],
-            "daily_net_pnl": daily_continuity["daily_net_pnl"],
-            "last_trade_by_symbol": daily_continuity["last_trade_by_symbol"],
+            "daily_trade_count": 0,
+            "daily_net_pnl": "0",
+            "last_trade_by_symbol": {},
             "active_symbols": [],
+            "pending_entry_symbols": [],
             "pending_signals": {},
             "aggressive_notional_history": {},
             "mid_price_history": {},
@@ -1021,34 +1028,6 @@ def _median_decimal(values: list[Decimal]) -> Decimal:
     return (values[midpoint - 1] + values[midpoint]) / Decimal(2)
 
 
-def _daily_state_continuity(
-    prior_campaign: dict[str, object] | None, *, today: str
-) -> dict[str, object]:
-    """Carry same-UTC-day loss, count, and cooldown state across strategy releases."""
-    empty: dict[str, object] = {
-        "daily_trade_count": 0,
-        "daily_net_pnl": "0",
-        "last_trade_at": None,
-        "last_trade_by_symbol": {},
-    }
-    if prior_campaign is None or prior_campaign.get("daily_utc_date") != today:
-        return empty
-    last_by_symbol = prior_campaign.get("last_trade_by_symbol", {})
-    if not isinstance(last_by_symbol, dict) or not all(
-        isinstance(key, str) and isinstance(value, str)
-        for key, value in last_by_symbol.items()
-    ):
-        last_by_symbol = {}
-    return {
-        "daily_trade_count": int(str(prior_campaign.get("daily_trade_count", 0))),
-        "daily_net_pnl": format(
-            Decimal(str(prior_campaign.get("daily_net_pnl", "0"))), "f"
-        ),
-        "last_trade_at": prior_campaign.get("last_trade_at"),
-        "last_trade_by_symbol": last_by_symbol,
-    }
-
-
 def _experimental_candidate_rank(decision: TestnetBaselineDecision) -> tuple[Decimal, str]:
     """Prefer persistent PA alignment and stronger executable order flow."""
     plan = decision.experimental_plan
@@ -1059,6 +1038,13 @@ def _experimental_candidate_rank(decision: TestnetBaselineDecision) -> tuple[Dec
 
 def _money(value: object) -> str:
     return format(Decimal(str(value)).quantize(Decimal("0.000001")), "f")
+
+
+def _predictive_entry_model_cn(value: str) -> str:
+    return {
+        "FORECAST_CONTINUATION_RETRACE": "趋势延续回撤入场",
+        "FORECAST_MEAN_REVERSION_RETRACE": "预测反弹/回落入场",
+    }.get(value, value)
 
 
 def _two_decimals(value: object) -> str:

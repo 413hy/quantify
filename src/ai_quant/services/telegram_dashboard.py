@@ -289,6 +289,7 @@ def render_pnl(campaign: Mapping[str, Any], events: list[dict[str, Any]]) -> str
         f"本轮累计: {_money(campaign.get('cumulative_net_pnl'))} USDT\n"
         f"本轮已平仓: {int(campaign.get('trade_count', 0))} 单\n"
         f"本轮活动仓位: {len(_string_list(campaign.get('active_symbols')))} 个\n"
+        f"等待限价入场: {len(_string_list(campaign.get('pending_entry_symbols')))} 个\n"
         "\n🧪 当前策略样本\n"
         f"费用后盈利: {current['positive_net_count']}/{current['result_count']} 单\n"
         f"费用后胜率: {_percent(current['positive_net_rate'])}\n"
@@ -305,7 +306,9 @@ def render_pnl(campaign: Mapping[str, Any], events: list[dict[str, Any]]) -> str
 def render_positions(campaign: Mapping[str, Any], events: list[dict[str, Any]]) -> str:
     active = _string_list(campaign.get("active_symbols"))
     if not active:
-        return "📈 当前持仓\n━━━━━━━━━━━━━━━━\n当前没有活动仓位。"
+        pending = len(_string_list(campaign.get("pending_entry_symbols")))
+        suffix = "" if pending == 0 else f"\n另有 {pending} 个预测限价正在等待成交。"
+        return f"📈 当前持仓\n━━━━━━━━━━━━━━━━\n当前没有活动仓位。{suffix}"
     latest: dict[str, dict[str, Any]] = {}
     for event in events:
         if event.get("record_type") != "TESTNET_POSITION_PROTECTED":
@@ -358,6 +361,7 @@ def render_status(
         f"依赖 Codex: {'是' if campaign.get('codex_dependency') else '否'}\n"
         f"活动仓位: {len(_string_list(campaign.get('active_symbols')))} / "
         f"{maximum_positions or '?'} (不强制补满)\n"
+        f"等待限价入场: {len(_string_list(campaign.get('pending_entry_symbols')))} 个\n"
         f"待确认信号: {pending_count} 个\n"
         f"确认门槛: {limits.get('signal_confirmation_rounds', '?')} 轮 / "
         f"质量分 {limits.get('minimum_signal_quality_score', '?')} / "

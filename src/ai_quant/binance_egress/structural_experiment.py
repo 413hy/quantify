@@ -115,25 +115,55 @@ def predictive_limit_price(
     ask_price: Decimal,
     tick_size: Decimal,
     predictive_average_20m: Decimal,
-) -> tuple[Decimal, Decimal]:
-    """Use the observed/predicted 10+10 minute average as a passive entry."""
+    minimum_forecast_edge_bps: Decimal = Decimal("1"),
+    minimum_entry_distance_bps: Decimal = Decimal("2"),
+    maximum_entry_distance_bps: Decimal = Decimal("8"),
+) -> tuple[Decimal, Decimal, Decimal, str]:
+    """Convert the forecast average into a directional passive retracement entry."""
     if (
-        min(bid_price, ask_price, tick_size, predictive_average_20m) <= 0
+        min(
+            bid_price,
+            ask_price,
+            tick_size,
+            predictive_average_20m,
+            minimum_forecast_edge_bps,
+            minimum_entry_distance_bps,
+            maximum_entry_distance_bps,
+        )
+        <= 0
         or bid_price >= ask_price
+        or minimum_entry_distance_bps > maximum_entry_distance_bps
     ):
         raise TestnetProbeError("EXPERIMENT_MAKER_PRICE_INPUT_INVALID")
+    mid_price = (bid_price + ask_price) / Decimal(2)
+    sign = Decimal(1) if direction is Direction.LONG else Decimal(-1)
+    directional_forecast_bps = (
+        sign * (predictive_average_20m / mid_price - Decimal(1)) * Decimal(10_000)
+    )
+    if abs(directional_forecast_bps) < minimum_forecast_edge_bps:
+        raise TestnetProbeError("EXPERIMENT_PREDICTIVE_EDGE_INSUFFICIENT")
+    planned_distance_bps = max(
+        minimum_entry_distance_bps,
+        min(maximum_entry_distance_bps, abs(directional_forecast_bps) / Decimal(2)),
+    )
+    distance_rate = planned_distance_bps / Decimal(10_000)
+    entry_model = (
+        "FORECAST_CONTINUATION_RETRACE"
+        if directional_forecast_bps > 0
+        else "FORECAST_MEAN_REVERSION_RETRACE"
+    )
     if direction is Direction.LONG:
-        if predictive_average_20m >= bid_price:
-            raise TestnetProbeError("EXPERIMENT_PREDICTIVE_AVERAGE_NOT_PASSIVE")
-        price = _decimal_step(predictive_average_20m, tick_size, ROUND_FLOOR)
+        price = _decimal_step(
+            bid_price * (Decimal(1) - distance_rate), tick_size, ROUND_FLOOR
+        )
         pullback_bps = (bid_price - price) / bid_price * Decimal(10_000)
-        return price, pullback_bps
+        return price, pullback_bps, directional_forecast_bps, entry_model
     if direction is Direction.SHORT:
-        if predictive_average_20m <= ask_price:
-            raise TestnetProbeError("EXPERIMENT_PREDICTIVE_AVERAGE_NOT_PASSIVE")
-        price = _decimal_step(predictive_average_20m, tick_size, ROUND_CEILING)
+        price = _decimal_step(
+            ask_price * (Decimal(1) + distance_rate), tick_size, ROUND_CEILING
+        )
         pullback_bps = (price - ask_price) / ask_price * Decimal(10_000)
-        return price, pullback_bps
+        return price, pullback_bps, directional_forecast_bps, entry_model
     raise TestnetProbeError("EXPERIMENT_DIRECTION_INVALID")
 
 
@@ -245,7 +275,12 @@ def run_structural_experiment(
         taker_fee_rate=taker_fee_rate,
         adverse_slippage_rate=risk_sizing_slippage_rate,
     )
-    predictive_price, predicted_pullback_bps = predictive_limit_price(
+    (
+        predictive_price,
+        predicted_pullback_bps,
+        directional_forecast_bps,
+        predictive_entry_model,
+    ) = predictive_limit_price(
         plan.direction,
         bid_price=bid_price,
         ask_price=ask_price,
@@ -369,6 +404,8 @@ def run_structural_experiment(
             entry_execution_mode=entry_execution_mode,
             predictive_limit_price=predictive_price,
             predicted_pullback_bps=predicted_pullback_bps,
+            directional_forecast_bps=directional_forecast_bps,
+            predictive_entry_model=predictive_entry_model,
         )
         if on_position_protected is not None:
             on_position_protected(protected_position)
@@ -433,6 +470,8 @@ def run_structural_experiment(
         "entry_execution_mode": entry_execution_mode,
         "predictive_limit_price": format(predictive_price, "f"),
         "predicted_pullback_bps": format(predicted_pullback_bps, "f"),
+        "directional_forecast_bps": format(directional_forecast_bps, "f"),
+        "predictive_entry_model": predictive_entry_model,
         "maker_executed_quantity": format(maker_executed_quantity, "f"),
         "maximum_net_loss_budget": format(maximum_net_loss, "f"),
         "minimum_estimated_net_target": format(minimum_estimated_net_target, "f"),
@@ -586,6 +625,8 @@ def _protected_position_event(
     entry_execution_mode: str,
     predictive_limit_price: Decimal,
     predicted_pullback_bps: Decimal,
+    directional_forecast_bps: Decimal,
+    predictive_entry_model: str,
 ) -> dict[str, Any]:
     target_gross, round_trip_fee, target_net, stop_net_loss = estimated_position_outcomes(
         quantity=quantity,
@@ -612,6 +653,8 @@ def _protected_position_event(
         "entry_execution_mode": entry_execution_mode,
         "predictive_limit_price": format(predictive_limit_price, "f"),
         "predicted_pullback_bps": format(predicted_pullback_bps, "f"),
+        "directional_forecast_bps": format(directional_forecast_bps, "f"),
+        "predictive_entry_model": predictive_entry_model,
         "effective_margin_budget": format(effective_margin_budget, "f"),
         "signal_quality_score": format(plan.signal_quality_score, "f"),
         "signal_confirmation_rounds": plan.signal_confirmation_rounds,

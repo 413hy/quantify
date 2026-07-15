@@ -25,7 +25,7 @@ for _attempt in $(seq 1 30); do
   if systemctl is-active --quiet "$service" \
     && jq -e '
       .status == "RUNNING"
-      and .strategy == "TESTNET_EXPERIMENT_OF_PA_V4_5"
+      and .strategy == "TESTNET_EXPERIMENT_OF_PA_V4_6"
       and .symbols == ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"]
     ' "$state_file" >/dev/null; then
     exit 0

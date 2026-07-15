@@ -74,6 +74,7 @@ def test_dashboard_renders_fee_adjusted_pnl_positions_and_strategy_stats() -> No
     assert "费用后盈利: 1/2 单" in pnl
     assert "费用后胜率: 50.00%" in pnl
     assert "累计净结果: -0.110000 USDT" in pnl
+    assert "等待限价入场: 1 个" in pnl
     assert "杠杆: 75x" in positions
     assert "预计止盈净额: 0.180000 USDT" in positions
     assert "DOGEUSDT\n仓位正在建立或等待保护确认" in positions
@@ -120,6 +121,7 @@ def test_status_marks_fresh_independent_rule_runtime_healthy() -> None:
     assert "用户数据流: 🟢 正常" in rendered
     assert "依赖 Codex: 否" in rendered
     assert "活动仓位: 2 / 5 (不强制补满)" in rendered
+    assert "等待限价入场: 1 个" in rendered
     assert "确认门槛: 2 轮 / 质量分 2.00 / 预计净目标 0.10 U" in rendered
     assert "生产接口请求: 0" in rendered
 
@@ -143,6 +145,7 @@ def _campaign(*, updated_at: str = "2026-07-14T17:59:30Z") -> dict[str, Any]:
         "trade_count": 2,
         "submitted_trade_count": 4,
         "active_symbols": ["XRPUSDT", "DOGEUSDT"],
+        "pending_entry_symbols": ["BTCUSDT"],
         "pending_signals": {"SOLUSDT": {"consecutive_rounds": 1}},
         "limits": {
             "maximum_parallel_positions": 5,
