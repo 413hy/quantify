@@ -19,6 +19,7 @@ from typing import Any, cast
 from ai_quant.binance_egress.structural_experiment import run_structural_experiment
 from ai_quant.binance_egress.testnet_probe import BinanceTestnetClient, _credential
 from ai_quant.binance_egress.testnet_stream import TestnetAggregateTradeStream
+from ai_quant.features.price_action import Direction
 from ai_quant.notifications import (
     Notification,
     OutboundNotifier,
@@ -29,8 +30,10 @@ from ai_quant.notifications import (
 from ai_quant.strategy.testnet_baseline import (
     TESTNET_EXPERIMENT_STRATEGY_VERSION,
     TESTNET_EXPERIMENT_SYMBOLS,
+    TESTNET_IMPULSE_ENTRY_SYMBOLS,
     TestnetBaselineDecision,
     TestnetSignalParameters,
+    build_market_impulse_plan,
     evaluate_testnet_baseline,
 )
 
@@ -45,7 +48,9 @@ class CampaignLimits:
     margin_budget: Decimal = Decimal("1")
     maximum_net_loss_per_trade: Decimal = Decimal("1.00")
     maximum_parallel_positions: int = 5
+    maximum_candidates_per_round: int = 2
     signal_confirmation_rounds: int = 3
+    impulse_confirmation_rounds: int = 1
     minimum_signal_quality_score: Decimal = Decimal("2.00")
     minimum_estimated_net_target: Decimal = Decimal("0.10")
     risk_sizing_slippage_bps: Decimal = Decimal("12.00")
@@ -58,6 +63,10 @@ class CampaignLimits:
     aggressive_notional_lookback_rounds: int = 12
     minimum_aggressive_notional_samples: int = 6
     minimum_aggressive_notional_ratio: Decimal = Decimal("2.00")
+    impulse_minimum_activity_ratio: Decimal = Decimal("1.25")
+    impulse_lookback_rounds: int = 5
+    impulse_minimum_momentum_bps: Decimal = Decimal("2.00")
+    impulse_minimum_breadth_count: int = 3
 
     def __post_init__(self) -> None:
         if not 60 <= self.duration_seconds <= 604_800:
@@ -76,8 +85,12 @@ class CampaignLimits:
             raise ValueError("campaign per-trade loss budget is invalid")
         if not 1 <= self.maximum_parallel_positions <= 10:
             raise ValueError("campaign parallel position limit is invalid")
+        if not 1 <= self.maximum_candidates_per_round <= 2:
+            raise ValueError("campaign candidate limit must be one or two")
         if not 1 <= self.signal_confirmation_rounds <= 10:
             raise ValueError("campaign signal confirmation count is invalid")
+        if not 1 <= self.impulse_confirmation_rounds <= self.signal_confirmation_rounds:
+            raise ValueError("campaign impulse confirmation count is invalid")
         if not Decimal(0) <= self.minimum_signal_quality_score <= Decimal(20):
             raise ValueError("campaign signal quality threshold is invalid")
         if not Decimal(0) <= self.minimum_estimated_net_target <= Decimal(1):
@@ -94,6 +107,14 @@ class CampaignLimits:
             raise ValueError("campaign activity sample count is invalid")
         if not Decimal(0) < self.minimum_aggressive_notional_ratio <= Decimal(10):
             raise ValueError("campaign activity ratio is invalid")
+        if not Decimal(0) < self.impulse_minimum_activity_ratio <= Decimal(10):
+            raise ValueError("campaign impulse activity ratio is invalid")
+        if not 4 <= self.impulse_lookback_rounds <= 12:
+            raise ValueError("campaign impulse lookback is invalid")
+        if not Decimal(0) < self.impulse_minimum_momentum_bps <= Decimal(20):
+            raise ValueError("campaign impulse momentum threshold is invalid")
+        if not 3 <= self.impulse_minimum_breadth_count <= len(TESTNET_EXPERIMENT_SYMBOLS):
+            raise ValueError("campaign impulse breadth threshold is invalid")
         TestnetSignalParameters(
             maximum_spread_bps=self.maximum_entry_spread_bps,
             minimum_trade_imbalance=self.minimum_trade_imbalance,
@@ -275,6 +296,12 @@ class TestnetCampaign:
                 for symbol in self.symbols
             }
             decisions = [futures[symbol].result() for symbol in self.symbols]
+        decisions = _apply_market_impulse_plans(
+            state,
+            decisions,
+            limits=self.limits,
+            evaluation_round=int(state["evaluation_round_count"]) + 1,
+        )
         reason_codes: dict[str, list[str]] = {}
         for decision in decisions:
             event = decision.evidence()
@@ -309,8 +336,13 @@ class TestnetCampaign:
             activity_lookback_rounds=self.limits.aggressive_notional_lookback_rounds,
             minimum_activity_samples=self.limits.minimum_aggressive_notional_samples,
             minimum_activity_ratio=self.limits.minimum_aggressive_notional_ratio,
+            impulse_required_rounds=self.limits.impulse_confirmation_rounds,
+            impulse_minimum_activity_ratio=self.limits.impulse_minimum_activity_ratio,
         )
-        available = self._parallel_limit() - len(self.active_trades)
+        available = min(
+            self._parallel_limit() - len(self.active_trades),
+            self.limits.maximum_candidates_per_round,
+        )
         if available <= 0:
             return
         candidates = sorted(
@@ -393,6 +425,9 @@ class TestnetCampaign:
                     f"信号质量分: {plan.signal_quality_score.quantize(Decimal('0.01'))}\n"
                     f"连续确认: {plan.signal_confirmation_rounds} 轮\n"
                     f"PA 同向周期: {plan.pa_alignment_count}/2\n"
+                    f"信号类型: {_setup_type_cn(plan.setup_type)}\n"
+                    f"联动同向币数: {plan.market_breadth_count}\n"
+                    f"短周期动量: {plan.market_momentum_bps.quantize(Decimal('0.01'))} bps\n"
                     "主动成交活跃度: "
                     f"{plan.aggressive_notional_ratio.quantize(Decimal('0.01'))}x 近期中位数\n"
                     "决策来源: Testnet 确定性规则策略 (不依赖 Codex)\n"
@@ -479,6 +514,11 @@ class TestnetCampaign:
                     f"实际初始保证金: {_money(event['actual_initial_margin'])} USDT\n"
                     "信号质量分: "
                     f"{Decimal(str(event['signal_quality_score'])).quantize(Decimal('0.01'))}\n"
+                    "信号类型: "
+                    f"{_setup_type_cn(str(event.get('setup_type', 'TREND_CONFIRMATION')))}\n"
+                    f"联动同向币数: {event.get('market_breadth_count', 0)}\n"
+                    "短周期动量: "
+                    f"{_two_decimals(event.get('market_momentum_bps', 0))} bps\n"
                     f"连续确认: {event['signal_confirmation_rounds']} 轮\n"
                     f"PA 同向周期: {event['pa_alignment_count']}/2\n"
                     "主动成交活跃度: "
@@ -584,6 +624,7 @@ class TestnetCampaign:
                 document.setdefault("active_symbols", [])
                 document.setdefault("pending_signals", {})
                 document.setdefault("aggressive_notional_history", {})
+                document.setdefault("mid_price_history", {})
                 document.setdefault(
                     "submitted_trade_count",
                     int(document.get("trade_count", 0)) + len(document["active_symbols"]),
@@ -630,6 +671,7 @@ class TestnetCampaign:
             "active_symbols": [],
             "pending_signals": {},
             "aggressive_notional_history": {},
+            "mid_price_history": {},
             "production_endpoint_requests": 0,
             "limits": self._limits_document(),
             "prior_campaign": prior_campaign,
@@ -650,9 +692,10 @@ class TestnetCampaign:
             "codex_dependency": False,
             "maximum_parallel_observations": self._parallel_limit(),
             "maximum_parallel_positions": self._parallel_limit(),
-            "maximum_candidates_per_round": self._parallel_limit(),
+            "maximum_candidates_per_round": self.limits.maximum_candidates_per_round,
             "position_slots_are_target": False,
             "signal_confirmation_rounds": self.limits.signal_confirmation_rounds,
+            "impulse_confirmation_rounds": self.limits.impulse_confirmation_rounds,
             "minimum_signal_quality_score": format(self.limits.minimum_signal_quality_score, "f"),
             "minimum_estimated_net_target": format(self.limits.minimum_estimated_net_target, "f"),
             "risk_sizing_slippage_bps": format(self.limits.risk_sizing_slippage_bps, "f"),
@@ -675,6 +718,14 @@ class TestnetCampaign:
             "minimum_aggressive_notional_ratio": format(
                 self.limits.minimum_aggressive_notional_ratio, "f"
             ),
+            "impulse_minimum_activity_ratio": format(
+                self.limits.impulse_minimum_activity_ratio, "f"
+            ),
+            "impulse_lookback_rounds": self.limits.impulse_lookback_rounds,
+            "impulse_minimum_momentum_bps": format(
+                self.limits.impulse_minimum_momentum_bps, "f"
+            ),
+            "impulse_minimum_breadth_count": self.limits.impulse_minimum_breadth_count,
             "elapsed_time_exit_enabled": False,
         }
 
@@ -772,6 +823,8 @@ def _update_pending_signals(
     activity_lookback_rounds: int,
     minimum_activity_samples: int,
     minimum_activity_ratio: Decimal,
+    impulse_required_rounds: int | None = None,
+    impulse_minimum_activity_ratio: Decimal | None = None,
 ) -> list[TestnetBaselineDecision]:
     """Require consecutive same-direction evidence without treating slots as a target."""
     pending = cast(dict[str, dict[str, object]], state.setdefault("pending_signals", {}))
@@ -793,12 +846,23 @@ def _update_pending_signals(
         activity_values = sorted(Decimal(value) for value in history)
         activity_median = _median_decimal(activity_values)
         activity_ratio = Decimal(0) if activity_median <= 0 else current_activity / activity_median
+        is_impulse = plan is not None and plan.setup_type == "MARKET_BREADTH_IMPULSE"
+        required = (
+            impulse_required_rounds
+            if is_impulse and impulse_required_rounds is not None
+            else required_rounds
+        )
+        required_activity = (
+            impulse_minimum_activity_ratio
+            if is_impulse and impulse_minimum_activity_ratio is not None
+            else minimum_activity_ratio
+        )
         if (
             plan is None
             or plan.symbol in active_symbols
             or plan.signal_quality_score < minimum_quality_score
             or len(activity_values) < minimum_activity_samples
-            or activity_ratio < minimum_activity_ratio
+            or activity_ratio < required_activity
         ):
             pending.pop(decision.symbol, None)
             continue
@@ -821,9 +885,77 @@ def _update_pending_signals(
             "aggressive_notional_median": format(activity_median, "f"),
             "aggressive_notional_ratio": format(activity_ratio, "f"),
         }
-        if consecutive >= required_rounds:
+        if consecutive >= required:
             confirmed.append(decision)
     return confirmed
+
+
+def _apply_market_impulse_plans(
+    state: dict[str, Any],
+    decisions: list[TestnetBaselineDecision],
+    *,
+    limits: CampaignLimits,
+    evaluation_round: int,
+) -> list[TestnetBaselineDecision]:
+    """Promote the strongest breadth-aligned neutral-PA impulses to Testnet plans."""
+    histories = cast(
+        dict[str, list[dict[str, str | int]]], state.setdefault("mid_price_history", {})
+    )
+    momentum_by_symbol: dict[str, Decimal] = {}
+    for decision in decisions:
+        history = histories.setdefault(decision.symbol, [])
+        history.append(
+            {
+                "evaluation_round": evaluation_round,
+                "mid_price": format(decision.mid_price, "f"),
+            }
+        )
+        del history[:-limits.impulse_lookback_rounds]
+        if len(history) < limits.impulse_lookback_rounds:
+            continue
+        start = Decimal(str(history[0]["mid_price"]))
+        momentum_by_symbol[decision.symbol] = (
+            (decision.mid_price / start - Decimal(1)) * Decimal(10_000)
+        )
+    long_breadth = sum(
+        value >= limits.impulse_minimum_momentum_bps for value in momentum_by_symbol.values()
+    )
+    short_breadth = sum(
+        value <= -limits.impulse_minimum_momentum_bps for value in momentum_by_symbol.values()
+    )
+    if max(long_breadth, short_breadth) < limits.impulse_minimum_breadth_count:
+        return decisions
+    if long_breadth == short_breadth:
+        return decisions
+    direction = Direction.LONG if long_breadth > short_breadth else Direction.SHORT
+    breadth_count = max(long_breadth, short_breadth)
+    parameters = TestnetSignalParameters(
+        maximum_spread_bps=limits.maximum_entry_spread_bps,
+        minimum_trade_imbalance=limits.minimum_trade_imbalance,
+        minimum_book_imbalance=limits.minimum_book_imbalance,
+        minimum_microprice_bps=limits.minimum_microprice_bps,
+        maximum_opposing_book_imbalance=limits.maximum_opposing_book_imbalance,
+        maximum_opposing_microprice_bps=limits.maximum_opposing_microprice_bps,
+    )
+    promoted: list[TestnetBaselineDecision] = []
+    for decision in decisions:
+        momentum = momentum_by_symbol.get(decision.symbol, Decimal(0))
+        aligned = (
+            momentum >= limits.impulse_minimum_momentum_bps
+            if direction is Direction.LONG
+            else momentum <= -limits.impulse_minimum_momentum_bps
+        )
+        plan = decision.experimental_plan
+        if plan is None and aligned and decision.symbol in TESTNET_IMPULSE_ENTRY_SYMBOLS:
+            plan = build_market_impulse_plan(
+                decision,
+                direction=direction,
+                momentum_bps=momentum,
+                breadth_count=breadth_count,
+                parameters=parameters,
+            )
+        promoted.append(replace(decision, experimental_plan=plan))
+    return promoted
 
 
 def _median_decimal(values: list[Decimal]) -> Decimal:
@@ -841,6 +973,13 @@ def _experimental_candidate_rank(decision: TestnetBaselineDecision) -> tuple[Dec
     if plan is None:
         return Decimal("Infinity"), decision.symbol
     return -plan.signal_quality_score, decision.symbol
+
+
+def _setup_type_cn(value: str) -> str:
+    return {
+        "TREND_CONFIRMATION": "趋势确认",
+        "MARKET_BREADTH_IMPULSE": "多币联动冲量",
+    }.get(value, value)
 
 
 def _money(value: object) -> str:
@@ -889,7 +1028,9 @@ def main() -> int:
     parser.add_argument("--margin-budget", type=Decimal, default=Decimal("1"))
     parser.add_argument("--maximum-net-loss-per-trade", type=Decimal, default=Decimal("1.00"))
     parser.add_argument("--maximum-parallel-positions", type=int, default=5)
+    parser.add_argument("--maximum-candidates-per-round", type=int, default=2)
     parser.add_argument("--signal-confirmation-rounds", type=int, default=2)
+    parser.add_argument("--impulse-confirmation-rounds", type=int, default=1)
     parser.add_argument("--minimum-signal-quality-score", type=Decimal, default=Decimal("2.00"))
     parser.add_argument("--minimum-estimated-net-target", type=Decimal, default=Decimal("0.10"))
     parser.add_argument("--risk-sizing-slippage-bps", type=Decimal, default=Decimal("12.00"))
@@ -904,6 +1045,10 @@ def main() -> int:
     parser.add_argument(
         "--minimum-aggressive-notional-ratio", type=Decimal, default=Decimal("0.50")
     )
+    parser.add_argument("--impulse-minimum-activity-ratio", type=Decimal, default=Decimal("1.25"))
+    parser.add_argument("--impulse-lookback-rounds", type=int, default=5)
+    parser.add_argument("--impulse-minimum-momentum-bps", type=Decimal, default=Decimal("2.00"))
+    parser.add_argument("--impulse-minimum-breadth-count", type=int, default=3)
     arguments = parser.parse_args()
     limits = CampaignLimits(
         duration_seconds=arguments.duration_seconds,
@@ -914,7 +1059,9 @@ def main() -> int:
         margin_budget=arguments.margin_budget,
         maximum_net_loss_per_trade=arguments.maximum_net_loss_per_trade,
         maximum_parallel_positions=arguments.maximum_parallel_positions,
+        maximum_candidates_per_round=arguments.maximum_candidates_per_round,
         signal_confirmation_rounds=arguments.signal_confirmation_rounds,
+        impulse_confirmation_rounds=arguments.impulse_confirmation_rounds,
         minimum_signal_quality_score=arguments.minimum_signal_quality_score,
         minimum_estimated_net_target=arguments.minimum_estimated_net_target,
         risk_sizing_slippage_bps=arguments.risk_sizing_slippage_bps,
@@ -927,6 +1074,10 @@ def main() -> int:
         aggressive_notional_lookback_rounds=(arguments.aggressive_notional_lookback_rounds),
         minimum_aggressive_notional_samples=arguments.minimum_aggressive_notional_samples,
         minimum_aggressive_notional_ratio=arguments.minimum_aggressive_notional_ratio,
+        impulse_minimum_activity_ratio=arguments.impulse_minimum_activity_ratio,
+        impulse_lookback_rounds=arguments.impulse_lookback_rounds,
+        impulse_minimum_momentum_bps=arguments.impulse_minimum_momentum_bps,
+        impulse_minimum_breadth_count=arguments.impulse_minimum_breadth_count,
     )
     arguments.lock_file.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     with arguments.lock_file.open("w", encoding="ascii") as lock:

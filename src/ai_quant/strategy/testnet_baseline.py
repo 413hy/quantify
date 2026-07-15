@@ -18,7 +18,7 @@ from ai_quant.features.price_action import (
 )
 from ai_quant.market_data.models import AggregateTrade
 
-TESTNET_EXPERIMENT_STRATEGY_VERSION = "TESTNET_EXPERIMENT_OF_PA_V4"
+TESTNET_EXPERIMENT_STRATEGY_VERSION = "TESTNET_EXPERIMENT_OF_PA_V4_1"
 TESTNET_EXPERIMENT_SYMBOLS = (
     "BTCUSDT",
     "ETHUSDT",
@@ -26,6 +26,7 @@ TESTNET_EXPERIMENT_SYMBOLS = (
     "SOLUSDT",
     "XRPUSDT",
 )
+TESTNET_IMPULSE_ENTRY_SYMBOLS = ("BTCUSDT", "ETHUSDT")
 _GROSS_TARGET_BPS_BY_SYMBOL = {
     "BTCUSDT": Decimal("20"),
     "ETHUSDT": Decimal("22"),
@@ -47,6 +48,8 @@ class TestnetBaselineDecision:
     spread_bps: Decimal
     reason_codes: tuple[str, ...]
     experimental_plan: TestnetExperimentalPlan | None = None
+    recent_low: Decimal | None = None
+    recent_high: Decimal | None = None
 
     @property
     def execution_ready(self) -> bool:
@@ -123,6 +126,9 @@ class TestnetExperimentalPlan:
     aggressive_notional_ratio: Decimal = Decimal(0)
     observed_spread_bps: Decimal = Decimal(0)
     signal_confirmation_rounds: int = 1
+    setup_type: str = "TREND_CONFIRMATION"
+    market_momentum_bps: Decimal = Decimal(0)
+    market_breadth_count: int = 0
     strategy_version: str = TESTNET_EXPERIMENT_STRATEGY_VERSION
 
     def evidence(self) -> dict[str, str | int]:
@@ -141,6 +147,9 @@ class TestnetExperimentalPlan:
             "aggressive_notional_ratio": format(self.aggressive_notional_ratio, "f"),
             "observed_spread_bps": format(self.observed_spread_bps, "f"),
             "signal_confirmation_rounds": self.signal_confirmation_rounds,
+            "setup_type": self.setup_type,
+            "market_momentum_bps": format(self.market_momentum_bps, "f"),
+            "market_breadth_count": self.market_breadth_count,
             "strategy_version": self.strategy_version,
         }
 
@@ -263,6 +272,95 @@ def evaluate_testnet_baseline(
         spread_bps=spread_bps,
         reason_codes=tuple(dict.fromkeys(reasons)),
         experimental_plan=experimental_plan,
+        recent_low=min(bar.low for bar in bars_1m[-5:]),
+        recent_high=max(bar.high for bar in bars_1m[-5:]),
+    )
+
+
+def build_market_impulse_plan(
+    decision: TestnetBaselineDecision,
+    *,
+    direction: Direction,
+    momentum_bps: Decimal,
+    breadth_count: int,
+    parameters: TestnetSignalParameters,
+) -> TestnetExperimentalPlan | None:
+    """Build a Testnet-only fast plan when market breadth and local flow agree."""
+    if direction not in {Direction.LONG, Direction.SHORT} or breadth_count < 3:
+        return None
+    if (
+        not decision.order_flow.valid
+        or decision.pa_1m.atr is None
+        or decision.recent_low is None
+        or decision.recent_high is None
+        or decision.spread_bps > parameters.maximum_spread_bps
+    ):
+        return None
+    if direction is Direction.LONG and (
+        decision.pa_1m.direction is Direction.SHORT
+        or decision.pa_5m.direction is Direction.SHORT
+    ):
+        return None
+    if direction is Direction.SHORT and (
+        decision.pa_1m.direction is Direction.LONG
+        or decision.pa_5m.direction is Direction.LONG
+    ):
+        return None
+    sign = Decimal(1) if direction is Direction.LONG else Decimal(-1)
+    directional_trade = sign * decision.order_flow.trade_imbalance
+    directional_book = sign * decision.order_flow.book_imbalance
+    directional_microprice = sign * decision.order_flow.microprice_mid_bps
+    # Aggressive trades must lead the impulse. Either the book or microprice must
+    # agree; one opposing instantaneous book measurement is not a global veto.
+    if directional_trade < parameters.minimum_trade_imbalance or not (
+        directional_book >= parameters.minimum_book_imbalance
+        or directional_microprice >= parameters.minimum_microprice_bps
+    ):
+        return None
+    mid = decision.mid_price
+    half_spread = mid * decision.spread_bps / Decimal(20_000)
+    entry = mid + half_spread if direction is Direction.LONG else mid - half_spread
+    atr = decision.pa_1m.atr
+    if direction is Direction.LONG:
+        stop = min(decision.recent_low - atr * Decimal("0.10"), entry * Decimal("0.9940"))
+        risk = entry - stop
+    else:
+        stop = max(decision.recent_high + atr * Decimal("0.10"), entry * Decimal("1.0060"))
+        risk = stop - entry
+    risk_bps = risk / entry * Decimal(10_000)
+    if not Decimal(30) <= risk_bps <= Decimal(120):
+        return None
+    target_bps = gross_target_bps_for_symbol(decision.symbol)
+    target_distance = entry * target_bps / Decimal(10_000)
+    target = entry + target_distance if direction is Direction.LONG else entry - target_distance
+    pa_alignment_count = sum(
+        frame.direction is direction for frame in (decision.pa_1m, decision.pa_5m)
+    )
+    quality_score = (
+        Decimal(3)
+        + directional_trade
+        + max(Decimal(0), directional_book)
+        + max(Decimal(0), directional_microprice) / Decimal(10)
+        + min(abs(momentum_bps), Decimal(20)) / Decimal(10)
+        + Decimal(breadth_count - 3) / Decimal(4)
+        - decision.spread_bps / Decimal(10)
+    )
+    return TestnetExperimentalPlan(
+        symbol=decision.symbol,
+        direction=direction,
+        entry_reference=entry,
+        stop_anchor=stop,
+        target_reference=target,
+        signal_quality_score=quality_score,
+        pa_alignment_count=pa_alignment_count,
+        directional_trade_imbalance=directional_trade,
+        directional_book_imbalance=directional_book,
+        directional_microprice_bps=directional_microprice,
+        aggressive_notional=decision.order_flow.aggressive_notional,
+        observed_spread_bps=decision.spread_bps,
+        setup_type="MARKET_BREADTH_IMPULSE",
+        market_momentum_bps=momentum_bps,
+        market_breadth_count=breadth_count,
     )
 
 

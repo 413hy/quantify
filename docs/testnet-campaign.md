@@ -1,12 +1,19 @@
 # Binance Testnet 三日实验交易
 
-该服务只连接 Binance USDⓈ-M Futures Testnet，不连接生产交易端点。V4 固定使用
+该服务只连接 Binance USDⓈ-M Futures Testnet，不连接生产交易端点。V4.1 固定使用
 BTCUSDT、ETHUSDT、BNBUSDT、SOLUSDT 和 XRPUSDT。它每 10 秒读取闭合 1 分钟/5 分钟 K 线、20 档
 深度及最近 5 秒 WebSocket 聚合成交，并以最多 5 个观察 worker 并行生成信号。
 
-## 实验规则（V4）
+## 实验规则（V4.1）
 
 这是 `UNVALIDATED_TESTNET_EXPERIMENT`，不能声称已经盈利，也不能用于生产交易：
+
+- 保留 V4 趋势确认入口，并增加 Testnet 专用的多币联动冲量入口。五币池均参与大盘宽度
+  判断；最近 5 轮（约 40 秒）至少 3 个币同向移动 2 bps 后，只允许 BTCUSDT、ETHUSDT
+  作为冲量开仓候选；每轮最多提交质量最高的 2 个，不强制补满活动仓位；
+- 冲量候选要求本币动量同向、1m/5m PA 均未明确反向、点差不超过 5 bps、主动成交方向
+  同向，并且盘口或 microprice 至少一项确认。多币同步本身作为市场确认，因此冲量入口使用
+  1 轮提交和 1.25 倍近期主动成交额；原趋势入口仍使用连续 3 轮和 2.00 倍活跃度；
 
 - 最近主动成交失衡至少达到 0.25 时确定多空方向；book imbalance 至少 0.03 或
   microprice 至少 0.10 bps 同向；
@@ -17,14 +24,14 @@ BTCUSDT、ETHUSDT、BNBUSDT、SOLUSDT 和 XRPUSDT。它每 10 秒读取闭合 1 
 - 1 分钟和 5 分钟 PA 均不得与入场方向相反，且至少一个周期必须同向；当前点差不得超过
   5 bps；
 - 综合质量分包含 1 分钟/5 分钟 PA 同向、效率、主动成交、盘口、microprice 和点差，必须
-  不低于 2.00；相同方向必须连续出现 3 个评估轮次才可提交，单轮和双轮脉冲不会开仓；
+  不低于 2.00；原趋势入口相同方向必须连续出现 3 个评估轮次才可提交；
 - 止损使用最近 5 根闭合 1 分钟 K 线极值加 0.10 ATR 缓冲；若距离过近，外扩至
   0.30%，若超过 1.20%则拒绝；
 - 毛止盈按固定交易池的 Testnet 最大杠杆和执行成本设置：BTC 20 bps、ETH 22 bps、BNB
   25 bps、SOL 32 bps、XRP 25 bps。下单前仍以实际数量、实际费率和 2 bps 不利滑点验证
   费用后目标至少 0.10 USDT；不满足时拒绝该单，而不是扩大仓位或降低净目标；
 - 同一轮存在多个候选时，按 1 分钟/5 分钟 PA 同向程度、PA 效率、订单流强度和点差综合
-  排序，不再按交易对字母顺序选前三个；
+  排序，不再按交易对字母顺序选择；每轮最多提交 2 个；
 - 每个币最多一个仓位，活动仓位容量为 0–5 个不同币；5 是硬上限而不是目标，不确认时允许
   一直保留空槽，不会为了补满而降低条件。单笔保证金上限约 1 USDT；执行器每次读取
   Testnet leverage bracket，使用该币种当前允许的最高初始杠杆（当前候选约 50–125 倍）。
@@ -68,7 +75,7 @@ jq . /var/lib/ai-quant/evidence/testnet/user-stream/current/state.json
 ```bash
 uv run python scripts/review-testnet-results.py \
   --observations /var/lib/ai-quant/evidence/testnet/campaign/current/observations.jsonl \
-  --strategy TESTNET_EXPERIMENT_OF_PA_V4
+  --strategy TESTNET_EXPERIMENT_OF_PA_V4_1
 ```
 
 少于 30 个已完成 V4 样本时报告固定为 `INSUFFICIENT_SAMPLE`，不能据此宣称策略有效。

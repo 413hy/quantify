@@ -32,7 +32,7 @@ is retained only as historical lifecycle evidence.
 
 The Testnet-only `aiq-testnet-campaign.service` is enabled as an owner-authorized experimental
 execution process. It evaluates SOLUSDT, BNBUSDT, XRPUSDT, DOGEUSDT and ADAUSDT every ten seconds,
-V4 fixes the pool to BTCUSDT, ETHUSDT, BNBUSDT, SOLUSDT and XRPUSDT, can hold zero to five different
+V4.1 fixes the pool to BTCUSDT, ETHUSDT, BNBUSDT, SOLUSDT and XRPUSDT, can hold zero to five different
 symbols in parallel and uses at most 1 USDT margin with the symbol's current Testnet maximum initial
 leverage (the same policy specified for future production), a 1.00 USDT
 estimated loss budget, and installs native structural stop/target protection without an elapsed-time

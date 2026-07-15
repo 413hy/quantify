@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -11,6 +12,7 @@ from ai_quant.features.order_flow import OrderFlowFrame
 from ai_quant.features.price_action import Direction, PriceActionFrame, Regime, Structure
 from ai_quant.services.testnet_campaign import (
     CampaignLimits,
+    _apply_market_impulse_plans,
     _experimental_candidate_rank,
     _money,
     _select_candidate,
@@ -236,7 +238,7 @@ def test_testnet_experiment_builds_structural_stop_without_time_exit(
     assert (plan.target_reference - plan.entry_reference) / plan.entry_reference * Decimal(
         10_000
     ) == Decimal("32")
-    assert plan.strategy_version == "TESTNET_EXPERIMENT_OF_PA_V4"
+    assert plan.strategy_version == "TESTNET_EXPERIMENT_OF_PA_V4_1"
     assert "maximum_holding" not in str(plan.evidence()).lower()
 
 
@@ -440,6 +442,86 @@ def test_pending_signal_rejects_activity_far_below_recent_median() -> None:
     assert state["pending_signals"] == {}
 
 
+def test_market_breadth_promotes_only_btc_eth_locally_aligned_impulses() -> None:
+    state: dict[str, Any] = {
+        "mid_price_history": {
+            symbol: [
+                {"evaluation_round": index, "mid_price": "100"}
+                for index in range(1, 5)
+            ]
+            for symbol in baseline.TESTNET_EXPERIMENT_SYMBOLS
+        }
+    }
+    decisions = [
+        _neutral_impulse_decision("BTCUSDT", "100.08"),
+        _neutral_impulse_decision("ETHUSDT", "100.06"),
+        _neutral_impulse_decision("BNBUSDT", "100.04"),
+        _neutral_impulse_decision("SOLUSDT", "100.01"),
+        _neutral_impulse_decision("XRPUSDT", "99.99"),
+    ]
+
+    promoted = _apply_market_impulse_plans(
+        state, decisions, limits=CampaignLimits(), evaluation_round=5
+    )
+
+    plans = {
+        decision.symbol: decision.experimental_plan
+        for decision in promoted
+        if decision.experimental_plan is not None
+    }
+    assert set(plans) == {"BTCUSDT", "ETHUSDT"}
+    assert all(plan.setup_type == "MARKET_BREADTH_IMPULSE" for plan in plans.values())
+    assert all(plan.direction is Direction.LONG for plan in plans.values())
+    assert all(plan.market_breadth_count == 3 for plan in plans.values())
+
+
+def test_impulse_pending_uses_two_rounds_without_forcing_slot_fill() -> None:
+    state: dict[str, Any] = {
+        "aggressive_notional_history": {
+            "BTCUSDT": ["500", "500", "500", "500", "500"]
+        }
+    }
+    decision = _neutral_impulse_decision("BTCUSDT", "100.08")
+    plan = baseline.build_market_impulse_plan(
+        decision,
+        direction=Direction.LONG,
+        momentum_bps=Decimal("8"),
+        breadth_count=3,
+        parameters=SignalParameters(),
+    )
+    assert plan is not None
+    decision = replace(decision, experimental_plan=plan)
+
+    first = _update_pending_signals(
+        state,
+        [decision],
+        active_symbols=set(),
+        evaluation_round=1,
+        required_rounds=3,
+        minimum_quality_score=Decimal("2"),
+        activity_lookback_rounds=12,
+        minimum_activity_samples=6,
+        minimum_activity_ratio=Decimal("2"),
+        impulse_required_rounds=2,
+        impulse_minimum_activity_ratio=Decimal("1.25"),
+    )
+    second = _update_pending_signals(
+        state,
+        [decision],
+        active_symbols=set(),
+        evaluation_round=2,
+        required_rounds=3,
+        minimum_quality_score=Decimal("2"),
+        activity_lookback_rounds=12,
+        minimum_activity_samples=6,
+        minimum_activity_ratio=Decimal("2"),
+        impulse_required_rounds=2,
+        impulse_minimum_activity_ratio=Decimal("1.25"),
+    )
+    assert first == []
+    assert second == [decision]
+
+
 def test_campaign_summary_translates_runtime_and_reason_codes_to_chinese() -> None:
     message = _summary_text(
         {
@@ -522,4 +604,41 @@ def _decision_for_rank(symbol: str, pa_direction: Direction) -> baseline.Testnet
             ),
             pa_alignment_count=1 if pa_direction is Direction.SHORT else 0,
         ),
+    )
+
+
+def _neutral_impulse_decision(symbol: str, mid: str) -> baseline.TestnetBaselineDecision:
+    now = datetime(2026, 7, 14, 12, tzinfo=UTC)
+    frame = PriceActionFrame(
+        as_of=now,
+        regime=Regime.TRANSITION,
+        structure=Structure.UNCONFIRMED,
+        direction=Direction.NEUTRAL,
+        atr=Decimal("0.2"),
+        efficiency_ratio=Decimal("0.2"),
+        reason_codes=("PA_DIRECTION_NEUTRAL",),
+    )
+    mid_value = Decimal(mid)
+    flow = OrderFlowFrame(
+        book_imbalance=Decimal("0.2"),
+        microprice=mid_value,
+        microprice_mid_bps=Decimal("0"),
+        trade_imbalance=Decimal("0.8"),
+        aggressive_notional=Decimal("1000"),
+        cvd_notional=Decimal("800"),
+        valid=True,
+        reason_codes=(),
+    )
+    return baseline.TestnetBaselineDecision(
+        eligible=False,
+        observed_at=now,
+        symbol=symbol,
+        direction=Direction.NEUTRAL,
+        pa_1m=frame,
+        pa_5m=frame,
+        order_flow=flow,
+        spread_bps=Decimal("1"),
+        reason_codes=("PA_1M_NOT_LONG", "PA_5M_NOT_LONG"),
+        recent_low=mid_value * Decimal("0.999"),
+        recent_high=mid_value * Decimal("1.001"),
     )
