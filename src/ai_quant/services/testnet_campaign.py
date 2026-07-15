@@ -534,6 +534,9 @@ class TestnetCampaign:
                     f"{_two_decimals(event['aggressive_notional_ratio'])}x "
                     "近期中位数\n"
                     f"成交入场价: {event['entry_price']}\n"
+                    "入场执行: "
+                    f"{_entry_execution_cn(str(event.get('entry_execution_mode', '?')))}\n"
+                    f"预测挂单价: {event.get('maker_limit_price', '?')}\n"
                     f"止盈触发价: {event['target_trigger']}\n"
                     f"预计止盈毛收益: {_money(event['estimated_target_gross_pnl'])} USDT\n"
                     f"预计扣费滑点后止盈: {_money(event['estimated_target_net_pnl'])} USDT\n"
@@ -1062,6 +1065,16 @@ def _setup_type_cn(value: str) -> str:
         "MARKET_BREADTH_IMPULSE_FAST": "多币快速联动",
         "MARKET_BREADTH_TREND": "多币持续联动",
     }.get(value, value)
+
+
+def _entry_execution_cn(value: str) -> str:
+    if value == "GTX_FILLED":
+        return "GTX 被动限价成交"
+    if value == "GTX_PARTIALLY_FILLED":
+        return "GTX 被动限价部分成交后保护"
+    if value.endswith("_MARKET_FALLBACK"):
+        return "GTX 限价未成交 / 3 bps 内市价兜底"
+    return value
 
 
 def _money(value: object) -> str:

@@ -238,7 +238,7 @@ def test_testnet_experiment_builds_structural_stop_without_time_exit(
     assert (plan.target_reference - plan.entry_reference) / plan.entry_reference * Decimal(
         10_000
     ) == Decimal("32")
-    assert plan.strategy_version == "TESTNET_EXPERIMENT_OF_PA_V4_2"
+    assert plan.strategy_version == "TESTNET_EXPERIMENT_OF_PA_V4_3"
     assert "maximum_holding" not in str(plan.evidence()).lower()
 
 
@@ -442,7 +442,7 @@ def test_pending_signal_rejects_activity_far_below_recent_median() -> None:
     assert state["pending_signals"] == {}
 
 
-def test_market_breadth_promotes_only_btc_eth_locally_aligned_impulses() -> None:
+def test_market_breadth_promotes_all_locally_aligned_pool_symbols() -> None:
     state: dict[str, Any] = {
         "mid_price_history": {
             symbol: [
@@ -469,14 +469,14 @@ def test_market_breadth_promotes_only_btc_eth_locally_aligned_impulses() -> None
         for decision in promoted
         if decision.experimental_plan is not None
     }
-    assert set(plans) == {"BTCUSDT", "ETHUSDT"}
+    assert set(plans) == {"BTCUSDT", "ETHUSDT", "BNBUSDT"}
     assert all(plan.setup_type == "MARKET_BREADTH_IMPULSE_FAST" for plan in plans.values())
     assert all(plan.direction is Direction.LONG for plan in plans.values())
     assert all(plan.market_breadth_count == 3 for plan in plans.values())
     assert state["last_signal_diagnostics"]["selected_setup"] == (
         "MARKET_BREADTH_IMPULSE_FAST"
     )
-    assert state["signal_gate_counts"]["PLAN_GENERATED"] == 2
+    assert state["signal_gate_counts"]["PLAN_GENERATED"] == 3
 
 
 def test_sustained_breadth_catches_gradual_move_and_rejects_exhaustion() -> None:
@@ -510,7 +510,7 @@ def test_sustained_breadth_catches_gradual_move_and_rejects_exhaustion() -> None
         if decision.experimental_plan is not None
     }
 
-    assert set(plans) == {"BTCUSDT"}
+    assert set(plans) == {"BTCUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"}
     assert plans["BTCUSDT"].setup_type == "MARKET_BREADTH_TREND"
     assert state["last_signal_diagnostics"]["symbols"]["ETHUSDT"]["gate_result"] == (
         "LOCAL_MOMENTUM_INSUFFICIENT_OR_EXHAUSTED"

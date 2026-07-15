@@ -10,6 +10,8 @@ from ai_quant.binance_egress.structural_experiment import (
     _protected_position_event,
     estimated_position_outcomes,
     exchange_maximum_initial_leverage,
+    maker_limit_price,
+    market_fallback_allowed,
     plan_market_quantity,
     quantize_protection,
     risk_adjusted_margin_budget,
@@ -104,6 +106,8 @@ def test_protected_position_event_exposes_leverage_margin_and_fee_adjusted_targe
         target_trigger=Decimal("1.0035"),
         effective_margin_budget=Decimal("0.95"),
         taker_fee_rate=Decimal("0.0004"),
+        entry_execution_mode="GTX_FILLED",
+        maker_limit_price=Decimal("0.9999"),
     )
 
     assert event["initial_leverage"] == 75
@@ -111,6 +115,43 @@ def test_protected_position_event_exposes_leverage_margin_and_fee_adjusted_targe
     assert event["position_notional"] == "71.25"
     assert Decimal(str(event["estimated_target_net_pnl"])) == Decimal("0.178125")
     assert event["protection_working_type"] == "CONTRACT_PRICE"
+    assert event["entry_execution_mode"] == "GTX_FILLED"
+    assert event["maker_limit_price"] == "0.9999"
+
+
+def test_maker_entry_uses_same_side_price_and_bounds_market_chase() -> None:
+    assert maker_limit_price(
+        Direction.LONG,
+        bid_price=Decimal("99.99"),
+        ask_price=Decimal("100.01"),
+        tick_size=Decimal("0.01"),
+    ) == Decimal("99.99")
+    assert maker_limit_price(
+        Direction.SHORT,
+        bid_price=Decimal("99.99"),
+        ask_price=Decimal("100.01"),
+        tick_size=Decimal("0.01"),
+    ) == Decimal("100.01")
+    assert market_fallback_allowed(
+        Direction.LONG,
+        initial_reference=Decimal("100"),
+        current_reference=Decimal("100.02"),
+    )
+    assert not market_fallback_allowed(
+        Direction.LONG,
+        initial_reference=Decimal("100"),
+        current_reference=Decimal("100.04"),
+    )
+    assert market_fallback_allowed(
+        Direction.SHORT,
+        initial_reference=Decimal("100"),
+        current_reference=Decimal("99.98"),
+    )
+    assert not market_fallback_allowed(
+        Direction.SHORT,
+        initial_reference=Decimal("100"),
+        current_reference=Decimal("99.96"),
+    )
 
 
 def test_pretrade_outcome_estimate_enforces_meaningful_fee_adjusted_target() -> None:

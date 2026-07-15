@@ -1,16 +1,15 @@
 # Binance Testnet 三日实验交易
 
-该服务只连接 Binance USDⓈ-M Futures Testnet，不连接生产交易端点。V4.2 固定使用
+该服务只连接 Binance USDⓈ-M Futures Testnet，不连接生产交易端点。V4.3 固定使用
 BTCUSDT、ETHUSDT、BNBUSDT、SOLUSDT 和 XRPUSDT。它每 10 秒读取闭合 1 分钟/5 分钟 K 线、20 档
 深度及最近 5 秒 WebSocket 聚合成交，并以最多 5 个观察 worker 并行生成信号。
 
-## 实验规则（V4.2）
+## 实验规则（V4.3）
 
 这是 `UNVALIDATED_TESTNET_EXPERIMENT`，不能声称已经盈利，也不能用于生产交易：
 
 - 保留 V4 趋势确认入口，并增加 Testnet 专用的多币联动冲量入口。五币池均参与大盘宽度
-  判断；最近 5 轮（约 40 秒）至少 3 个币同向移动 2 bps 后，只允许 BTCUSDT、ETHUSDT
-  作为冲量开仓候选；每轮最多提交质量最高的 2 个，不强制补满活动仓位；
+  判断并均可生成联动开仓候选；每轮最多提交质量最高的 2 个，不强制补满活动仓位；
 - 冲量候选要求本币动量同向、1m/5m PA 均未明确反向、点差不超过 5 bps、主动成交方向
   同向，并且盘口或 microprice 至少一项确认。多币同步本身作为市场确认，因此冲量入口使用
   1 轮提交和 1.25 倍近期主动成交额；原趋势入口仍使用连续 3 轮和 2.00 倍活跃度；
@@ -20,6 +19,10 @@ BTCUSDT、ETHUSDT、BNBUSDT、SOLUSDT 和 XRPUSDT。它每 10 秒读取闭合 1 
 - 状态文件持续记录 `last_signal_diagnostics` 和累计 `signal_gate_counts`，区分历史不足、市场
   宽度不足、本币动量不足或过热、微观结构/PA 拒绝、交易池排除和已生成计划，避免再次只看到
   “0 交易”却无法定位具体门控；
+- V4.3 入场使用 maker-first：信号触发后先在同侧最优价提交 `LIMIT + GTX`，最多轮询约
+  1.5 秒。完全未成交会撤单；只有最新可成交价相对原参考价的追价距离不超过 3 bps 时才允许
+  `MARKET` 兜底，超过则放弃该次入场。部分成交后立即撤销余量，并且只有实际数量仍满足
+  费用后 0.10 USDT 目标才建立原生保护，否则立即清仓并记录拒绝；
 
 - 最近主动成交失衡至少达到 0.25 时确定多空方向；book imbalance 至少 0.03 或
   microprice 至少 0.10 bps 同向；
@@ -81,7 +84,7 @@ jq . /var/lib/ai-quant/evidence/testnet/user-stream/current/state.json
 ```bash
 uv run python scripts/review-testnet-results.py \
   --observations /var/lib/ai-quant/evidence/testnet/campaign/current/observations.jsonl \
-  --strategy TESTNET_EXPERIMENT_OF_PA_V4_2
+  --strategy TESTNET_EXPERIMENT_OF_PA_V4_3
 ```
 
 少于 30 个已完成 V4 样本时报告固定为 `INSUFFICIENT_SAMPLE`，不能据此宣称策略有效。
