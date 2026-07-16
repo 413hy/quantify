@@ -1,11 +1,12 @@
 # Handoff state
 
-Updated: `2026-07-16T02:45:14Z`
+Updated: `2026-07-16T03:48:49Z`
 
 ## Current repository purpose
 
-This is a strategy-free trading execution framework. Do not assume the deleted V4/V5 campaign is
-still present and do not restore it from Git history unless the owner explicitly asks.
+This is a strategy-free trading execution framework with a generic automatic intent engine. Do not
+assume the deleted V4/V5 campaign is still present and do not restore it from Git history unless the
+owner explicitly asks.
 
 Read first:
 
@@ -23,8 +24,9 @@ Read first:
 - `aiq-testnet-secrets.service`: retained for the read-only Testnet observer.
 - Production remains `RISK_LOCKED`.
 
-The retained services cannot generate an order. Before a new project adds any automated service,
-review and test its decision and execution authority explicitly.
+The retained runtime services cannot generate an order. `ai_quant.automation` can automatically
+process fully specified trade intents when a new project injects decision, gate and protected
+executor adapters. Review and test those adapters before adding or enabling a service.
 
 ## Reusable packages
 
@@ -32,6 +34,7 @@ review and test its decision and execution authority explicitly.
 - `features` (observation calculation only)
 - `universe`, `cost`, `risk`
 - `execution`, `binance_egress`
+- `automation` (automatic intent lifecycle; no signal generation)
 - `control`, `notifications`, `monitoring`, `backup`
 - `rate_budget`, `orchestration`, `iteration`, `validation`
 
@@ -40,8 +43,8 @@ trade.
 
 ## Verification
 
-The post-reset release check passed: 253 full tests; 190 unit, 19 property, 2 contract and 17
-security tests; Ruff; strict mypy over 86 source files; Bandit; secret scan; contract/config/
+The post-reset release check passed: 260 full tests; 197 unit, 19 property, 2 contract and 17
+security tests; Ruff; strict mypy over 89 source files; Bandit; secret scan; contract/config/
 provenance/Compose/deployment validators; and Debian 12/aarch64 host validation.
 
 ```bash

@@ -1,15 +1,17 @@
 # Implementation status
 
-Updated: `2026-07-16T02:45:14Z`
+Updated: `2026-07-16T03:48:49Z`
 
-Overall state: `FRAMEWORK_READY / NO_STRATEGY / NO_AUTO_TRADING / PRODUCTION_RISK_LOCKED`
+Overall state: `FRAMEWORK_READY / AUTOMATION_ENGINE_READY / NO_BUILTIN_STRATEGY /
+UNATTENDED_DISABLED / PRODUCTION_RISK_LOCKED`
 
 ## Reset outcome
 
 The previous V4/V5 Testnet strategy product has been removed so this repository can be used as a
-clean execution framework for a new project. The deletion includes the strategy state machine,
-strategy-owned Testnet executor, automated campaign, strategy Telegram dashboard, replay/result
-tools, strategy tests, strategy ADRs and repository-local strategy evidence.
+clean execution framework for a new project. The deletion includes the old strategy state machine,
+strategy-owned Testnet executor and campaign, strategy Telegram dashboard, replay/result tools,
+strategy tests, strategy ADRs and repository-local strategy evidence. Generic automatic execution
+has now been separated from those deleted strategy rules and retained as a reusable engine.
 
 The old automated campaign and dashboard were stopped and disabled while the account had no active
 position or pending entry. Their installed systemd units were removed. Historical runtime evidence
@@ -23,6 +25,8 @@ repository and can be archived separately if desired.
 - Reusable PA and Order Flow feature calculators without decision authority.
 - Universe ranking/membership and fee/net-edge utilities.
 - Generic risk sizing, exchange filter handling and maximum-loss validation.
+- Strategy-agnostic automatic intent validation, idempotency, environment/time/position/loss gates
+  and protected executor delegation.
 - Order intent/state models, Binance response classification, UNKNOWN reconciliation, conservative
   simulator and native stop/take-profit planning.
 - Binance Testnet safe capability, order lifecycle, risk profile and native-protection probes.
@@ -34,7 +38,8 @@ repository and can be archived separately if desired.
 
 - No strategy implementation exists under `ai_quant.strategy` beyond an empty extension package.
 - No executable module chooses symbols, directions, entries, targets or exits.
-- No unattended service has order-submission authority.
+- No unattended service is currently installed or enabled; a new project must supply the decision,
+  risk/cost gate and protected executor adapters before activating one.
 - No strategy-specific dashboard or PnL/win-rate report remains.
 - No production transport or credential is enabled; production remains `RISK_LOCKED`.
 
@@ -42,9 +47,9 @@ repository and can be archived separately if desired.
 
 Post-reset validation on Debian 12/aarch64:
 
-- Full pytest: 253 passed.
-- CI suites: 190 unit, 19 property, 2 contract and 17 security tests passed.
-- Ruff passed; strict mypy passed over 86 source files; Bandit and secret scan passed.
+- Full pytest: 260 passed.
+- CI suites: 197 unit, 19 property, 2 contract and 17 security tests passed.
+- Ruff passed; strict mypy passed over 89 source files; Bandit and secret scan passed.
 - Contract/config/provenance/Compose checks passed.
 - Deployment validation passed with two retained Testnet services and no strategy unit.
 - Debian host validation passed on the 2-vCPU, approximately 12-GiB, 200-GB OCI host.

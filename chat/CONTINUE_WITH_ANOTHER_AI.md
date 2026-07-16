@@ -16,15 +16,19 @@ Important current facts:
 - The old V4/V5 strategy, automatic campaign, strategy dashboard, strategy replay and strategy
   evidence were intentionally removed.
 - ai_quant.strategy is an empty extension point.
+- ai_quant.automation is a retained strategy-agnostic automatic intent engine. It validates and
+  submits complete project-owned intents but never predicts or invents a trade.
 - Retained market-data, feature, risk, execution, Binance Testnet probe, native protection,
   user-stream, notification, database and validation modules do not choose trades by themselves.
-- The retained Testnet user-stream observer is read-only. No unattended order-submission service
-  should exist.
+- The retained Testnet user-stream observer is read-only. No unattended order-submission service is
+  currently installed or enabled; a new project may add one only after supplying and testing its
+  decision, gate and protected-executor adapters.
 - Production remains RISK_LOCKED.
 
 If the owner asks to build a new trading project, create a new versioned strategy/decision contract
-and tests rather than restoring the old strategy. Keep order authority separated, start in Paper or
-Testnet, and leave deployment disabled until its own review passes.
+and tests rather than restoring the old strategy. Connect it to AutomaticTradeEngine with explicit
+gate and protected-executor adapters. Keep order authority separated, start in Paper or Testnet, and
+leave deployment disabled until its own review passes.
 
 Never commit Binance credentials, Telegram tokens, server passwords, raw Codex state,
 /run secrets, /root/aiq-user-inputs or account-identifying runtime evidence. Preserve the separate
