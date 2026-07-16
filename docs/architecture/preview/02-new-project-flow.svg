@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <defs><style>text{font-family:"Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#172b4d}.t{font-size:28px;font-weight:700}.h{font-size:16px;font-weight:700}.n{font-size:14px}.b{fill:#fff;stroke:#607d8b;stroke-width:2;rx:12}.e{fill:none;stroke:#607d8b;stroke-width:3;marker-end:url(#a)}</style><marker id="a" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0 0L0 6L9 3Z" fill="#607d8b"/></marker></defs>
+  <rect width="1600" height="900" fill="#f8fafc"/><text x="800" y="55" class="t" text-anchor="middle">新项目接入自动交易框架</text>
+  <rect x="60" y="155" width="205" height="80" class="b" fill="#dae8fc"/><text x="162" y="187" class="h" text-anchor="middle"><tspan x="162">行情 / 订单簿</tspan><tspan x="162" dy="24">历史回放</tspan></text>
+  <rect x="315" y="155" width="210" height="80" class="b" fill="#d5e8d4"/><text x="420" y="187" class="h" text-anchor="middle"><tspan x="420">观测计算</tspan><tspan x="420" dy="24">PA / OF / Universe</tspan></text>
+  <rect x="575" y="130" width="245" height="130" rx="12" fill="#fff2cc" stroke="#d6b656" stroke-width="3" stroke-dasharray="10 6"/><text x="697" y="167" class="h" text-anchor="middle"><tspan x="697">新项目决策源</tspan><tspan x="697" dy="25">【需要开发】</tspan><tspan x="697" dy="25">标的 / 方向 / 入场 / 退出</tspan></text>
+  <rect x="870" y="145" width="250" height="100" rx="12" fill="#ffe6cc" stroke="#d79b00" stroke-width="2"/><text x="995" y="178" class="h" text-anchor="middle"><tspan x="995">AutomaticTradeRunner</tspan><tspan x="995" dy="23">持续轮询决策源</tspan><tspan x="995" dy="23">完整意图进入引擎</tspan></text>
+  <rect x="1170" y="145" width="260" height="100" rx="12" fill="#ffe6cc" stroke="#d79b00" stroke-width="2"/><text x="1300" y="178" class="h" text-anchor="middle"><tspan x="1300">AutomaticTradeEngine</tspan><tspan x="1300" dy="23">时效 / 幂等 / 环境</tspan><tspan x="1300" dy="23">仓位 / 日亏损 / 急停</tspan></text>
+  <path d="M265 195H315" class="e"/><path d="M525 195H575" class="e"/><path d="M820 195H870" class="e"/><path d="M1120 195H1170" class="e"/>
+
+  <polygon points="1300,330 1420,405 1300,480 1180,405" fill="#fff2cc" stroke="#d6b656" stroke-width="2"/><text x="1300" y="391" class="h" text-anchor="middle"><tspan x="1300">风险 + 成本门禁</tspan><tspan x="1300" dy="23">净边际不足 / 超限</tspan><tspan x="1300" dy="23">立即拒绝</tspan></text>
+  <rect x="850" y="360" width="250" height="90" class="b" fill="#e1d5e7"/><text x="975" y="393" class="h" text-anchor="middle"><tspan x="975">Paper / Replay</tspan><tspan x="975" dy="23">确定性测试与故障注入</tspan></text>
+  <polygon points="680,345 790,405 680,465 570,405" fill="#f5f5f5" stroke="#666" stroke-width="2"/><text x="680" y="396" class="h" text-anchor="middle"><tspan x="680">人工审查门</tspan><tspan x="680" dy="23">证据是否充分？</tspan></text>
+  <rect x="300" y="360" width="200" height="90" class="b" fill="#dae8fc"/><text x="400" y="393" class="h" text-anchor="middle"><tspan x="400">受限 Testnet 服务</tspan><tspan x="400" dy="23">默认 disabled</tspan></text>
+  <path d="M1300 245V330" class="e"/><path d="M1180 405H1100" class="e"/><path d="M850 405H790" class="e"/><path d="M570 405H500" class="e"/>
+
+  <rect x="300" y="585" width="200" height="85" class="b" fill="#ffe6cc"/><text x="400" y="617" class="h" text-anchor="middle"><tspan x="400">原生保护订单</tspan><tspan x="400" dy="23">TP / SL / reduce-only</tspan></text>
+  <rect x="570" y="585" width="220" height="85" class="b" fill="#ffe6cc"/><text x="680" y="617" class="h" text-anchor="middle"><tspan x="680">响应分类与对账</tspan><tspan x="680" dy="23">UNKNOWN 不重试造单</tspan></text>
+  <rect x="850" y="585" width="250" height="85" class="b" fill="#e1d5e7"/><text x="975" y="617" class="h" text-anchor="middle"><tspan x="975">审计证据 / 指标</tspan><tspan x="975" dy="23">中文 Telegram 通知</tspan></text>
+  <rect x="1170" y="585" width="260" height="85" class="b" fill="#d5e8d4"/><text x="1300" y="617" class="h" text-anchor="middle"><tspan x="1300">研究迭代队列</tspan><tspan x="1300" dy="23">只依据可复现实验升级</tspan></text>
+  <path d="M400 450V585" class="e"/><path d="M500 627H570" class="e"/><path d="M790 627H850" class="e"/><path d="M1100 627H1170" class="e"/>
+  <path d="M1300 585V520H697V260" class="e" stroke-dasharray="8 6"/>
+  <rect x="60" y="565" width="180" height="125" rx="12" fill="#f8cecc" stroke="#b85450" stroke-width="2"/><text x="150" y="603" class="h" text-anchor="middle"><tspan x="150">生产环境</tspan><tspan x="150" dy="25">RISK_LOCKED</tspan><tspan x="150" dy="25">独立完成生产门禁前</tspan><tspan x="150" dy="22">不可接入</tspan></text>
+  <rect x="300" y="755" width="1130" height="65" rx="12" fill="#fff2cc" stroke="#d6b656"/><text x="865" y="784" class="n" text-anchor="middle"><tspan x="865">自动交易能力已经存在；新项目只需提供经过验证的决策源、风险成本门禁和受保护执行适配器。</tspan><tspan x="865" dy="22">无交易意图时，系统不会为了补满仓位而自动造单。</tspan></text>
+</svg>

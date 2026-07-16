@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <defs><style>text{font-family:"Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#172b4d}.t{font-size:28px;font-weight:700}.h{font-size:17px;font-weight:700}.n{font-size:14px}.b{fill:#fff;stroke-width:2;rx:12}.e{fill:none;stroke:#607d8b;stroke-width:3;marker-end:url(#a)}</style><marker id="a" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0 0L0 6L9 3Z" fill="#607d8b"/></marker></defs>
+  <rect width="1600" height="900" fill="#f8fafc"/><text x="800" y="55" class="t" text-anchor="middle">Debian 12 / Oracle Cloud 当前运行边界</text>
+  <rect x="150" y="90" width="1300" height="55" rx="12" fill="#dae8fc" stroke="#6c8ebf" stroke-width="2"/><text x="800" y="124" class="h" text-anchor="middle">Oracle Cloud VM · Debian 12 Bookworm · aarch64 · 2 vCPU · ≈12 GiB RAM · ≈200 GB</text>
+  <rect x="150" y="230" width="280" height="105" class="b" fill="#d5e8d4" stroke="#82b366"/><text x="290" y="264" class="h" text-anchor="middle"><tspan x="290">aiq-testnet-secrets.service</tspan><tspan x="290" dy="25">启用</tspan><tspan x="290" dy="23">root-only 临时凭证物化</tspan></text>
+  <rect x="520" y="230" width="310" height="105" class="b" fill="#d5e8d4" stroke="#82b366"/><text x="675" y="264" class="h" text-anchor="middle"><tspan x="675">aiq-testnet-user-stream.service</tspan><tspan x="675" dy="25">启用 · 只读</tspan><tspan x="675" dy="23">监听 Testnet 账户事件</tspan></text>
+  <ellipse cx="1050" cy="282" rx="145" ry="65" fill="#e1d5e7" stroke="#9673a6" stroke-width="2"/><text x="1050" y="271" class="h" text-anchor="middle"><tspan x="1050">/var/lib/ai-quant/evidence</tspan><tspan x="1050" dy="24">哈希链运行证据 · 不入 Git</tspan></text>
+  <ellipse cx="1370" cy="282" rx="115" ry="65" fill="#fff2cc" stroke="#d6b656" stroke-width="2"/><text x="1370" y="270" class="h" text-anchor="middle"><tspan x="1370">Binance Testnet</tspan><tspan x="1370" dy="25">允许环境</tspan></text>
+  <path d="M430 282H520" class="e"/><path d="M1255 282H830" class="e"/><path d="M830 282H905" class="e"/>
+
+  <rect x="150" y="455" width="310" height="90" class="b" fill="#f8cecc" stroke="#b85450"/><text x="305" y="488" class="h" text-anchor="middle"><tspan x="305">旧 aiq-testnet-campaign</tspan><tspan x="305" dy="25">已停止 · 已禁用 · unit 已删除</tspan></text>
+  <rect x="520" y="455" width="310" height="90" class="b" fill="#f8cecc" stroke="#b85450"/><text x="675" y="488" class="h" text-anchor="middle"><tspan x="675">旧 Telegram dashboard</tspan><tspan x="675" dy="25">已停止 · 已禁用 · unit 已删除</tspan></text>
+  <rect x="900" y="445" width="300" height="110" class="b" fill="#fff2cc" stroke="#d6b656"/><text x="1050" y="478" class="h" text-anchor="middle"><tspan x="1050">通用自动交易引擎</tspan><tspan x="1050" dy="25">代码已就绪</tspan><tspan x="1050" dy="23">决策适配器接入前不启用服务</tspan></text>
+  <ellipse cx="1370" cy="500" rx="125" ry="75" fill="#f8cecc" stroke="#b85450" stroke-width="2"/><text x="1370" y="481" class="h" text-anchor="middle"><tspan x="1370">Binance Production</tspan><tspan x="1370" dy="25">无凭证 · 无传输</tspan><tspan x="1370" dy="25">RISK_LOCKED</tspan></text>
+  <path d="M1200 500H1245" class="e" stroke="#b85450" stroke-dasharray="8 6"/>
+  <text x="1222" y="483" class="n" text-anchor="middle" fill="#b85450">禁止</text>
+
+  <rect x="150" y="650" width="1050" height="65" rx="12" fill="#ffe6cc" stroke="#d79b00" stroke-width="2"/><text x="675" y="690" class="h" text-anchor="middle">精确目的地 egress · nftables · rate budget · attestation · Debian 部署验证</text>
+  <rect x="150" y="765" width="1300" height="75" rx="12" fill="#f5f5f5" stroke="#666" stroke-width="2"/><text x="800" y="794" class="n" text-anchor="middle"><tspan x="800">Git 只保存源码、迁移、部署模板和架构图</tspan><tspan x="800" dy="24">严禁提交 API Key、Telegram Token、服务器密码、/run/ai-quant-secrets、账户证据和 Codex 原始状态</tspan></text>
+</svg>

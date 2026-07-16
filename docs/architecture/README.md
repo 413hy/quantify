@@ -11,6 +11,18 @@ The three pages intentionally separate:
 2. the decision layer a future project must implement;
 3. the current Debian runtime and production lock boundary.
 
+## Direct previews
+
+These PNG/SVG pairs can be opened directly by a browser and are rendered by GitHub without loading
+an editor:
+
+- `preview/01-current-framework.png` / `preview/01-current-framework.svg`
+- `preview/02-new-project-flow.png` / `preview/02-new-project-flow.svg`
+- `preview/03-debian-runtime.png` / `preview/03-debian-runtime.svg`
+
+The image files are view-only previews. `trading-framework.drawio` remains the editable source of
+truth and contains all three pages.
+
 The diagram is descriptive, not an authorization artifact. In particular, yellow dashed nodes on
 page 2 are future work and must not be interpreted as implemented strategy code.
 
