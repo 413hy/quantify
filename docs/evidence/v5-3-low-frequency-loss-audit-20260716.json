@@ -1,0 +1,48 @@
+{
+  "audit": "V5_3_LOW_FREQUENCY_LOSS_AND_V5_4_COUNTERFACTUAL",
+  "candidate_plan_count": 21,
+  "environment": "testnet",
+  "evaluation_round_count": 943,
+  "gate_counts": {
+    "confirmed": 1,
+    "forecast_direction_conflict": 3,
+    "pa_alignment_insufficient": 17
+  },
+  "observations": 4715,
+  "production_endpoint_requests": 0,
+  "strong_flow_substitute_candidates": [
+    {
+      "directional_forecast_bps": "4.92",
+      "gross_target_bps": "25",
+      "maximum_favorable_excursion_bps": "24.7",
+      "recorded_target_touch_at": "2026-07-15T18:56:01.425000Z",
+      "signal_at": "2026-07-15T18:41:01.081000Z",
+      "symbol": "XRPUSDT"
+    },
+    {
+      "directional_forecast_bps": "3.11",
+      "gross_target_bps": "25",
+      "maximum_favorable_excursion_bps": "27.4",
+      "recorded_target_touch_at": "2026-07-15T18:56:33.686000Z",
+      "signal_at": "2026-07-15T18:43:09.812000Z",
+      "symbol": "XRPUSDT"
+    }
+  ],
+  "trade": {
+    "actual_exit_price": "1.1141",
+    "actual_exit_reason": "SIGNAL_INVALIDATION",
+    "actual_net_pnl": "-0.19138816",
+    "commission_paid": "0.05698816",
+    "direction": "SHORT",
+    "directional_forecast_bps": "1.7493521674800336791165",
+    "entry_price": "1.11200",
+    "local_failure_counterfactual_exit_price": "1.11215",
+    "local_failure_counterfactual_net_pnl": "-0.066538240",
+    "maximum_favorable_excursion_bps": "7.6438848920863309352518",
+    "symbol": "XRPUSDT"
+  },
+  "warnings": [
+    "This is a short in-sample causal audit and cannot establish profitability.",
+    "Ten-second mids can miss intrainterval touches and counterfactual fills are estimates."
+  ]
+}

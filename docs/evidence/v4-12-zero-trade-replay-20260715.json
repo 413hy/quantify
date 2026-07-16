@@ -1,0 +1,51 @@
+{
+  "artifact_type": "CAUSAL_STRATEGY_REPLAY_AND_SHADOW_REVIEW",
+  "environment": "binance_futures_testnet",
+  "source_strategy": "TESTNET_EXPERIMENT_OF_PA_V4_12",
+  "proposed_strategy": "TESTNET_EXPERIMENT_OF_PA_V4_13",
+  "observed_rounds": 606,
+  "observed_symbol_decisions": 3030,
+  "breadth_contexts": {
+    "total": 61,
+    "fast": 36,
+    "sustained": 25
+  },
+  "locally_aligned_momentum_candidates": 113,
+  "fast_candidates_after_three_symbol_breadth_and_microstructure": 9,
+  "fast_candidates_after_four_symbol_breadth_and_microstructure": 2,
+  "v4_12_submitted_candidates": 0,
+  "v4_13_counterfactual_candidates": 1,
+  "v4_13_counterfactual_full_target_hits": 1,
+  "selected_counterfactual": {
+    "symbol": "ETHUSDT",
+    "direction": "SHORT",
+    "observed_at": "2026-07-15T10:19:49Z",
+    "configured_target_bps": "26",
+    "target_reached_after_minutes": 4,
+    "maximum_favorable_excursion_15m_bps": "40.68",
+    "maximum_adverse_excursion_15m_bps": "2.18",
+    "directional_linear_forecast_bps": "0.9406",
+    "historical_target_feasibility_rate_15m": "0.028846",
+    "activity_ratio": "0.184"
+  },
+  "v4_13_fast_rules": {
+    "minimum_breadth_count": 3,
+    "minimum_directional_forecast_bps": "0.10",
+    "minimum_target_feasibility_rate_15m": "0.02",
+    "minimum_activity_ratio": "0.10",
+    "maximum_activity_ratio": "10.00",
+    "minimum_net_reward_risk_ratio": "0.20"
+  },
+  "kronos_shadow": {
+    "model": "Kronos-mini",
+    "context_closed_bars_1m": 360,
+    "prediction_horizon_minutes": 10,
+    "representative_samples": 4,
+    "review_result": "The model rejected the sole realized target winner and rejected two of three reviewed failures; it remains shadow evidence and has no order authority."
+  },
+  "limitations": [
+    "This is a small replay sample and is not evidence of profitability.",
+    "The counterfactual result is used only to remove contradictory gates, not to claim an expected win rate.",
+    "V4.13 requires natural Testnet observations before further threshold changes."
+  ]
+}

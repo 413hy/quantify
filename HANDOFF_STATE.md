@@ -1,126 +1,107 @@
 # Handoff state
 
-Updated: `2026-07-14T17:00:39Z`
+Updated: `2026-07-16T02:20:22Z`
 
-Resume in `/root/quantify/ai-quant-system`. Debian 12 Bookworm/aarch64 is the sole supported host.
-Do not modify `/root/quantify/reference-materials`; the copied contract/config provenance validator
-must continue to pass.
+## Start here
 
-## Current code state
+Detect the clone root with `git rev-parse --show-toplevel`; do not assume an absolute path. The
+historical deployment path is `/root/quantify/ai-quant-system`.
 
-The complete offline Paper trading path is implemented across these packages:
+Read, in order:
 
-- `market_data`, `orderbook`, `archive`
-- `universe`, `features`, `strategy`, `cost`
-- `risk`, `execution`
-- `control`, `notifications`, `monitoring`, `backup`
-- `orchestration`, `validation`, `research`, `iteration`
-- `demo.paper_flow`
+1. `IMPLEMENTATION_STATUS.md`
+2. `docs/testnet-campaign.md`
+3. `docs/adr/0037-three-coin-predictive-fast-context-v5-5.md`
+4. `docs/adr/0038-one-minute-cadence-v5-6.md`
+5. `chat/SESSION_HANDOFF_2026-07-16.md`
+6. Earlier ADRs only when changing the subsystem they govern.
 
-The latest review added deterministic existing-position exits, native stop/take-profit pair
-planning, the frozen hierarchical gross-edge runtime lookup and a 1 USDT margin quantity ceiling.
-Owner amendment ADR 0009 removes the erroneous project 10x limit in every environment: leverage is
-now `EXCHANGE_MAXIMUM`, dynamically bound to the current Binance account/symbol/notional bracket.
-The shared risk configuration has no leverage member in `hard_caps` or `configured_limits`;
-TradePlan requires the selected exchange maximum plus bracket hash/time freshness evidence, and the
-mandatory Production/Testnet endpoint inventory includes both bracket query and leverage change.
+The separate `/root/quantify/reference-materials` tree is not part of Git. Restore it separately
+and keep it read-only before provenance-dependent work.
 
-The historical SOLUSDT protocol sample used 0.92460000 USDT margin at 10x and ended at
--0.01099535 USDT net after commission, with zero remaining orders or position. Owner-approved ADR
-0006 removed both elapsed-time position exits and the standalone runner that used them. This sample
-is retained only as historical lifecycle evidence.
+## Current deployed state
 
-The Testnet-only `aiq-testnet-campaign.service` is enabled as an owner-authorized experimental
-execution process. It evaluates SOLUSDT, BNBUSDT, XRPUSDT, DOGEUSDT and ADAUSDT every ten seconds,
-V4.3 fixes the pool to BTCUSDT, ETHUSDT, BNBUSDT, SOLUSDT and XRPUSDT, can hold zero to five different
-symbols in parallel and uses at most 1 USDT margin with the symbol's current Testnet maximum initial
-leverage (the same policy specified for future production), a 1.00 USDT
-estimated loss budget, and installs native structural stop/target protection without an elapsed-time
-exit. Five is capacity, not a fill target: V4 requires one aligned PA timeframe, three consecutive
-same-direction rounds, activity at least 2x its recent median, quality score 2.00, spread at most
-5 bps and at least 0.10 USDT estimated fee-adjusted target.
-Strict baseline
-production rejection remains recorded separately; experiment results are unvalidated. State is
-`/var/lib/ai-quant/evidence/testnet/campaign/current/state.json`; see `docs/testnet-campaign.md`.
-Telegram messages are structured Chinese text.
+- Platform: Debian 12 Bookworm/aarch64 on Oracle Cloud.
+- Environment: Binance USDⓈ-M Futures Testnet only.
+- Strategy: `TESTNET_EXPERIMENT_OF_PA_V5_6`.
+- Universe: BTCUSDT, ETHUSDT, BNBUSDT, SOLUSDT and XRPUSDT.
+- Evaluation: once per minute; fast/sustained windows are approximately three/four minutes.
+- Capacity: zero to five symbols; approximately 1 USDT margin each; exchange-maximum leverage.
+- Entry: confirmed-signal market order.
+- Exit: native stop/target, signal invalidation or confirmed reversal; no elapsed-time exit.
+- Target economics: 22 bps BTC/ETH, 25 bps BNB/SOL/XRP, with at least 0.10 USDT estimated net after
+  fees and buffer.
+- Production: `RISK_LOCKED`; no production transport or credential is authorized.
+- Strategy result: unvalidated. Do not promise profitability or a win rate.
 
-The reproducible structural research review in `scripts/backtest-testnet-structural.py` failed the
-entry gate: the exact forward baseline had 0 eligible observations out of 679, while the no-time-
-exit T1 proxy produced 2 closed samples, 0 wins and -0.0389499593 USDT at 10 USDT notional. Do not
-enable Testnet order submission from this result. Evidence is
-`/var/lib/ai-quant/evidence/testnet/backtest/current/structural-review.json`; new campaign records
-include `mid_price` and `microprice` for future forward evaluation.
+Systemd services:
 
-The campaign now obtains recent trades from a persistent five-symbol Testnet `aggTrade` WebSocket,
-not REST polling. Only messages with valid `nq` normal quantity enter OF. The first two deployed
-five-second rounds had non-zero aggressive flow for every symbol; entry still remained rejected by
-PA/setup/edge gates, as intended.
+- `aiq-testnet-secrets.service`
+- `aiq-testnet-campaign.service`
+- `aiq-testnet-user-stream.service`
+- `aiq-telegram-dashboard.service`
 
-`aiq-testnet-user-stream.service` is enabled as a separate read-only observer. It maintains the
-Testnet listen key, reconnects, deduplicates supported events and writes a secret-free hash chain.
-A real BTCUSDT far-from-market lifecycle and native-protection cycle captured six
-`ORDER_TRADE_UPDATE`, two `ACCOUNT_UPDATE` and four `ALGO_UPDATE` records. The independent verifier
-passed all 12 unique hash-chained events and zero production requests; restart preserved them and
-produced reconnect state. Evidence is `/var/lib/ai-quant/evidence/testnet/user-stream/current/`.
-Do not claim the full user-stream gate until keepalive/rotation, injected disconnect/dedup, every
-required Algo status and the remaining fault matrix pass.
+All four are intended to be enabled at boot. The campaign reconciles protected Testnet state before
+considering a new entry and runs independently of Codex.
 
-The historical parallel Testnet sample ran SOLUSDT, BNBUSDT and XRPUSDT concurrently. It ended at
--0.00742656/-0.00525511/-0.00930724 USDT net and reconciled fully flat. Its elapsed-duration runner
-has been deleted; the retained records are execution stress evidence, not strategy trades.
-
-Business migrations now end at `0004_operations` and contain append-only market-data, risk,
-execution, command, incident, notification and backup evidence. The pre-existing host-control tree
-still ends at `0010_local_measurements`.
-
-The reference acceptance sequence currently passes:
+Useful read-only checks:
 
 ```bash
-make ci test-replay test-integration test-fault test-resource
-make test-migrations test-locked-runtime paper-flow
-make sbom scan
+systemctl status aiq-testnet-campaign.service
+systemctl status aiq-testnet-user-stream.service
+systemctl status aiq-telegram-dashboard.service
+jq . /var/lib/ai-quant/evidence/testnet/campaign/current/state.json
+journalctl -u aiq-testnet-campaign.service -n 100 --no-pager
 ```
 
-Expected counts are 222 unit, 19 property, 2 contract, 17 security, 3 replay, 19 integration,
-6 fault and 1 resource test. The Paper result has `external_requests=0`, `order_state=FILLED`,
-`protection_healthy=true`, and `runtime_state=RISK_LOCKED`.
+## Latest verified repository state
 
-## Safety and activation boundary
+On 2026-07-16:
 
-The user asked to finish development and run the workflow before security/deployment activation.
-Accordingly, the flow was completed offline, while the existing `RISK_LOCKED` and no-network
-defaults were preserved. Do not reinterpret this as permission to enable production transport,
-inject secrets, arm live trading, alter SSH/firewall state or manufacture time-window evidence.
+- `make ci`: PASS.
+- 302 unit, 19 property, 2 contract and 19 security tests passed.
+- Full `uv run pytest -q`: 371 passed.
+- Ruff, strict mypy over 98 source files, Bandit and secret scan passed.
+- Contract/config/provenance/Compose/deployment validators passed.
+- Debian verifier passed on the deployed 2-vCPU, approximately 12-GiB, 200-GB OCI host.
 
-No GitHub push is requested yet. The user explicitly wants repository upload deferred until the
-system is complete. Local changes must be reviewed and committed before any future push.
+Run these again after restoring or changing code:
 
-## External work still required
+```bash
+make validate-debian-platform
+make ci
+uv run pytest -q
+```
 
-- The owner approved ADR 0005 and the current official Testnet destinations are configured. The
-  replacement credential passed the safe capability probe, actual GTX place/query/cancel lifecycle,
-  and a minimum fill/native Algo protection/reduce-only flatten cycle. Final Testnet state is zero
-  regular orders, zero Algo orders and zero position; production request count is zero. Runtime
-  copies are root-owned `0400` files under `/run/ai-quant-secrets/` and must never enter Git/chat.
-- Complete listen-key keepalive/rotation, injected disconnect/dedup, every required Algo status and
-  the remaining pre-registered protocol fault/race cases, plus independent project
-  persistence/backup/seal before calibration. All three live event types and restart/reconnect
-  evidence now pass.
-- Complete actual Binance destination measurements and the still-running 24-hour generic host
-  baseline.
-- The external archive receiver is provisioned and its encrypted upload, remote decrypt, Parquet
-  inspection, signed receipt, replay/tamper rejection and isolated restore all pass. Its Debian 11
-  appliance is not an application host. Its disk and root XFS filesystem now expose 200 GB with
-  about 178 GB free. Regenerate and bind formal capacity evidence before claiming the 90-day gate. Receiver deployment
-  artifacts are in `deploy/archive-receiver/`; sender evidence is under
-  `/var/lib/ai-quant/evidence/archive/current/`.
-- Telegram input files are
-  `/root/aiq-user-inputs/notifications/secrets/telegram_bot_token` and
-  `/root/aiq-user-inputs/notifications/telegram_chat_ids`. They are configured outside the
-  repository, remain root-only, and the live outbound probe passes.
-- Collect three continuous qualified data days, freeze the signed candidate/C0, then run the
-  72-hour dual validation.
-- Obtain owner approvals and an independent fresh-context review.
+Use `make test-migrations`, `make test-locked-runtime` and `make paper-flow` when the changed scope
+touches database, runtime isolation or shared strategy/execution behavior.
 
-Until those inputs exist, all real trading and deployment acceptance claims remain blocked, but the
-offline implementation and deterministic Paper workflow are available for continued review.
+## Development boundaries
+
+- Review relevant existing code and ADRs before implementing; do not duplicate an existing path.
+- Debian is the sole supported platform. Do not reintroduce instructions for another distribution.
+- Do not edit provenance-protected copies under `config/`, `contracts/` or `runbooks/` without an
+  explicit owner-approved amendment.
+- Do not commit Testnet/production secrets, Telegram token/chat IDs, server passwords, raw Codex
+  state, runtime evidence containing account identifiers, or `/root/aiq-user-inputs`.
+- Testnet changes may be deployed when owner-authorized and verified. Production must remain locked
+  until its external gates and explicit approval exist.
+- Keep old strategy ADRs and archived results. Historical losses and rejected experiments are part
+  of the audit trail, not files to erase.
+
+## GitHub publication
+
+The owner has now explicitly authorized synchronizing the reviewed repository to
+`git@github.com:413hy/quantify.git`. Before every push, run the secret scan, review staged files and
+confirm that runtime credentials and raw chat/tool state are excluded.
+
+## External inputs after a host rebuild
+
+Restore these outside Git with root-only permissions:
+
+- Immutable `/root/quantify/reference-materials` archive.
+- Binance Testnet credential input files used by `aiq-testnet-secrets.service`.
+- Telegram inputs under `/root/aiq-user-inputs/notifications/`.
+- Runtime evidence/archive backups if historical continuity is required.
+
+Never reconstruct missing secrets from documentation or commit them as placeholders.

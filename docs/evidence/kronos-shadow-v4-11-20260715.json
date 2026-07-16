@@ -1,0 +1,94 @@
+{
+  "schema_version": "1.0.0",
+  "environment": "binance_usdm_futures_testnet_public_market_data",
+  "purpose": "offline_shadow_review_only",
+  "order_authority": false,
+  "credential_access": false,
+  "kronos": {
+    "repository": "https://github.com/shiyu-coder/Kronos",
+    "source_commit": "67b630e67f6a18c9e9be918d9b4337c960db1e9a",
+    "tokenizer": "NeoQuasar/Kronos-Tokenizer-2k",
+    "tokenizer_revision": "26966d0035065a0cae0ebad7af8ece35bc1fb51c",
+    "model": "NeoQuasar/Kronos-mini",
+    "model_revision": "f4e68697d9d5aed55cef5c96aabc3376bcad9f81"
+  },
+  "inference": {
+    "device": "cpu",
+    "timeframe": "1m",
+    "closed_ohlcv_context_bars": 360,
+    "prediction_bars": 10,
+    "ensemble_runs": 5,
+    "paths_per_run": 5,
+    "temperature": 0.8,
+    "top_p": 0.9
+  },
+  "signals": [
+    {
+      "symbol": "SOLUSDT",
+      "signal_at": "2026-07-15T07:58:08.572833Z",
+      "system_direction": "SHORT",
+      "median_terminal_return_bps": 0.777,
+      "minimum_terminal_return_bps": -7.638,
+      "maximum_terminal_return_bps": 5.754,
+      "system_direction_votes": 2,
+      "system_target_votes": 0,
+      "reverse_target_votes": 0
+    },
+    {
+      "symbol": "ETHUSDT",
+      "signal_at": "2026-07-15T08:07:06.237053Z",
+      "system_direction": "SHORT",
+      "median_terminal_return_bps": 3.050,
+      "minimum_terminal_return_bps": -3.926,
+      "maximum_terminal_return_bps": 5.853,
+      "system_direction_votes": 2,
+      "system_target_votes": 0,
+      "reverse_target_votes": 0
+    },
+    {
+      "symbol": "XRPUSDT",
+      "signal_at": "2026-07-15T08:08:21.606553Z",
+      "system_direction": "SHORT",
+      "median_terminal_return_bps": 1.959,
+      "minimum_terminal_return_bps": -7.985,
+      "maximum_terminal_return_bps": 4.760,
+      "system_direction_votes": 2,
+      "system_target_votes": 0,
+      "reverse_target_votes": 0
+    },
+    {
+      "symbol": "BNBUSDT",
+      "signal_at": "2026-07-15T08:23:41.468155Z",
+      "system_direction": "SHORT",
+      "median_terminal_return_bps": 2.635,
+      "minimum_terminal_return_bps": -0.046,
+      "maximum_terminal_return_bps": 5.387,
+      "system_direction_votes": 1,
+      "system_target_votes": 0,
+      "reverse_target_votes": 0
+    },
+    {
+      "symbol": "BNBUSDT",
+      "signal_at": "2026-07-15T08:34:44.904546Z",
+      "system_direction": "LONG",
+      "median_terminal_return_bps": 1.046,
+      "minimum_terminal_return_bps": -0.376,
+      "maximum_terminal_return_bps": 3.573,
+      "system_direction_votes": 4,
+      "system_target_votes": 0,
+      "reverse_target_votes": 0
+    },
+    {
+      "symbol": "SOLUSDT",
+      "signal_at": "2026-07-15T09:07:36.139102Z",
+      "system_direction": "SHORT",
+      "median_terminal_return_bps": -4.148,
+      "minimum_terminal_return_bps": -9.839,
+      "maximum_terminal_return_bps": -0.663,
+      "system_direction_votes": 5,
+      "system_target_votes": 0,
+      "reverse_target_votes": 0
+    }
+  ],
+  "interpretation": "The sample is too small for validation. It supports rejecting direction conflicts and insufficient forecast magnitude; it does not support blindly reversing signals or granting the model order authority."
+}

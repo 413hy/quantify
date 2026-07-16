@@ -15,5 +15,9 @@ build/
 .env.*
 !.env.example
 secrets/
+.codex/
+auth.json
+chat/raw/
+chat/*.jsonl
 artifacts/**
 !artifacts/.gitkeep

@@ -1,195 +1,119 @@
 # Implementation status
 
-Updated: `2026-07-14T17:00:39Z`
+Updated: `2026-07-16T02:20:22Z`
 
-Overall state: `TESTNET_CORE_PROTOCOL_PASS / EXTERNAL_DURATION_GATES_PENDING / RISK_LOCKED`
+Overall state: `TESTNET_CONTINUOUS_EXPERIMENT_RUNNING / STRATEGY_UNVALIDATED / PRODUCTION_RISK_LOCKED`
 
-The trading system's offline Paper path is implemented and verified from raw market data through
-native protection. This is a development completion statement, not completed Testnet, Shadow,
-calibration, 72-hour, or live authorization evidence. No production exchange order was sent.
+This file describes the current implementation and deployed Testnet experiment. It is not a claim
+of profitability, production readiness, completed calibration, 72-hour validation or live-trading
+authorization.
 
-## Implemented
+## Supported platform
 
-- M0 foundation: immutable contracts/configuration, Debian 12 Bookworm/aarch64 platform amendment,
-  independent databases, host rate authority, bounded gateway contracts, startup evidence and
-  fail-closed no-network runtime remain intact.
-- M1 market data: strict raw depth/trade records, snapshot plus `U/u/pu` reconstruction, duplicate
-  handling, whole-book invalidation on gaps/crossed/empty books, warm-up gate, hourly UTC
-  Parquet/Zstd, append-only daily manifests, Ed25519 remote receipts, verified-only retention and
-  deterministic archive replay.
-- M2 strategy: exact Decimal Type-7 Top-10 ranking, two-confirmation/60-minute/5.00 hysteresis,
-  managed positions, closed-bar PA primitives, normal-quantity-only Order Flow, PA/OF conflict
-  rejection, 1000ms signals, all-in net-edge evaluation and a shared live/replay strategy core.
-- M3 risk/execution: multiplier-aware hard limits, floor-to-step sizing, STANDARD/ALGO namespaces,
-  append-only order projection, exact Algo status mapping, response classification, 5-second UNKNOWN
-  reconciliation, conservative fills, 1000ms protection monitoring and restart reconciliation.
-- The independent Testnet user-data observer now maintains the listen key, reconnects on a fresh
-  exact-destination private stream, deduplicates supported events and writes a secret-free
-  hash-chained journal. It has no order-submission method and records zero production requests.
-- Existing-position management applies the owner-amended exit order: kill/protection/account, hard
-  stop/risk, PA invalidation, OF reversal/exhaustion and structural target. Elapsed time is not an
-  exit condition. Every active exit is full reduce-only taker and cannot increase exposure.
-- Native protection planning now produces the opposite-side close-all Algo pair: `STOP_MARKET` plus
-  `TAKE_PROFIT_MARKET`, with strict long/short stop-entry-target structure validation.
-- The runtime `SHRUNK_MARKOUT_CELL_MEAN_V1` lookup now uses the frozen parent order, signed Decimal
-  means, minimum observation thresholds and deterministic shrinkage. Missing exact and parent
-  support returns `NET_EDGE_EVIDENCE_INCOMPLETE`; it never invents zero edge.
-- Monetary and position-count hard caps are validated inside Python as well as Schema. Leverage is
-  not a project hard cap: callers must supply the current exchange-selected value within Binance's
-  protocol range, while the per-order margin budget is converted to a floor-quantized quantity
-  ceiling. The current requested operating ceiling is 1 USDT of margin and remains subordinate to
-  all risk/edge gates.
-- The earlier bounded Testnet micro-position and parallel pressure runners have been removed under
-  ADR 0006 because they used elapsed time as an exit. Their historical evidence remains auditable,
-  but no current command can open a position through that non-strategy path.
-- A three-day Testnet campaign applies an explicitly unvalidated experiment across five
-  1-USDT-feasible symbols using closed 1m/5m bars, the latest 20-level book and a five-second
-  aggregate-trade window. V4 can hold zero to five fixed-universe symbols concurrently with native
-  structural stop/target protection, but requires PA alignment, two consecutive same-direction
-  rounds, a minimum quality score and a fee-adjusted target estimate. Five is capacity rather than
-  a fill target. The strict production decision remains `REJECT`; the
-  experiment is a separate owner-authorized sample class and is not fabricated Top10 evidence.
-- A reproducible no-time-exit T1 structural research backtest now consumes current Testnet klines,
-  actual per-symbol taker fees and conservative slippage. The first five-symbol review failed the
-  research gate: 2 closed samples, 0 wins and -0.0389499593 USDT at 10 USDT notional. The exact
-  forward baseline also had 0 eligible observations out of 679. Machine evidence is under
-  `/var/lib/ai-quant/evidence/testnet/backtest/current/`. That result still blocks production but,
-  under ADR 0007, no longer blocks explicitly labelled Testnet experiment samples.
-- Testnet Order Flow collection now uses one persistent exact-host combined `aggTrade` WebSocket
-  for all five symbols. It validates and retains only events with finite non-negative Binance `nq`
-  normal quantity and evaluates a rolling five-second window. A live post-deployment check produced
-  non-zero aggressive flow for all 10 observations across two complete rounds, replacing the
-  mostly-empty ten-second REST polling snapshots.
-- M4 operations: bounded FastAPI control surface, session-context binding, idempotent commands,
-  one-use emergency-flatten challenge, outbound-only redacted notifications, Prometheus exposition,
-  alert/runbook mapping, checksummed backup manifests and append-only operational migrations.
-- External archive receiver: chrooted key-only SFTP, separate no-login processor, age/X25519
-  decryption, ciphertext/plaintext hash binding, remote Parquet inspection, Ed25519 schema `1.1.0`
-  receipts, replay rejection and sender-side pinned host/receipt keys. The legacy schema `1.0.0`
-  receipt remains compatible but cannot satisfy the stronger remote-decryption gate by itself.
-- Telegram delivery now has a concrete outbound-only HTTPS sender loaded from root-only token and
-  chat-ID files. Messages use a structured Chinese format and Beijing time; trade results include
-  entry/protection prices, realized PnL, fees, net result, protection latency and final exposure.
-  No update polling or inbound command surface is implemented.
-- Later-stage offline orchestration: fresh-context AI/rule authority and three-dry-run recovery,
-  immutable continuous validation gates, 90-day research thresholds, FIFO/single-concurrency monthly
-  iteration and quota deferral.
-- Business database head is `0004_operations`; host-control head remains
-  `0010_local_measurements`. Both trees pass `upgrade -> downgrade base -> upgrade` in disposable
-  PostgreSQL/TimescaleDB containers.
+- Debian 12 Bookworm on aarch64 is the sole supported application-host platform.
+- The verified Oracle Cloud host has 2 vCPU, about 12 GiB RAM and a 200 GB root filesystem.
+- Debian 12 instructions are the only supported application-host instructions. Historical platform
+  discussions remain only in immutable source material and ADR history.
+- Deployment validation remains fail-closed and production transport remains `RISK_LOCKED`.
 
-## Verified results
+## Implemented system
 
-- Full CI: 222 unit, 19 property, 2 contract and 17 security tests pass.
-- Additional suites: 3 replay, 19 integration, 6 fault-injection and 1 resource-profile test pass.
-- Ruff, strict mypy (95 source files), Bandit, secret scan, all 42 contract schemas/39 examples,
-  14 config examples, provenance, Compose and Debian deployment validators pass.
-- Runtime dependency audit covers 45 packages and reports zero known vulnerabilities. A reproducible
-  CycloneDX SBOM and audit JSON are under `evidence/build/current/`.
-- Debian verifier passes on Debian 12 Bookworm, aarch64, 2 vCPU, approximately 12 GiB RAM and OCI.
-- Container runtime test returns `RISK_LOCKED`, `new_egress_allowed=false`, `network=none`.
-- `make paper-flow` deterministically produces a BTCUSDT Paper signal, approves quantity `1.9`,
-  fills it conservatively, confirms full native protection, performs zero external requests and
-  leaves runtime state `RISK_LOCKED`.
-- ADR 0005 resolves the frozen Testnet hostname conflict using the current Binance official
-  destinations. Public Testnet `/time` and `/exchangeInfo` requests pass from the Debian host, and
-  routed `/public` and `/market` streams complete HTTP 101 upgrades. The gateway now allows only
-  the exact current Testnet authority/host pairings and continues to reject production hosts for
-  Testnet callers.
-- A bounded Testnet capability probe now validates secret-file metadata, server time,
-  `exchangeInfo`, account mode, symbol margin configuration, clean account state, a non-matching
-  engine `/order/test`, listen-key lifecycle and all four WebSocket routes without logging secrets.
-  After the credential was replaced, the real probe passed for 724 Testnet symbols, one-way/Cross
-  account configuration, a clean account, `/order/test`, listen-key create/private-upgrade/close
-  and all routed WebSocket endpoints. It sent zero production requests and created zero
-  matching-engine orders. Redacted evidence is at
-  `/var/lib/ai-quant/evidence/testnet/current/safe-capability-probe.json`.
-- The real matching-engine lifecycle passed: one far-from-market BTCUSDT GTX order reached `NEW`,
-  query agreed, cancel reached `CANCELED`, and final reconciliation reported zero orders and zero
-  positions. A separate minimum-size fill/protection cycle filled the entry, confirmed a native
-  STOP_MARKET Algo order in 365ms against the 1,000ms limit, flattened with a reduce-only market
-  order and finished with zero regular orders, zero Algo orders and zero position. Neither flow
-  contacted a production endpoint. Evidence is in
-  `/var/lib/ai-quant/evidence/testnet/current/{order-lifecycle,native-protection}.json`.
-- The historical Testnet risk-profile probe queried the current account fee and leverage-bracket facts, then set
-  BTCUSDT to the former project cap of 10x (exchange-reported maximum 125x). ADR 0009 now supersedes
-  that cap with dynamic `EXCHANGE_MAXIMUM`. The historical probe created no matching
-  order and ended flat. A subsequent minimum-fill cycle confirmed both native Algo orders: stop in
-  387ms and take-profit in 626ms, then reduce-only flattened and reconciled zero ordinary orders,
-  zero Algo orders and zero position. Evidence is under
-  `/var/lib/ai-quant/evidence/testnet/current/{risk-profile,native-protection-pair}.json`.
-- One historical bounded SOLUSDT sample used 0.92460000 USDT initial margin at 10x, confirmed the
-  native stop in 371ms and take-profit in 609ms, and was closed by the now-retired duration rule.
-  The target was not reached: realized PnL was -0.00359999 USDT, commission was 0.00739536 USDT and
-  net PnL was -0.01099535 USDT. Final ordinary orders, Algo orders and position were all zero, with
-  zero production endpoint requests. Evidence is at
-  `/var/lib/ai-quant/evidence/testnet/current/sol-micro-scalp.json`.
-- A historical three-symbol parallel Testnet execution sample ran SOLUSDT, BNBUSDT and XRPUSDT with
-  independent 1-USDT margin ceilings. All three completed their native protection lifecycle and
-  reconciled zero orders/Algo orders/positions. None hit stop or target; the retired runner closed
-  them by elapsed duration. Net results were -0.00742656, -0.00525511 and -0.00930724 USDT respectively, mostly
-  commission. The sample is explicitly classified `EXECUTION_STRESS_NOT_STRATEGY_SIGNAL`; its
-  Chinese per-trade and aggregate Telegram notifications passed. Evidence is under
-  `/var/lib/ai-quant/evidence/testnet/parallel/20260714-sample-01/`.
-- `aiq-testnet-campaign.service` is enabled for a three-day, owner-authorized Testnet experiment.
-  V4.6 fixes the universe to BTCUSDT, ETHUSDT, BNBUSDT, SOLUSDT and XRPUSDT and can hold zero to five
-  different symbols in parallel, each using the exchange-maximum initial leverage while keeping
-  margin at or below 1 USDT. ADR 0009 applies the same
-  dynamic exchange-maximum policy to future production. Estimated stop, fees and slippage
-  remain within 1.00 USDT per trade; estimated fee-adjusted target must be at least 0.10 USDT,
-  with native protection and no elapsed-time exit.
-  Results remain unvalidated and do not unlock production trading.
-  State and append-only observations are under
-  `/var/lib/ai-quant/evidence/testnet/campaign/current/`.
-- The shared risk configuration no longer represents leverage as a project hard/configured cap.
-  TradePlan requires `EXCHANGE_MAXIMUM`, the selected initial leverage, bracket hash/observation
-  time and a freshness limit. The mandatory Production/Testnet endpoint inventory includes both
-  leverage-bracket query and initial-leverage change.
-- `aiq-testnet-user-stream.service` is enabled and running independently of the campaign. A real
-  far-from-market BTCUSDT lifecycle produced matching `ORDER_TRADE_UPDATE` events for `NEW` and
-  `CANCELED`. A minimum fill/native-protection/flatten probe then produced real
-  `ORDER_TRADE_UPDATE`, `ACCOUNT_UPDATE` and `ALGO_UPDATE` events, including two Algo `NEW ->
-  EXPIRED` paths. The independent verifier passed 12 unique records, all three required event
-  types, a continuous final hash and zero production requests; BTCUSDT ended with zero ordinary
-  orders, zero Algo orders and zero position. Restart preserved the journal and incremented
-  reconnect state. Evidence is under `/var/lib/ai-quant/evidence/testnet/user-stream/current/`;
-  keepalive/rotation, injected disconnect and the complete Algo status matrix are not yet claimed.
-- A real external archive roundtrip to the isolated receiver passed. The sender encrypted an exact
-  L2 Parquet object with age/X25519; the remote endpoint recomputed its ciphertext hash, decrypted
-  it, matched the plaintext hash, opened 21 Parquet columns, matched one row and schema `1.0.0`, and
-  returned an Ed25519-signed receipt. Exact verification passed while replay and tamper probes were
-  rejected. A second independent decrypt/read/hash probe passed and removed its temporary
-  plaintext. Evidence is under `/var/lib/ai-quant/evidence/archive/current/`.
+- Offline Paper flow, raw market-data validation, order-book reconstruction, PA/Order Flow
+  features, Decimal sizing, fee/slippage-aware edge checks, risk controls, execution state machine,
+  native protection, notifications, monitoring, backup, research and orchestration are implemented.
+- Binance USDⓈ-M Futures Testnet uses the owner-approved exact endpoints in ADR 0005. Production
+  hosts are not used by the Testnet campaign.
+- Testnet execution supports market entry, exchange-maximum initial leverage, approximately 1 USDT
+  margin per position, a maximum 1 USDT estimated net-loss budget, and exchange-native
+  `STOP_MARKET` plus `TAKE_PROFIT_MARKET` protection.
+- Elapsed holding time is not an exit condition. Positions close through native target/stop,
+  deterministic signal invalidation, confirmed reversal, execution fail-closed handling or an
+  explicit operator stop.
+- The fixed universe is BTCUSDT, ETHUSDT, BNBUSDT, SOLUSDT and XRPUSDT. Zero to five independent
+  symbols may be held; five is capacity, not a target. Same-symbol scaling remains disabled.
+- Telegram notifications are outbound-only, Chinese, structured and secret-free. The read-only
+  dashboard exposes useful status/PnL controls without granting order authority.
+- A separate Testnet user-data service maintains the private listen key, reconnects, deduplicates
+  supported events and writes a hash-chained journal without exposing an order-submission method.
+- Root-only persistent inputs rematerialize volatile Testnet credentials after boot. Campaign,
+  user stream, Telegram dashboard and secret materializer are enabled under systemd and restart
+  independently of Codex.
 
-## Not yet claimable
+## Current strategy: V5.6
 
-The following require external facts, elapsed observation windows, credentials or human signatures
-and were deliberately not fabricated:
+The running strategy identifier is `TESTNET_EXPERIMENT_OF_PA_V5_6`.
 
-1. Completion of the User Data Stream matrix. Continuous observation, restart/reconnect state and
-   real `ORDER_TRADE_UPDATE`, `ACCOUNT_UPDATE` and `ALGO_UPDATE` transcripts now pass. A real
-   keepalive/rotation window, injected disconnect/dedup coverage, every required Algo status and
-   the remaining pre-registered external fault/race cases are still pending.
-2. The independent Testnet project database/Compose seal required before discarding its facts or
-   starting calibration. The remote encrypted Parquet/decrypt-receipt/isolated-restore mechanism is
-   proven. The receiver disk is now 200 GB with about 178 GB free; the capacity evidence still needs
-   to be regenerated and bound to the next project seal before the formal gate can be claimed.
-3. A continuous qualified three-day L2 calibration dataset, signed parameter candidate and C0
-   freeze.
-4. Continuous 72-hour Shadow/Testnet validation, first-live 24-hour evidence and 87-day forward OOS
-   results.
-5. Owner signatures, production credentials and an independent fresh-context acceptance review.
-   Testnet and archive transport credentials are configured outside the repository.
-6. Production activation. It remains unauthorized and locked.
+- The deterministic campaign evaluates once per minute to reduce CPU and Binance request pressure.
+- Fast breadth uses a four-sample window (about three minutes); sustained breadth uses five samples
+  (about four minutes). Full warm-up is five rounds.
+- A 3/5 fast context is admitted only with strong predictive and order-flow authority. It requires
+  at least 3 bps aligned forecast, 0.75 directional aggressive-trade strength, and aligned book or
+  microprice evidence. Four/five-symbol contexts retain PA-or-strong-flow authority.
+- Controlled entries are pullback/resumption or continuation plans. Current spread, hourly veto,
+  target feasibility, fee-adjusted target and risk sizing are checked before submission.
+- Gross targets are 22 bps for BTC/ETH and 25 bps for BNB/SOL/XRP. Execution still requires at
+  least 0.10 USDT estimated net target after actual quantity, both taker fees and slippage buffer.
+- Pullback state lasts at most ten rounds (about ten minutes); evidence may latch for two rounds.
+  Continuation and local position-opposition checks use one minute-round so the slower polling does
+  not add another mechanical multi-minute delay.
+- Native stop/target orders remain live at Binance continuously and do not depend on the one-minute
+  strategy loop.
+- The complete current rule and deployment interface are documented in
+  `docs/testnet-campaign.md` and ADRs 0032–0038.
 
-These are validation/deployment inputs, not hidden unfinished offline implementation. The software
-will continue to reject new real orders until the corresponding gates are supplied and passed.
+## Current validation
+
+Release checks run on the Debian application host on 2026-07-16:
+
+- `make ci`: PASS.
+- Unit tests: 302 passed.
+- Property tests: 19 passed.
+- Contract tests: 2 passed.
+- Security tests: 19 passed.
+- Full repository pytest run: 371 passed.
+- Ruff: PASS; strict mypy: 98 source files, PASS; Bandit and repository secret scan: PASS.
+- Contracts: 42 schemas, 39 instances, 26 JCS cases and 1 OpenAPI document, PASS.
+- Configuration: 14 examples, no embedded secrets, PASS.
+- Provenance: 123 copied files and 9 owner amendments, PASS.
+- Compose/static deployment policy: PASS for four systemd services, Debian 12 locked bootstrap and
+  no PostgreSQL TCP exposure.
+- Debian host validation: Debian 12 Bookworm/aarch64, OCI, cgroup v2, 2 CPU, about 12 GiB memory and
+  200 GB root storage, PASS.
+
+## Runtime evidence and honest result boundary
+
+- Campaign state: `/var/lib/ai-quant/evidence/testnet/campaign/current/state.json`.
+- Append-only observations/results:
+  `/var/lib/ai-quant/evidence/testnet/campaign/current/observations.jsonl`.
+- Previous strategy versions are retained under
+  `/var/lib/ai-quant/evidence/testnet/campaign/archive/`.
+- User-stream evidence is under `/var/lib/ai-quant/evidence/testnet/user-stream/current/`.
+- Current and historical samples are insufficient and have not established a profitable strategy.
+  Zero/low sample counts, losing samples and rejected candidates must not be presented as a verified
+  win rate.
+- No production endpoint request or production order is authorized by this experiment. Production
+  remains `RISK_LOCKED`.
+
+## External gates not yet claimable
+
+1. A qualified continuous L2 calibration dataset, signed candidate and C0 freeze.
+2. Sufficient out-of-sample Testnet/Shadow evidence, including the required duration gates.
+3. Complete user-stream keepalive/rotation and remaining pre-registered fault/race matrix.
+4. Independent fresh-context acceptance and owner production approval.
+5. Production credentials, activation and first-live evidence. These have not been requested or
+   stored in the repository.
 
 ## Reproduce
 
 ```bash
-cd /root/quantify/ai-quant-system
-make ci test-replay test-integration test-fault test-resource
-make test-migrations test-locked-runtime paper-flow
-make sbom scan
+make bootstrap
+make validate-debian-platform
+make ci
+uv run pytest -q
+make test-migrations
+make test-locked-runtime
+make paper-flow
 ```
+
+Runtime credentials, Telegram tokens, passwords, `/run/ai-quant-secrets`, `/root/aiq-user-inputs`
+and raw Codex state must never be committed.

@@ -2,6 +2,8 @@
 Description=AI Quant read-only Telegram Testnet dashboard
 After=network-online.target aiq-testnet-campaign.service
 Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=20
 
 [Service]
 Type=simple
@@ -10,7 +12,7 @@ Group=root
 WorkingDirectory=/root/quantify/ai-quant-system
 UMask=0077
 ExecStart=/root/quantify/ai-quant-system/.venv/bin/python -m ai_quant.services.telegram_dashboard --token-file /root/aiq-user-inputs/notifications/secrets/telegram_bot_token --chat-ids-file /root/aiq-user-inputs/notifications/telegram_chat_ids --campaign-state-file /var/lib/ai-quant/evidence/testnet/campaign/current/state.json --observations-file /var/lib/ai-quant/evidence/testnet/campaign/current/observations.jsonl --user-stream-state-file /var/lib/ai-quant/evidence/testnet/user-stream/current/state.json --service-state-file /var/lib/ai-quant/telegram/dashboard-state.json --lock-file /run/ai-quant/telegram-dashboard.lock
-Restart=on-failure
+Restart=always
 RestartSec=5
 TimeoutStopSec=45
 NoNewPrivileges=yes

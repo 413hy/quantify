@@ -42,9 +42,10 @@ def _validate_bootstrap_bundle() -> None:
         raise SystemExit("bootstrap toolchain platform mismatch")
     expected_sources = {"debian-bookworm-snapshot", "docker-debian-bookworm"}
     sources = lock["apt_sources"]
-    if not isinstance(sources, list) or {
-        item.get("id") for item in sources if isinstance(item, dict)
-    } != expected_sources:
+    if (
+        not isinstance(sources, list)
+        or {item.get("id") for item in sources if isinstance(item, dict)} != expected_sources
+    ):
         raise SystemExit("bootstrap apt source set mismatch")
     packages = lock["packages"]
     expected_packages = {
@@ -284,6 +285,99 @@ def _validate_testnet_user_stream_unit() -> None:
         raise SystemExit("Testnet user-data observer command crosses destination boundary")
 
 
+def _validate_testnet_continuity_units() -> None:
+    secrets_path = ROOT / "deploy/systemd/aiq-testnet-secrets.service"
+    secrets_text = secrets_path.read_text(encoding="utf-8")
+    secrets_lines = set(secrets_text.splitlines())
+    required_secret_lines = {
+        "Type=oneshot",
+        "User=root",
+        "Group=root",
+        "RuntimeDirectory=ai-quant-secrets",
+        "RuntimeDirectoryMode=0700",
+        "RuntimeDirectoryPreserve=yes",
+        "RemainAfterExit=yes",
+        "PrivateNetwork=yes",
+        "ProtectSystem=strict",
+        "ProtectHome=read-only",
+        "CapabilityBoundingSet=",
+        "AmbientCapabilities=",
+        "ReadOnlyPaths=/root/aiq-user-inputs/testnet/secrets",
+        "ReadWritePaths=/run/ai-quant-secrets",
+        (
+            "ExecStart=/usr/bin/install -m 0400 -o root -g root "
+            "/root/aiq-user-inputs/testnet/secrets/binance_testnet_api_key "
+            "/run/ai-quant-secrets/binance-testnet-api-key"
+        ),
+        (
+            "ExecStart=/usr/bin/install -m 0400 -o root -g root "
+            "/root/aiq-user-inputs/testnet/secrets/binance_testnet_api_secret "
+            "/run/ai-quant-secrets/binance-testnet-api-secret"
+        ),
+    }
+    if not required_secret_lines <= secrets_lines or any(
+        token in secrets_text for token in ("/bin/sh", "bash -c", "curl ", "wget ")
+    ):
+        raise SystemExit("Testnet secret materializer is unsafe or incomplete")
+
+    campaign = (ROOT / "deploy/systemd/aiq-testnet-campaign.service").read_text(encoding="utf-8")
+    user_stream = (ROOT / "deploy/systemd/aiq-testnet-user-stream.service").read_text(
+        encoding="utf-8"
+    )
+    dashboard = (ROOT / "deploy/systemd/aiq-telegram-dashboard.service").read_text(encoding="utf-8")
+    if not all(
+        token in campaign
+        for token in (
+            "Requires=aiq-testnet-secrets.service",
+            "--duration-seconds 0",
+            "--evaluation-interval-seconds 60",
+            "--trade-cooldown-seconds 0",
+            "--maximum-parallel-positions 5",
+            "--maximum-candidates-per-round 5",
+            "--minimum-directional-forecast-bps 2.00",
+            "--impulse-minimum-directional-forecast-bps 0.10",
+            "--continuation-minimum-directional-forecast-bps 2.00",
+            "--structure-substitute-minimum-directional-forecast-bps 3.00",
+            "--structure-substitute-minimum-trade-imbalance 0.75",
+            "--structure-substitute-minimum-secondary-flow 0.10",
+            "--minimum-target-feasibility-rate-15m 0.20",
+            "--impulse-minimum-target-feasibility-rate-15m 0.02",
+            "--minimum-net-reward-risk-ratio 0.50",
+            "--impulse-minimum-net-reward-risk-ratio 0.15",
+            "--no-activity-filter-enabled",
+            "--no-impulse-activity-filter-enabled",
+            "--impulse-minimum-activity-ratio 0.10",
+            "--impulse-maximum-activity-ratio 10.00",
+            "--impulse-maximum-momentum-bps 8.00",
+            "--impulse-lookback-rounds 4",
+            "--sustained-lookback-rounds 5",
+            "--pullback-minimum-bps 3.00",
+            "--pullback-resumption-bps 0.50",
+            "--pullback-maximum-bps 40.00",
+            "--pullback-setup-maximum-rounds 10",
+            "--signal-evidence-window-rounds 2",
+            "--continuation-minimum-breadth-count 4",
+            "--continuation-confirmation-rounds 1",
+            "--continuation-minimum-momentum-bps 4.00",
+            "--continuation-maximum-momentum-bps 15.00",
+            "--position-failed-followthrough-peak-bps 6.00",
+            "--position-adverse-invalidation-bps 10.00",
+            "--position-profit-protection-peak-bps 20.00",
+            "--position-profit-giveback-bps 10.00",
+            "--position-opposition-confirmation-rounds 1",
+            "Restart=always",
+            "StartLimitIntervalSec=300",
+        )
+    ):
+        raise SystemExit("continuous Testnet campaign service policy is incomplete")
+    if not all(
+        token in user_stream for token in ("Requires=aiq-testnet-secrets.service", "Restart=always")
+    ):
+        raise SystemExit("Testnet user stream restart policy is incomplete")
+    if "Restart=always" not in dashboard:
+        raise SystemExit("Telegram dashboard restart policy is incomplete")
+
+
 def _validate_telegram_dashboard_unit() -> None:
     path = ROOT / "deploy/systemd/aiq-telegram-dashboard.service"
     lines = set(path.read_text(encoding="utf-8").splitlines())
@@ -336,6 +430,7 @@ def main() -> int:
     _validate_bootstrap_bundle()
     _validate_baseline_unit()
     _validate_testnet_user_stream_unit()
+    _validate_testnet_continuity_units()
     _validate_telegram_dashboard_unit()
     _validate_unit(
         "aiq-measurement-cycle.service",
@@ -349,9 +444,7 @@ def main() -> int:
     )
     _validate_compose_socket()
     _validate_measurement_plan_example()
-    example = load_strict_document(
-        ROOT / "deploy/host-hardening/ai-quant-egress.example.json"
-    )
+    example = load_strict_document(ROOT / "deploy/host-hardening/ai-quant-egress.example.json")
     if not isinstance(example, dict):
         raise SystemExit("nftables example is not an object")
     render_nftables_policy(example)

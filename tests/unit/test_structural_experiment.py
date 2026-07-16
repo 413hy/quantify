@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -9,6 +10,7 @@ from ai_quant.binance_egress.structural_experiment import (
     _classify_native_exit,
     _confirmed_market_entry,
     _exit_trade_price,
+    _opposing_signal_action,
     _place_protection,
     _prepare_scale_in,
     _protected_position_event,
@@ -17,6 +19,7 @@ from ai_quant.binance_egress.structural_experiment import (
     market_entry_reference,
     plan_market_quantity,
     quantize_protection,
+    resume_protected_structural_experiment,
     risk_adjusted_margin_budget,
 )
 from ai_quant.binance_egress.testnet_probe import TestnetProbeError as ProbeError
@@ -78,6 +81,23 @@ def test_position_signal_control_discards_stale_mail_and_returns_latest() -> Non
 
     assert control.take_latest() is latest
     assert control.take_latest() is None
+
+
+def test_exit_only_opposing_signal_never_becomes_a_replacement_entry() -> None:
+    plan = ExperimentalPlan(
+        symbol="SOLUSDT",
+        direction=Direction.LONG,
+        entry_reference=Decimal("77.35"),
+        stop_anchor=Decimal("77.35"),
+        target_reference=Decimal("77.35"),
+        exit_only=True,
+    )
+
+    replacement, record_type, exit_reason = _opposing_signal_action(plan)
+
+    assert replacement is None
+    assert record_type == "TESTNET_POSITION_INVALIDATION_REQUESTED"
+    assert exit_reason == "SIGNAL_INVALIDATION"
 
 
 def test_scale_market_entry_is_blocked_if_the_parent_position_closes() -> None:
@@ -285,6 +305,39 @@ def test_same_direction_scale_is_sized_against_whole_position_loss_budget() -> N
     assert stop_loss <= Decimal("1")
 
 
+def test_same_direction_scale_rejects_poor_fee_adjusted_reward_risk() -> None:
+    class Client:
+        def book_ticker(self, symbol: str) -> dict[str, str]:
+            assert symbol == "SOLUSDT"
+            return {"bidPrice": "99.99", "askPrice": "100.01"}
+
+    plan = ExperimentalPlan(
+        symbol="SOLUSDT",
+        direction=Direction.LONG,
+        entry_reference=Decimal("100"),
+        stop_anchor=Decimal("99.5"),
+        target_reference=Decimal("100.4"),
+        predictive_average_20m=Decimal("100.09"),
+    )
+
+    with pytest.raises(ProbeError, match="EXPERIMENT_NET_REWARD_RISK_INSUFFICIENT"):
+        _prepare_scale_in(
+            Client(),  # type: ignore[arg-type]
+            plan=plan,
+            exchange_info=_exchange_info(),
+            leverage=75,
+            margin_ceiling=Decimal("1"),
+            maximum_net_loss=Decimal("1"),
+            minimum_estimated_net_target=Decimal("0.10"),
+            minimum_net_reward_risk_ratio=Decimal("1"),
+            risk_sizing_slippage_rate=Decimal("0.0012"),
+            taker_fee_rate=Decimal("0.0004"),
+            current_quantity=Decimal("0.5"),
+            current_entry=Decimal("100"),
+            current_stop=Decimal("99.5"),
+        )
+
+
 def test_market_quantity_rejects_exchange_minimum_above_budget() -> None:
     with pytest.raises(
         ProbeError,
@@ -326,6 +379,7 @@ def test_protected_position_event_exposes_leverage_margin_and_fee_adjusted_targe
         entry_reference=Decimal("1"),
         stop_anchor=Decimal("0.997"),
         target_reference=Decimal("1.0035"),
+        target_feasibility_rate_15m=Decimal("0.42"),
     )
 
     event = _protected_position_event(
@@ -341,6 +395,10 @@ def test_protected_position_event_exposes_leverage_margin_and_fee_adjusted_targe
         entry_reference_price=Decimal("1.0001"),
         directional_forecast_bps=Decimal("8"),
         entry_forecast_model="FORECAST_ALIGNED_MARKET_REFERENCE",
+        stop_algo_id=100,
+        stop_client_algo_id="aqa-t-exp-sl-test",
+        target_algo_id=101,
+        target_client_algo_id="aqa-t-exp-tp-test",
     )
 
     assert event["initial_leverage"] == 75
@@ -352,6 +410,115 @@ def test_protected_position_event_exposes_leverage_margin_and_fee_adjusted_targe
     assert event["entry_reference_price"] == "1.0001"
     assert event["directional_forecast_bps"] == "8"
     assert event["entry_forecast_model"] == "FORECAST_ALIGNED_MARKET_REFERENCE"
+    assert event["stop_algo_id"] == 100
+    assert event["stop_client_algo_id"] == "aqa-t-exp-sl-test"
+    assert event["target_algo_id"] == 101
+    assert event["target_client_algo_id"] == "aqa-t-exp-tp-test"
+    assert event["target_feasibility_rate_15m"] == "0.42"
+
+
+def test_restart_recovery_records_native_target_and_cleans_sibling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Client:
+        stop_status = "NEW"
+
+        def synchronize_time(self) -> tuple[int, int]:
+            return 1_000, 0
+
+        def position_mode(self) -> dict[str, bool]:
+            return {"dualSidePosition": False}
+
+        def position_risk(self, symbol: str) -> list[dict[str, str]]:
+            return [{"symbol": symbol, "positionAmt": "0"}]
+
+        def query_algo_order(
+            self, *, client_algo_id: str | None = None, algo_id: int | None = None
+        ) -> dict[str, object]:
+            assert client_algo_id is None
+            if algo_id == 100:
+                return {
+                    "algoId": 100,
+                    "clientAlgoId": "aqa-t-exp-sl-test",
+                    "algoStatus": self.stop_status,
+                }
+            return {
+                "algoId": 101,
+                "clientAlgoId": "aqa-t-exp-tp-test",
+                "algoStatus": "FINISHED",
+            }
+
+        def open_algo_orders(self, symbol: str) -> list[dict[str, object]]:
+            if self.stop_status != "NEW":
+                return []
+            return [
+                {
+                    "algoId": 100,
+                    "clientAlgoId": "aqa-t-exp-sl-test",
+                    "algoStatus": "NEW",
+                }
+            ]
+
+        def cancel_algo_order(
+            self, *, client_algo_id: str | None = None, algo_id: int | None = None
+        ) -> dict[str, object]:
+            assert client_algo_id is None and algo_id == 100
+            self.stop_status = "CANCELED"
+            return {"algoId": 100, "algoStatus": "CANCELED"}
+
+        def account_trades(self, symbol: str, *, start_time_ms: int) -> list[dict[str, object]]:
+            assert start_time_ms > 0
+            return [
+                {
+                    "id": 1,
+                    "time": 1_001,
+                    "side": "BUY",
+                    "price": "100",
+                    "realizedPnl": "0",
+                    "commission": "0.01",
+                },
+                {
+                    "id": 2,
+                    "time": 1_002,
+                    "side": "SELL",
+                    "price": "101",
+                    "realizedPnl": "0.10",
+                    "commission": "0.01",
+                },
+            ]
+
+    client = Client()
+    monkeypatch.setattr(experiment, "_credential", lambda *args: "credential")
+    monkeypatch.setattr(experiment, "BinanceTestnetClient", lambda *args: client)
+    result = resume_protected_structural_experiment(
+        api_key_file=Path("key"),
+        api_secret_file=Path("secret"),
+        repository_root=Path.cwd(),
+        recovery_event={
+            "symbol": "SOLUSDT",
+            "direction": "LONG",
+            "quantity": "0.1",
+            "entry_price": "100",
+            "initial_leverage": 50,
+            "strategy": "TEST_STRATEGY",
+            "position_started_at": datetime(2026, 7, 15, tzinfo=UTC)
+            .isoformat()
+            .replace("+00:00", "Z"),
+            "stop_algo_id": 100,
+            "stop_client_algo_id": "aqa-t-exp-sl-test",
+            "target_algo_id": 101,
+            "target_client_algo_id": "aqa-t-exp-tp-test",
+            "stop_trigger": "99",
+            "target_trigger": "101",
+        },
+        sleep=lambda _seconds: None,
+    )
+
+    assert result["recovered_after_restart"] is True
+    assert result["exit_reason"] == "TAKE_PROFIT"
+    assert result["target_achieved"] is True
+    assert result["net_pnl"] == "0.08"
+    assert result["stop_final_status"] == "CANCELED"
 
 
 def test_predictive_entry_uses_observed_and_forecast_twenty_minute_average() -> None:
@@ -391,6 +558,20 @@ def test_predictive_average_rejects_an_uninformative_forecast(
         )
 
 
+def test_fast_signal_can_use_an_explicit_sub_one_bps_forecast_threshold() -> None:
+    price, forecast, model = market_entry_reference(
+        Direction.LONG,
+        bid_price=Decimal("99.99"),
+        ask_price=Decimal("100.01"),
+        predictive_average_20m=Decimal("100.002"),
+        minimum_forecast_edge_bps=Decimal("0.10"),
+    )
+
+    assert price == Decimal("100.01")
+    assert forecast == Decimal("0.20000")
+    assert model == "FORECAST_ALIGNED_MARKET_REFERENCE"
+
+
 def test_short_aligned_forecast_uses_the_executable_bid() -> None:
     price, forecast, model = market_entry_reference(
         Direction.SHORT,
@@ -408,19 +589,30 @@ def test_short_aligned_forecast_uses_the_executable_bid() -> None:
     ("direction", "average"),
     [(Direction.LONG, "99.91"), (Direction.SHORT, "100.09")],
 )
-def test_confirmed_signal_keeps_priority_when_linear_forecast_conflicts(
+def test_confirmed_signal_is_rejected_when_linear_forecast_conflicts(
     direction: Direction, average: str
 ) -> None:
+    with pytest.raises(ProbeError, match="EXPERIMENT_PREDICTIVE_DIRECTION_CONFLICT"):
+        market_entry_reference(
+            direction,
+            bid_price=Decimal("99.99"),
+            ask_price=Decimal("100.01"),
+            predictive_average_20m=Decimal(average),
+        )
+
+
+def test_strong_breadth_can_make_linear_forecast_diagnostic_only() -> None:
     price, forecast, model = market_entry_reference(
-        direction,
+        Direction.SHORT,
         bid_price=Decimal("99.99"),
         ask_price=Decimal("100.01"),
-        predictive_average_20m=Decimal(average),
+        predictive_average_20m=Decimal("100.09"),
+        minimum_forecast_edge_bps=Decimal(0),
     )
 
-    assert price == (Decimal("100.01") if direction is Direction.LONG else Decimal("99.99"))
+    assert price == Decimal("99.99")
     assert forecast < 0
-    assert model == "FORECAST_CONFLICT_SIGNAL_PRIORITY_MARKET_REFERENCE"
+    assert model == "STRONG_BREADTH_MARKET_REFERENCE_FORECAST_DIAGNOSTIC_ONLY"
 
 
 def test_pretrade_outcome_estimate_enforces_meaningful_fee_adjusted_target() -> None:

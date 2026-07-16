@@ -5,11 +5,13 @@ host reinstall or in a new AI session.
 
 Files:
 
-- `SESSION_HANDOFF_2026-07-14.md`: user-visible session decisions, completed work, verification and
-  remaining gates.
+- `SESSION_HANDOFF_2026-07-14.md`: historical sanitized session decisions and early implementation
+  context.
+- `SESSION_HANDOFF_2026-07-16.md`: current Debian/Testnet/V5.6 deployment and publication handoff.
 - `CONTINUE_WITH_ANOTHER_AI.md`: a ready-to-copy prompt for another Codex/AI agent.
 
-The raw `/root/.codex` directory is intentionally not committed. It contains authentication state,
+These are sanitized summaries, not verbatim raw conversations. The raw `/root/.codex` directory is
+intentionally not committed. It contains authentication state,
 internal tool records and product metadata that do not belong in source control. In particular,
 `auth.json`, SQLite state, shell snapshots and raw JSONL rollouts must never be added to this
 repository. This handoff contains no credentials or production secrets.

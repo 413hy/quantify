@@ -18,7 +18,7 @@ from ai_quant.features.price_action import (
 )
 from ai_quant.market_data.models import AggregateTrade
 
-TESTNET_EXPERIMENT_STRATEGY_VERSION = "TESTNET_EXPERIMENT_OF_PA_V4_11"
+TESTNET_EXPERIMENT_STRATEGY_VERSION = "TESTNET_EXPERIMENT_OF_PA_V5_6"
 TESTNET_EXPERIMENT_SYMBOLS = (
     "BTCUSDT",
     "ETHUSDT",
@@ -28,10 +28,10 @@ TESTNET_EXPERIMENT_SYMBOLS = (
 )
 TESTNET_IMPULSE_ENTRY_SYMBOLS = TESTNET_EXPERIMENT_SYMBOLS
 _GROSS_TARGET_BPS_BY_SYMBOL = {
-    "BTCUSDT": Decimal("23"),
-    "ETHUSDT": Decimal("26"),
-    "BNBUSDT": Decimal("28"),
-    "SOLUSDT": Decimal("32"),
+    "BTCUSDT": Decimal("22"),
+    "ETHUSDT": Decimal("22"),
+    "BNBUSDT": Decimal("25"),
+    "SOLUSDT": Decimal("25"),
     "XRPUSDT": Decimal("25"),
 }
 
@@ -47,10 +47,13 @@ class TestnetBaselineDecision:
     order_flow: OrderFlowFrame
     spread_bps: Decimal
     reason_codes: tuple[str, ...]
+    pa_1h: PriceActionFrame | None = None
     experimental_plan: TestnetExperimentalPlan | None = None
     recent_low: Decimal | None = None
     recent_high: Decimal | None = None
     predictive_average_20m: Decimal | None = None
+    long_target_feasibility_rate_15m: Decimal = Decimal(0)
+    short_target_feasibility_rate_15m: Decimal = Decimal(0)
 
     @property
     def execution_ready(self) -> bool:
@@ -93,6 +96,17 @@ class TestnetBaselineDecision:
                 "atr": _decimal_or_none(self.pa_5m.atr),
                 "efficiency_ratio": _decimal_or_none(self.pa_5m.efficiency_ratio),
             },
+            "pa_1h": (
+                None
+                if self.pa_1h is None
+                else {
+                    "regime": self.pa_1h.regime,
+                    "structure": self.pa_1h.structure,
+                    "direction": self.pa_1h.direction,
+                    "atr": _decimal_or_none(self.pa_1h.atr),
+                    "efficiency_ratio": _decimal_or_none(self.pa_1h.efficiency_ratio),
+                }
+            ),
             "order_flow": {
                 "book_imbalance": format(self.order_flow.book_imbalance, "f"),
                 "microprice_mid_bps": format(self.order_flow.microprice_mid_bps, "f"),
@@ -103,6 +117,10 @@ class TestnetBaselineDecision:
             "spread_bps": format(self.spread_bps, "f"),
             "mid_price": format(self.mid_price, "f"),
             "microprice": format(self.order_flow.microprice, "f"),
+            "target_feasibility_15m": {
+                "long_rate": format(self.long_target_feasibility_rate_15m, "f"),
+                "short_rate": format(self.short_target_feasibility_rate_15m, "f"),
+            },
             "reason_codes": list(self.reason_codes),
             "validation_status": "UNVALIDATED_TESTNET_BASELINE",
             "testnet_experimental_plan": (
@@ -131,6 +149,9 @@ class TestnetExperimentalPlan:
     setup_type: str = "TREND_CONFIRMATION"
     market_momentum_bps: Decimal = Decimal(0)
     market_breadth_count: int = 0
+    target_feasibility_rate_15m: Decimal = Decimal(0)
+    minimum_directional_forecast_bps: Decimal = Decimal("1.00")
+    exit_only: bool = False
     strategy_version: str = TESTNET_EXPERIMENT_STRATEGY_VERSION
 
     def evidence(self) -> dict[str, str | int]:
@@ -153,6 +174,9 @@ class TestnetExperimentalPlan:
             "setup_type": self.setup_type,
             "market_momentum_bps": format(self.market_momentum_bps, "f"),
             "market_breadth_count": self.market_breadth_count,
+            "target_feasibility_rate_15m": format(self.target_feasibility_rate_15m, "f"),
+            "minimum_directional_forecast_bps": format(self.minimum_directional_forecast_bps, "f"),
+            "exit_only": self.exit_only,
             "strategy_version": self.strategy_version,
         }
 
@@ -168,6 +192,7 @@ class TestnetSignalParameters:
     maximum_opposing_book_imbalance: Decimal = Decimal("0.05")
     maximum_opposing_microprice_bps: Decimal = Decimal("0.25")
     minimum_pa_alignment_count: int = 1
+    minimum_target_feasibility_rate_15m: Decimal = Decimal("0.20")
 
     def __post_init__(self) -> None:
         if not Decimal(0) < self.maximum_spread_bps <= Decimal(100):
@@ -185,6 +210,8 @@ class TestnetSignalParameters:
             raise ValueError("testnet opposing microprice threshold is invalid")
         if self.minimum_pa_alignment_count not in {1, 2}:
             raise ValueError("testnet PA alignment count is invalid")
+        if not Decimal(0) <= self.minimum_target_feasibility_rate_15m <= Decimal(1):
+            raise ValueError("testnet target feasibility threshold is invalid")
 
 
 def predictive_average_10m_before_after(bars_1m: list[ClosedBar]) -> Decimal:
@@ -215,6 +242,46 @@ def predictive_average_10m_before_after(bars_1m: list[ClosedBar]) -> Decimal:
     return predicted_average
 
 
+def historical_target_feasibility_rate(
+    bars_1m: list[ClosedBar],
+    *,
+    direction: Direction,
+    target_bps: Decimal,
+    horizon_bars: int = 15,
+    lookback_bars: int = 120,
+) -> Decimal:
+    """Estimate whether the configured target is ordinary within a short horizon.
+
+    This uses only already-closed bars. It is an entry feasibility filter, not a
+    time-based position exit and not a directional forecast.
+    """
+    if (
+        direction not in {Direction.LONG, Direction.SHORT}
+        or target_bps <= 0
+        or not 5 <= horizon_bars <= 60
+        or lookback_bars < horizon_bars + 30
+    ):
+        raise ValueError("target feasibility input is invalid")
+    history = bars_1m[-lookback_bars:]
+    if len(history) < horizon_bars + 30:
+        raise ValueError("target feasibility history is insufficient")
+    hits = 0
+    samples = len(history) - horizon_bars
+    for index in range(samples):
+        reference = history[index].close
+        future = history[index + 1 : index + 1 + horizon_bars]
+        if direction is Direction.LONG:
+            excursion_bps = (max(bar.high for bar in future) / reference - Decimal(1)) * Decimal(
+                10_000
+            )
+        else:
+            excursion_bps = (Decimal(1) - min(bar.low for bar in future) / reference) * Decimal(
+                10_000
+            )
+        hits += excursion_bps >= target_bps
+    return Decimal(hits) / Decimal(samples)
+
+
 def evaluate_testnet_baseline(
     *,
     symbol: str,
@@ -223,6 +290,7 @@ def evaluate_testnet_baseline(
     five_minute_klines: list[Any],
     depth: dict[str, Any],
     aggregate_trades: list[dict[str, Any]],
+    one_hour_klines: list[Any] | None = None,
     signal_parameters: TestnetSignalParameters | None = None,
 ) -> TestnetBaselineDecision:
     """Apply the checked-in PA baseline and conservative long OF confirmation."""
@@ -230,6 +298,11 @@ def evaluate_testnet_baseline(
     observed_at = _utc_from_milliseconds(server_time_ms)
     bars_1m = _closed_bars(symbol, "1m", one_minute_klines, server_time_ms)
     bars_5m = _closed_bars(symbol, "5m", five_minute_klines, server_time_ms)
+    bars_1h = (
+        []
+        if one_hour_klines is None
+        else _closed_bars(symbol, "1h", one_hour_klines, server_time_ms)
+    )
     if len(bars_1m) < 60 or len(bars_5m) < 48:
         raise ValueError("testnet baseline has insufficient closed bars")
     pa_1m = analyze_price_action(
@@ -256,21 +329,47 @@ def evaluate_testnet_baseline(
         required_pairs=2,
         equal_tolerance_atr=Decimal("0.10"),
     )
+    pa_1h = (
+        None
+        if not bars_1h
+        else analyze_price_action(
+            bars_1h,
+            atr_period=14,
+            efficiency_lookback=20,
+            efficiency_threshold=Decimal("0.30"),
+            slope_lookback=10,
+            slope_threshold_atr=Decimal("0.05"),
+            swing_left=2,
+            swing_right=2,
+            required_pairs=2,
+            equal_tolerance_atr=Decimal("0.10"),
+        )
+    )
     bids, asks = _book_levels(depth)
     trades = _trades(symbol, aggregate_trades, observed_at)
     order_flow = calculate_order_flow(bids, asks, trades, depth_levels=20)
     mid = (bids[0].price + asks[0].price) / Decimal(2)
     spread_bps = (asks[0].price - bids[0].price) / mid * Decimal(10_000)
+    target_bps = gross_target_bps_for_symbol(symbol)
+    long_target_feasibility = historical_target_feasibility_rate(
+        bars_1m, direction=Direction.LONG, target_bps=target_bps
+    )
+    short_target_feasibility = historical_target_feasibility_rate(
+        bars_1m, direction=Direction.SHORT, target_bps=target_bps
+    )
     experimental_plan = _experimental_plan(
         symbol=symbol,
         bars_1m=bars_1m,
         pa_1m=pa_1m,
         pa_5m=pa_5m,
+        pa_1h=pa_1h,
         order_flow=order_flow,
         bid=bids[0].price,
         ask=asks[0].price,
         spread_bps=spread_bps,
         parameters=parameters,
+        long_target_feasibility_rate_15m=long_target_feasibility,
+        short_target_feasibility_rate_15m=short_target_feasibility,
     )
 
     reasons: list[str] = []
@@ -299,6 +398,7 @@ def evaluate_testnet_baseline(
         direction=Direction.LONG if not reasons else Direction.NEUTRAL,
         pa_1m=pa_1m,
         pa_5m=pa_5m,
+        pa_1h=pa_1h,
         order_flow=order_flow,
         spread_bps=spread_bps,
         reason_codes=tuple(dict.fromkeys(reasons)),
@@ -306,6 +406,8 @@ def evaluate_testnet_baseline(
         recent_low=min(bar.low for bar in bars_1m[-5:]),
         recent_high=max(bar.high for bar in bars_1m[-5:]),
         predictive_average_20m=predictive_average_10m_before_after(bars_1m),
+        long_target_feasibility_rate_15m=long_target_feasibility,
+        short_target_feasibility_rate_15m=short_target_feasibility,
     )
 
 
@@ -316,9 +418,13 @@ def build_market_impulse_plan(
     momentum_bps: Decimal,
     breadth_count: int,
     parameters: TestnetSignalParameters,
-    setup_type: str = "MARKET_BREADTH_IMPULSE_FAST",
+    setup_type: str = "MARKET_BREADTH_PULLBACK_RESUMPTION",
+    confirmed_directional_trade_imbalance: Decimal | None = None,
+    confirmed_directional_book_imbalance: Decimal | None = None,
+    confirmed_directional_microprice_bps: Decimal | None = None,
+    confirmed_aggressive_notional: Decimal | None = None,
 ) -> TestnetExperimentalPlan | None:
-    """Build a Testnet-only fast plan when market breadth and local flow agree."""
+    """Build a Testnet-only plan from current or recently latched flow evidence."""
     if direction not in {Direction.LONG, Direction.SHORT} or breadth_count < 3:
         return None
     if (
@@ -330,39 +436,84 @@ def build_market_impulse_plan(
         or decision.spread_bps > parameters.maximum_spread_bps
     ):
         return None
-    if direction is Direction.LONG and (
-        decision.pa_1m.direction is Direction.SHORT
-        or decision.pa_5m.direction is Direction.SHORT
+    strong_breadth = breadth_count >= 4
+    opposing_direction = Direction.SHORT if direction is Direction.LONG else Direction.LONG
+    opposing_pa_count = sum(
+        frame.direction is opposing_direction for frame in (decision.pa_1m, decision.pa_5m)
+    )
+    if (strong_breadth and opposing_pa_count == 2) or (
+        not strong_breadth and opposing_pa_count > 0
     ):
         return None
-    if direction is Direction.SHORT and (
-        decision.pa_1m.direction is Direction.LONG
-        or decision.pa_5m.direction is Direction.LONG
+    if decision.pa_1h is not None and (
+        (direction is Direction.LONG and decision.pa_1h.direction is Direction.SHORT)
+        or (direction is Direction.SHORT and decision.pa_1h.direction is Direction.LONG)
     ):
         return None
     sign = Decimal(1) if direction is Direction.LONG else Decimal(-1)
-    directional_trade = sign * decision.order_flow.trade_imbalance
-    directional_book = sign * decision.order_flow.book_imbalance
-    directional_microprice = sign * decision.order_flow.microprice_mid_bps
+    directional_trade = (
+        sign * decision.order_flow.trade_imbalance
+        if confirmed_directional_trade_imbalance is None
+        else confirmed_directional_trade_imbalance
+    )
+    directional_book = (
+        sign * decision.order_flow.book_imbalance
+        if confirmed_directional_book_imbalance is None
+        else confirmed_directional_book_imbalance
+    )
+    directional_microprice = (
+        sign * decision.order_flow.microprice_mid_bps
+        if confirmed_directional_microprice_bps is None
+        else confirmed_directional_microprice_bps
+    )
+    aligned_structure = "HH_HL" if direction is Direction.LONG else "LH_LL"
+    pa_alignment_count = sum(
+        frame.direction is direction or str(frame.structure) == aligned_structure
+        for frame in (decision.pa_1m, decision.pa_5m)
+    )
+    # Breadth chooses the regime, but never grants entry by itself. The campaign
+    # state machine has already observed a pullback and resumption; this builder
+    # still requires current aggressive trades and one secondary flow source.
+    target_feasibility = (
+        decision.long_target_feasibility_rate_15m
+        if direction is Direction.LONG
+        else decision.short_target_feasibility_rate_15m
+    )
+    if target_feasibility < parameters.minimum_target_feasibility_rate_15m:
+        return None
     # Aggressive trades must lead the impulse. Either the book or microprice must
     # agree, while a materially opposing reading from either source vetoes entry.
-    if directional_trade < parameters.minimum_trade_imbalance or not (
+    aligned_secondary_flow = (
         directional_book >= parameters.minimum_book_imbalance
         or directional_microprice >= parameters.minimum_microprice_bps
-    ) or (
+    )
+    individually_opposing_flow = (
         directional_book < -parameters.maximum_opposing_book_imbalance
         or directional_microprice < -parameters.maximum_opposing_microprice_bps
-    ):
+    )
+    if directional_trade < parameters.minimum_trade_imbalance or not aligned_secondary_flow:
+        return None
+    if not strong_breadth and individually_opposing_flow:
         return None
     mid = decision.mid_price
     half_spread = mid * decision.spread_bps / Decimal(20_000)
     entry = mid + half_spread if direction is Direction.LONG else mid - half_spread
     atr = decision.pa_1m.atr
+    # Give an ultra-short position enough room for ordinary microstructure noise.
+    # Quantity sizing, rather than a tight price stop, keeps the maximum net loss
+    # within the campaign's one-USDT budget.
+    minimum_stop_fraction = Decimal("0.0060")
     if direction is Direction.LONG:
-        stop = min(decision.recent_low - atr * Decimal("0.10"), entry * Decimal("0.9940"))
+        stop = min(
+            decision.recent_low - atr * Decimal("0.10"),
+            entry * (Decimal(1) - minimum_stop_fraction),
+        )
         risk = entry - stop
     else:
-        stop = max(decision.recent_high + atr * Decimal("0.10"), entry * Decimal("1.0060"))
+        stop = max(
+            decision.recent_high + atr * Decimal("0.10"),
+            entry * (Decimal(1) + minimum_stop_fraction),
+        )
         risk = stop - entry
     risk_bps = risk / entry * Decimal(10_000)
     if not Decimal(30) <= risk_bps <= Decimal(120):
@@ -370,9 +521,6 @@ def build_market_impulse_plan(
     target_bps = gross_target_bps_for_symbol(decision.symbol)
     target_distance = entry * target_bps / Decimal(10_000)
     target = entry + target_distance if direction is Direction.LONG else entry - target_distance
-    pa_alignment_count = sum(
-        frame.direction is direction for frame in (decision.pa_1m, decision.pa_5m)
-    )
     quality_score = (
         Decimal(3)
         + directional_trade
@@ -394,11 +542,16 @@ def build_market_impulse_plan(
         directional_trade_imbalance=directional_trade,
         directional_book_imbalance=directional_book,
         directional_microprice_bps=directional_microprice,
-        aggressive_notional=decision.order_flow.aggressive_notional,
+        aggressive_notional=(
+            decision.order_flow.aggressive_notional
+            if confirmed_aggressive_notional is None
+            else confirmed_aggressive_notional
+        ),
         observed_spread_bps=decision.spread_bps,
         setup_type=setup_type,
         market_momentum_bps=momentum_bps,
         market_breadth_count=breadth_count,
+        target_feasibility_rate_15m=target_feasibility,
     )
 
 
@@ -408,11 +561,14 @@ def _experimental_plan(
     bars_1m: list[ClosedBar],
     pa_1m: PriceActionFrame,
     pa_5m: PriceActionFrame,
+    pa_1h: PriceActionFrame | None,
     order_flow: OrderFlowFrame,
     bid: Decimal,
     ask: Decimal,
     spread_bps: Decimal,
     parameters: TestnetSignalParameters,
+    long_target_feasibility_rate_15m: Decimal,
+    short_target_feasibility_rate_15m: Decimal,
 ) -> TestnetExperimentalPlan | None:
     """Create a Testnet-only plan only when PA and directional flow agree."""
     if not order_flow.valid or pa_1m.atr is None or spread_bps > parameters.maximum_spread_bps:
@@ -446,6 +602,18 @@ def _experimental_plan(
     if long_flow == short_flow:
         return None
     direction = Direction.LONG if long_flow else Direction.SHORT
+    if pa_1h is not None and (
+        (direction is Direction.LONG and pa_1h.direction is Direction.SHORT)
+        or (direction is Direction.SHORT and pa_1h.direction is Direction.LONG)
+    ):
+        return None
+    target_feasibility = (
+        long_target_feasibility_rate_15m
+        if direction is Direction.LONG
+        else short_target_feasibility_rate_15m
+    )
+    if target_feasibility < parameters.minimum_target_feasibility_rate_15m:
+        return None
     entry = ask if long_flow else bid
     atr = pa_1m.atr
     recent = bars_1m[-5:]
@@ -499,6 +667,7 @@ def _experimental_plan(
         directional_microprice_bps=directional_microprice,
         aggressive_notional=order_flow.aggressive_notional,
         observed_spread_bps=spread_bps,
+        target_feasibility_rate_15m=target_feasibility,
     )
 
 
