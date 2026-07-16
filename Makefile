@@ -10,7 +10,7 @@ UV := uv
 	test-integration test-fault test-resource test-auto-iteration test-model-selection \
 	test-quota-deferral-fifo security-scan sbom scan \
 	compose-check validate-platform-amendment validate-debian-platform validate-deployment \
-	validate-nftables-policy paper-flow build ci
+	validate-nftables-policy build ci
 
 help:
 	@sed -n 's/^\([a-zA-Z0-9_-]*\):.*$$/\1/p' Makefile | sort
@@ -104,10 +104,6 @@ test-model-selection:
 
 test-quota-deferral-fifo:
 	$(UV) run pytest -q tests/unit/test_iteration_queue.py -k quota
-
-paper-flow:
-	rm -rf /tmp/aiq-paper-flow
-	$(UV) run python scripts/run-paper-flow.py --workdir /tmp/aiq-paper-flow
 
 security-scan:
 	$(UV) run bandit -q -r src

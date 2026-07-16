@@ -1,16 +1,10 @@
 # Chat continuity package
 
-This directory preserves a sanitized, repository-local handoff for continuing the project after a
-host reinstall or in a new AI session.
+This directory contains only a sanitized continuation prompt for the strategy-free framework.
 
-Files:
+File: `CONTINUE_WITH_ANOTHER_AI.md`, a ready-to-copy prompt for another Codex/AI agent.
 
-- `SESSION_HANDOFF_2026-07-14.md`: historical sanitized session decisions and early implementation
-  context.
-- `SESSION_HANDOFF_2026-07-16.md`: current Debian/Testnet/V5.6 deployment and publication handoff.
-- `CONTINUE_WITH_ANOTHER_AI.md`: a ready-to-copy prompt for another Codex/AI agent.
-
-These are sanitized summaries, not verbatim raw conversations. The raw `/root/.codex` directory is
+This is a sanitized handoff, not a verbatim raw conversation. The raw `/root/.codex` directory is
 intentionally not committed. It contains authentication state,
 internal tool records and product metadata that do not belong in source control. In particular,
 `auth.json`, SQLite state, shell snapshots and raw JSONL rollouts must never be added to this

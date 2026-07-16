@@ -290,6 +290,7 @@ def _validate_testnet_continuity_units() -> None:
     secrets_text = secrets_path.read_text(encoding="utf-8")
     secrets_lines = set(secrets_text.splitlines())
     required_secret_lines = {
+        "Before=aiq-testnet-user-stream.service",
         "Type=oneshot",
         "User=root",
         "Group=root",
@@ -320,110 +321,19 @@ def _validate_testnet_continuity_units() -> None:
     ):
         raise SystemExit("Testnet secret materializer is unsafe or incomplete")
 
-    campaign = (ROOT / "deploy/systemd/aiq-testnet-campaign.service").read_text(encoding="utf-8")
     user_stream = (ROOT / "deploy/systemd/aiq-testnet-user-stream.service").read_text(
         encoding="utf-8"
     )
-    dashboard = (ROOT / "deploy/systemd/aiq-telegram-dashboard.service").read_text(encoding="utf-8")
-    if not all(
-        token in campaign
-        for token in (
-            "Requires=aiq-testnet-secrets.service",
-            "--duration-seconds 0",
-            "--evaluation-interval-seconds 60",
-            "--trade-cooldown-seconds 0",
-            "--maximum-parallel-positions 5",
-            "--maximum-candidates-per-round 5",
-            "--minimum-directional-forecast-bps 2.00",
-            "--impulse-minimum-directional-forecast-bps 0.10",
-            "--continuation-minimum-directional-forecast-bps 2.00",
-            "--structure-substitute-minimum-directional-forecast-bps 3.00",
-            "--structure-substitute-minimum-trade-imbalance 0.75",
-            "--structure-substitute-minimum-secondary-flow 0.10",
-            "--minimum-target-feasibility-rate-15m 0.20",
-            "--impulse-minimum-target-feasibility-rate-15m 0.02",
-            "--minimum-net-reward-risk-ratio 0.50",
-            "--impulse-minimum-net-reward-risk-ratio 0.15",
-            "--no-activity-filter-enabled",
-            "--no-impulse-activity-filter-enabled",
-            "--impulse-minimum-activity-ratio 0.10",
-            "--impulse-maximum-activity-ratio 10.00",
-            "--impulse-maximum-momentum-bps 8.00",
-            "--impulse-lookback-rounds 4",
-            "--sustained-lookback-rounds 5",
-            "--pullback-minimum-bps 3.00",
-            "--pullback-resumption-bps 0.50",
-            "--pullback-maximum-bps 40.00",
-            "--pullback-setup-maximum-rounds 10",
-            "--signal-evidence-window-rounds 2",
-            "--continuation-minimum-breadth-count 4",
-            "--continuation-confirmation-rounds 1",
-            "--continuation-minimum-momentum-bps 4.00",
-            "--continuation-maximum-momentum-bps 15.00",
-            "--position-failed-followthrough-peak-bps 6.00",
-            "--position-adverse-invalidation-bps 10.00",
-            "--position-profit-protection-peak-bps 20.00",
-            "--position-profit-giveback-bps 10.00",
-            "--position-opposition-confirmation-rounds 1",
-            "Restart=always",
-            "StartLimitIntervalSec=300",
-        )
-    ):
-        raise SystemExit("continuous Testnet campaign service policy is incomplete")
     if not all(
         token in user_stream for token in ("Requires=aiq-testnet-secrets.service", "Restart=always")
     ):
         raise SystemExit("Testnet user stream restart policy is incomplete")
-    if "Restart=always" not in dashboard:
-        raise SystemExit("Telegram dashboard restart policy is incomplete")
-
-
-def _validate_telegram_dashboard_unit() -> None:
-    path = ROOT / "deploy/systemd/aiq-telegram-dashboard.service"
-    lines = set(path.read_text(encoding="utf-8").splitlines())
-    required = {
-        "User=root",
-        "Group=root",
-        "NoNewPrivileges=yes",
-        "ProtectSystem=full",
-        "ProtectHome=read-only",
-        "PrivateDevices=yes",
-        "ProtectKernelTunables=yes",
-        "ProtectKernelModules=yes",
-        "ProtectControlGroups=yes",
-        "RestrictNamespaces=yes",
-        "RestrictSUIDSGID=yes",
-        "MemoryDenyWriteExecute=yes",
-        "SystemCallArchitectures=native",
-        "RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6",
-        "CapabilityBoundingSet=",
-        "AmbientCapabilities=",
-        "ReadWritePaths=/var/lib/ai-quant/telegram /run/ai-quant",
-    }
-    if not required <= lines:
-        raise SystemExit("Telegram dashboard unit hardening is incomplete")
-    command = next((line for line in lines if line.startswith("ExecStart=")), "")
-    required_arguments = {
-        "-m ai_quant.services.telegram_dashboard",
-        "--token-file /root/aiq-user-inputs/notifications/secrets/telegram_bot_token",
-        "--chat-ids-file /root/aiq-user-inputs/notifications/telegram_chat_ids",
-        "--campaign-state-file /var/lib/ai-quant/evidence/testnet/campaign/current/state.json",
-        "--observations-file "
-        "/var/lib/ai-quant/evidence/testnet/campaign/current/observations.jsonl",
-        "--user-stream-state-file "
-        "/var/lib/ai-quant/evidence/testnet/user-stream/current/state.json",
-        "--service-state-file /var/lib/ai-quant/telegram/dashboard-state.json",
-    }
-    if not all(value in command for value in required_arguments):
-        raise SystemExit("Telegram dashboard command is incomplete")
-    forbidden = (
-        "binance-testnet-api-key",
-        "binance-testnet-api-secret",
-        "execution.sock",
-        "/bin/sh",
+    removed_strategy_units = (
+        ROOT / "deploy/systemd/aiq-testnet-campaign.service",
+        ROOT / "deploy/systemd/aiq-telegram-dashboard.service",
     )
-    if any(token in command for token in forbidden):
-        raise SystemExit("Telegram dashboard crosses the read-only boundary")
+    if any(path.exists() for path in removed_strategy_units):
+        raise SystemExit("strategy-specific systemd units must not exist in the framework")
 
 
 def main() -> int:
@@ -431,7 +341,6 @@ def main() -> int:
     _validate_baseline_unit()
     _validate_testnet_user_stream_unit()
     _validate_testnet_continuity_units()
-    _validate_telegram_dashboard_unit()
     _validate_unit(
         "aiq-measurement-cycle.service",
         "/opt/ai-quant/.venv/bin/python -m ai_quant.services.measurement_cycle",
@@ -449,7 +358,7 @@ def main() -> int:
         raise SystemExit("nftables example is not an object")
     render_nftables_policy(example)
     print(
-        "deployment static policy PASS units=4 postgres_tcp=none "
+        "deployment static policy PASS units=2 postgres_tcp=none "
         "nft_table=ai_quant_egress bootstrap=debian12-locked"
     )
     return 0
